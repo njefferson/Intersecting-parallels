@@ -42,9 +42,17 @@ jobs:
 
       # The screenshots are the walk's visible half: when a run fails, the
       # picture of the app at each step is what makes the failure legible.
+      #
+      # include-hidden-files is REQUIRED, not tidiness: `.walk-shots` starts
+      # with a dot, and upload-artifact v4 silently excludes hidden paths. The
+      # first run uploaded nothing and said so only in a warning — an artifact
+      # that quietly never exists is worse than none, because you go looking
+      # for it exactly when a run has failed. if-no-files-found: error makes
+      # that failure loud from now on.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: walk-screenshots
           path: .walk-shots/
-          if-no-files-found: warn
+          include-hidden-files: true
+          if-no-files-found: error

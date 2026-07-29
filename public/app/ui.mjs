@@ -916,7 +916,10 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
   window.__ip = {
     get scene() { return scene; },
     get canvas() { return { width: el.canvas.width, height: el.canvas.height }; },
-    moveVp: (id, p) => { const r = moveVp(scene, id, p); render(); return r; },
+    // Goes through the same panel refresh the app's own paths use, so a
+    // screenshot taken after a scripted move never shows stale coordinates
+    // beside fresh geometry.
+    moveVp: (id, p) => { const r = moveVp(scene, id, p); renderPanel({ structural: false }); render(); return r; },
     toScreen: p => toScreen(view, p),
     buildSvg, renderPng,
     flush: () => autosaver.flush(),
