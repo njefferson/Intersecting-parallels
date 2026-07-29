@@ -15,8 +15,9 @@
 // commit that introduces it (§4).
 
 import { chromium } from 'playwright-core';
-import { pathToFileURL } from 'node:url';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, createReadStream } from 'node:fs';
+import { createServer } from 'node:http';
+import { extname, join, normalize } from 'node:path';
 
 // The session sandbox ships a Chromium at a fixed path (Doctrine §11) and
 // playwright-core is pinned to the matching revision — see package.json.
@@ -30,11 +31,51 @@ if (existsSync(SANDBOX_CHROMIUM)) launchOpts.executablePath = SANDBOX_CHROMIUM;
 const VERBOSE = process.argv.includes('--verbose');
 const axeSrc = readFileSync('node_modules/axe-core/axe.min.js', 'utf8');
 
-// Every deployed page. One today; when the app itself ships, its page(s) join
-// this list in the same commit — a deployed page outside this list is the
-// unscanned-page failure the hub lived with until 2026-07-28.
+// The app is ES modules, which a file:// origin cannot import at all, so the
+// gate SERVES public/ over http and scans what a browser would really load.
+// Same bytes as the deploy: this reads the directory wrangler uploads.
+const ROOT = 'public';
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json',
+  '.svg': 'image/svg+xml', '.png': 'image/png',
+};
+function serveRoot() {
+  const server = createServer((req, res) => {
+    let rel = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    if (rel.endsWith('/')) rel += 'index.html';
+    const path = join(ROOT, normalize(rel).replace(/^(\.\.[/\\])+/, ''));
+    try {
+      if (!statSync(path).isFile()) throw new Error('not a file');
+    } catch {
+      res.writeHead(404); res.end('not found'); return;
+    }
+    res.writeHead(200, { 'content-type': MIME[extname(path)] ?? 'application/octet-stream' });
+    createReadStream(path).pipe(res);
+  });
+  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
+}
+
+// Every deployed page, and every STATE of it a reader can reach. A dialog that
+// is closed at load is invisible to axe and to any page-load scan — scanning
+// only the default state would report the app clean while three of its four
+// surfaces went unchecked. Each state names the control that opens it.
 const PAGES = [
-  { file: 'public/index.html', registry: ['h1','.tag','.lead','.status','.links a','.foot','.foot a'] },
+  {
+    url: '/',
+    registry: ['h1.title', '.btn', '.hint', '.vp-name', '.coord label', '.panel-head h2'],
+    states: [
+      { name: 'canvas', open: null },
+      { name: 'export', open: '#open-export', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body label', '.hint'] },
+      // Not '.empty' here: whether the saved-projects list is empty depends on
+      // whether autosave has fired yet, and a registry entry that matches only
+      // sometimes is a flaky gate. Its pair (--muted on --surface) is the same
+      // one '.hint' registers, so the colours are covered without the flake.
+      { name: 'project', open: '#open-project', registry: ['.dlg-head h2', '.dlg-body label', '.dlg-body h3'] },
+      { name: 'about', open: '#open-about', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body a', '.dlg-body li'] },
+    ],
+  },
 ];
 
 const THEMES = ['light', 'dark'];
@@ -53,21 +94,34 @@ const notes = [];
 const exemptions = new Set();
 const fail = (where, msg) => failures.push(`${where}: ${msg}`);
 
+const server = await serveRoot();
+const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch(launchOpts);
 
 try {
-  for (const { file, registry } of PAGES) {
+  for (const pageDef of PAGES) {
+    for (const state of pageDef.states) {
     for (const theme of THEMES) {
       const page = await browser.newPage({
         viewport: VIEWPORTS[0],
         deviceScaleFactor: 2,
         colorScheme: theme,
       });
+      const registry = [...pageDef.registry, ...(state.registry ?? [])];
       const pageErrors = [];
       page.on('pageerror', e => pageErrors.push(String(e)));
-      const where = `${file} [${theme}]`;
+      const where = `${pageDef.url} (${state.name}) [${theme}]`;
 
-      await page.goto(pathToFileURL(file).href, { waitUntil: 'networkidle' });
+      await page.goto(origin + pageDef.url, { waitUntil: 'networkidle' });
+      // The app boots asynchronously (it reads IndexedDB first), so wait for
+      // the surface to actually exist before measuring anything about it.
+      await page.waitForFunction(() => document.querySelectorAll('.vp-row').length > 0, null, { timeout: 10000 })
+        .catch(() => fail(where, 'the app did not finish booting within 10s — nothing below was measured against a working page'));
+      if (state.open) {
+        await page.click(state.open);
+        await page.waitForFunction(() => !!document.querySelector('dialog[open]'), null, { timeout: 5000 })
+          .catch(() => fail(where, `clicking ${state.open} opened no dialog`));
+      }
       await page.addScriptTag({ content: axeSrc });
 
       // ---- axe ------------------------------------------------------------
@@ -250,13 +304,16 @@ try {
       if (pageErrors.length) fail(where, `page errors: ${pageErrors.join(' | ')}`);
       await page.close();
     }
+    }
   }
 } finally {
   await browser.close();
+  server.close();
 }
 
+const STATE_COUNT = PAGES.reduce((n, p) => n + p.states.length, 0);
 console.log('=== a11y gate ===');
-console.log(`pages: ${PAGES.length} x themes: ${THEMES.length} x viewports: ${VIEWPORTS.length}`);
+console.log(`surfaces: ${STATE_COUNT} x themes: ${THEMES.length} x viewports: ${VIEWPORTS.length}`);
 if (exemptions.size) {
   console.log(`\nEXEMPTED (${exemptions.size}) — reported, never silent:`);
   for (const e of exemptions) console.log('  · ' + e);

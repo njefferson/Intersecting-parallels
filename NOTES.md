@@ -29,23 +29,88 @@ verbatim, next to this file. Every section the D1–D10 amendments cite is where
 they said it was. Read the spec WITH the amendments; where they disagree, the
 amendments win.
 
-**Build-order step 1 DONE (2026-07-29, same session):** the constraint graph
-and solver land as `public/app/solver.mjs` with `test/solver.test.mjs` — the
-D1 discriminated union, D3 line-with-continuity (signed `t`, deterministic
-reload), D4 degeneracy guards with the last-valid cache, topological solve,
-cycle rejection with surfaced reasons, and acceptance tests 1 and 2 driven
-against the solver. `npm test` (the same entry point CI runs, workflow
-`tests.yml`) — 15 tests green; the suite was made to fail twice against
-deliberately broken solvers before it was trusted (Doctrine §6). Next:
-build-order step 2, canvas render + pan/zoom — the deploy D10 moved up to
-step 2 is already live.
+**BUILD ORDER STEPS 1–10 ALL DONE (2026-07-29).** The full product is built
+and on `staging`, awaiting Noah's single aggregate pass. What each step became:
 
-**Waiting on Noah (his device — the sandbox cannot reach these):**
-- App Store search for the name.
-- USPTO search for the name.
-- A first look at https://intersecting-parallels.pages.dev on his iPad — the
-  deploy is verified server-side (wrangler logs), but no eye from this sandbox
-  has seen the served page; its gateway refuses CONNECT to pages.dev.
+1. Scene schema + solver + unit tests — `public/app/solver.mjs`,
+   `test/solver.test.mjs`.
+2. Canvas render + pan/zoom transform — `public/app/render.mjs`.
+3. VP placement, drag, off-canvas handles, horizon — `render.mjs` + `ui.mjs`.
+4. Click-to-place edges with vertex merging — `public/app/snap.mjs` (D2's
+   endpoint precedence lives here).
+5. VP drag → live re-solve. **The proof of concept.** It works; the aggregate
+   handoff below is the "stop and validate" this step asks for.
+6. Assisted freehand with ghost ray and threshold fallback — `snap.mjs` +
+   `ui.mjs`.
+7. Undo/redo, one gesture one step — `public/app/state.mjs` (D7).
+8. SVG then PNG export — `public/app/export.mjs` (D9's namespace and ceiling).
+9. IndexedDB persistence + JSON project file — `state.mjs`.
+10. Manifest + service worker + install — `manifest.webmanifest`, `sw.js`.
+
+**Gates, all three green, all three run by CI on the same entry points a
+session runs locally:**
+- `npm test` — 38 tests (solver, snapping and D2 precedence, export, project
+  validation, undo). Made to fail twice against broken solvers before trusted.
+- `npm run a11y` — the app in four surfaces (canvas + three dialogs), both
+  themes, two viewports. It now SERVES `public/` over HTTP, because ES modules
+  cannot load from `file://` and the old file:// scan would have measured a
+  blank page.
+- `npm run walk` — 33 checks driving the real app: draw, drag, undo, keyboard
+  nudge, export, reload, offline cold launch, 2,000 edges under drag, and an
+  assertion that no request ever leaves the origin.
+
+**What the gates caught before anything shipped** (recorded because a green
+tree that never went red proves nothing — hub LESSONS 7d): an unlabelled file
+input; a registry selector matching nothing; arrow-key nudge working exactly
+once because the panel rebuilt the DOM under the reader's focus (ACCESSIBILITY
+F-02); an off-screen VP marker covering the panel (F-03); and a real
+performance failure — 37.2ms per solve+frame at 2,000 edges against a 33ms
+bar. The performance fix was the algorithm, not the threshold (Doctrine §14):
+the topological solve was O(n²) with a linear id lookup inside it and is now
+Kahn's algorithm over an index built once, the renderer batches edges by style
+into one path per style instead of 2,000 draw calls, and VP drags apply on rAF
+rather than per pointer event (§4's own instruction). Median went 37.2ms →
+21.3ms, worst 65.2ms → 29.4ms.
+
+**Deliberate decisions a later session should not "clean up":**
+- `window.__ip` ships. It is the hook `walk.mjs` uses to drive the REAL page
+  rather than a rebuilt approximation of it. The app holds no secrets and
+  talks to no server, so it exposes nothing a reader could not already read.
+- The CSP in `public/_headers` was widened DELIBERATELY when the app replaced
+  the placeholder — `script-src 'self'` with no `'unsafe-inline'`, because
+  every line of script is in a file. The reasoning is in the file itself.
+- `.empty` is not in the a11y registry; its colour pair is covered by `.hint`.
+  See ACCESSIBILITY.md for why registering it would make the gate flaky.
+
+**Name checks: ALL CLEAR.** The App Store and USPTO checks are done — Noah ran
+them himself and reported the name checked (2026-07-29, "I already checked the
+name"). With pages.dev settled by the first deploy, nothing about the name
+remains open.
+
+**Working agreement (Noah, 2026-07-29):** build the FULL product without
+stopping at each staging promote; only stop when a decision is needed from him.
+He tests the AGGREGATE once, on staging on his iPad, before it becomes V1.
+Until that pass: all app work lands on `staging`; `main` keeps the placeholder
+(docs may still land on `main`). The single staging handoff at the end IS the
+Doctrine §7 gate for this build — one gate, his call, not skipped.
+
+**Waiting on Noah — the aggregate pass, on staging, on his iPad.** This is the
+one decision point of the build, and the Doctrine §7 gate for all of it.
+https://staging.intersecting-parallels.pages.dev
+
+UNTESTED until he does it, and labelled so honestly (Doctrine §5) — every one
+of these needs his hands and none can be checked from this sandbox:
+- Apple Pencil feel, and whether `SNAP_THRESHOLD` at 15° is right (§12 says
+  tune it against real stylus input; nothing here can).
+- Palm rejection in practice with the touch-draws toggle both off and on.
+- Two-finger pan and pinch on real glass.
+- PNG export opened in Procreate (transparent background, aspect ratio) and the
+  real iOS canvas ceiling — the app probes it at runtime, but that probe has
+  only ever run in headless Chromium.
+- SVG opened in Inkscape: layer names present, strokes not fills.
+- Add to Home Screen, then airplane-mode cold launch on the device itself.
+- Whether the drawing surface is legible in daylight, and the panel usable at
+  his text size.
 
 **SETTLED 2026-07-29: `intersecting-parallels.pages.dev` was free.** The first
 deploy run created the Pages project ("Successfully created the

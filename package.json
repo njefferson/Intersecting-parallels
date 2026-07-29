@@ -11,7 +11,10 @@
   "scripts": {
     "a11y": "node a11y-gate.mjs",
     "a11y:verbose": "node a11y-gate.mjs --verbose",
-    "test": "node --test"
+    "test": "node --test",
+    "render:icons": "node render-icons.mjs",
+    "walk": "node walk.mjs",
+    "walk:shots": "node walk.mjs --shots"
   },
   "devDependencies": {
     "axe-core": "4.10.2",

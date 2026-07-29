@@ -14,12 +14,22 @@ About surface links to it once the app exists.
 `npm run a11y` — the same file CI runs, so "green locally" and "green in CI"
 are claims about the same bytes (hub LESSONS 7b).
 
+Beside it, [`walk.mjs`](walk.mjs) (`npm run walk`, workflow
+[`walk.yml`](.github/workflows/walk.yml)) drives the real app with real
+pointer and keyboard events. It is listed here because two of its checks are
+accessibility claims that no static scan can make: that arrow keys actually
+move a focused point, and that focus survives the move.
+
 ---
 
 ## Part 1 — What the gate enforces
 
-- **Pages** — `public/index.html` (every deployed page joins this list in the
-  same commit that adds it)
+- **Surfaces** — the app at `/`, in each of its four reachable states: the
+  canvas, and the export, project and about dialogs. A dialog that is closed at
+  load is invisible to axe, so scanning only the default state would have
+  reported the app clean while three of its four surfaces went unchecked. The
+  gate serves `public/` over HTTP and opens each one by clicking its real
+  control (every new surface joins this list in the commit that adds it)
 - **Themes** — light and dark, both, every run
 - **Viewports** — 390×844 and 320×568 (narrow-phone; §4's
   small-phone-at-200%-text case is why 320 exists)
@@ -38,7 +48,16 @@ Selectors live in `PAGES[].registry` in `a11y-gate.mjs`. **A registered
 selector that matches nothing fails the build** — it is never skipped, because
 a renamed class must not silently drop out of coverage.
 
-`index.html` — `h1` `.tag` `.lead` `.status` `.links a` `.foot` `.foot a`
+Always present: `h1.title` `.btn` `.hint` `.vp-name` `.coord label`
+`.panel-head h2`
+Export dialog: `.dlg-head h2` `.dlg-body` `.dlg-body label` `.hint`
+Project dialog: `.dlg-head h2` `.dlg-body label` `.dlg-body h3`
+About dialog: `.dlg-head h2` `.dlg-body` `.dlg-body a` `.dlg-body li`
+
+`.empty` is deliberately NOT registered: whether the saved-projects list is
+empty depends on whether autosave has fired, and a selector that matches only
+sometimes is a flaky gate. Its pair (`--muted` on `--surface`) is the one
+`.hint` already registers, so the colours are covered without the flake.
 
 **Adding a new foreground/background pair? Add it here and to the registry in
 the same commit that introduces it** (§4).
@@ -79,6 +98,35 @@ viewports.
 Verified: gate re-run, 0 failures, `--verbose` shows all seven registered pairs
 at ≥5.24:1.
 
+### F-02 · Arrow-key nudge worked exactly once, then focus was destroyed
+**Found:** 2026-07-29 · first-ever run of `walk.mjs`, before the app shipped
+**Rule:** Doctrine §4 (keyboard always) / WCAG 2.4.3 Focus Order
+**Detail:** Pressing ArrowRight on a focused vanishing point moved it 1px and
+then nothing moved again: every edit called `afterEdit`, which rebuilt the
+whole panel, so the focused `<button>` was destroyed and replaced. A second
+press went to `<body>`. The keyboard surface D6 exists to provide was, in
+practice, a single keystroke — and the app's own unit tests all passed, because
+none of them has a focus.
+**Fix:** rows are rebuilt only when the SET of points changes; a nudge, drag or
+typed coordinate updates the existing nodes in place. Restoring focus by id
+afterwards was the first fix considered and was rejected — it patches the
+symptom, and the frame (rebuilding the DOM under a reader's hands) was the bug
+(Doctrine §14).
+**Status:** FIXED 2026-07-29, before any deploy. Verified: the walk's three
+keyboard checks pass — 2px for two presses, 20px for Shift, and
+`document.activeElement` still inside the panel afterwards.
+
+### F-03 · An off-screen VP marker could sit on top of the panel
+**Found:** 2026-07-29 · reading the walk's screenshots
+**Rule:** Doctrine §4 (targets reachable) — a control covering another control
+**Detail:** The edge-pinned marker for an off-screen vanishing point is
+positioned against the viewport, so at some pan positions it landed on top of
+the panel row that controls the same point, covering it.
+**Fix:** a marker whose position falls inside the panel's rect steps to the
+left of it. Both controls stay visible and hittable.
+**Status:** FIXED 2026-07-29, before any deploy. Verified by re-reading the
+screenshots at the same view.
+
 ### Gate verification (Doctrine §6: made to fail once before it is trusted)
 
 **2026-07-29** — before the first commit, `--muted` was deliberately darkened
@@ -87,3 +135,12 @@ below AA in the dark theme; the gate exited **1** naming four failing pairs at
 run also surfaced F-01 above, so the gate has caught a real defect and a
 planted one. The failure paths for a missing registry selector were inherited
 already proven from the hub.
+
+**2026-07-29, the app build** — neither gate needed a planted failure to be
+believed this time: both failed on real defects on their first run against the
+app. The a11y gate caught an unlabelled file input (axe `label`, critical) and
+a registry selector that matched nothing; the walk caught F-02 above and a
+framerate failure at 2,000 edges (37.2ms per solve+frame against a 33ms bar).
+All four were fixed and both gates re-run green. A gate that has failed on
+something real is better evidence than one that has failed on something
+planted.

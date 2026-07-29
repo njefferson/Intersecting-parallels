@@ -1,0 +1,17 @@
+{
+  "name": "Intersecting Parallels",
+  "short_name": "Parallels",
+  "description": "A drawing tool for perspective construction: place vanishing points, and the lines you draw know where they lead.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B1020",
+  "theme_color": "#0B1020",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

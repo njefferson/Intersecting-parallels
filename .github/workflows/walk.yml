@@ -1,0 +1,50 @@
+name: App walk
+
+# A headless walk of the BUILT app, from the start screen: draw, drag a
+# vanishing point, undo, nudge by keyboard, export, reload, cold-launch
+# offline, and hold framerate at 2,000 edges (Doctrine §6; spec §11).
+#
+# This is the gate the unit tests cannot be: they prove the solver does what
+# its author expected, and the author's expectation is exactly where the bug
+# lives (hub LESSONS 7d). The walk drives the real page. Its first run found a
+# real defect — arrow-key nudge worked exactly once, because the panel rebuilt
+# the DOM under the reader's focus — which every unit test had passed over.
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: walk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  walk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+
+      # npm ci, never npm install (Doctrine §16.1) — the lockfile is the pin.
+      - run: npm ci
+
+      - run: npx --no-install playwright-core install --with-deps chromium
+
+      - run: node walk.mjs --shots
+
+      # The screenshots are the walk's visible half: when a run fails, the
+      # picture of the app at each step is what makes the failure legible.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: walk-screenshots
+          path: .walk-shots/
+          if-no-files-found: warn

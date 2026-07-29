@@ -184,8 +184,8 @@ export function rebindVertex(scene, id, patch) {
 
 // ---- solving -------------------------------------------------------------
 
-function solveRay(scene, v) {
-  const origin = vertexById(scene, v.origin);
+function solveRay(scene, v, index) {
+  const origin = index ? index.get(v.origin) : vertexById(scene, v.origin);
   const u = bindingDirection(scene, { x: origin.x, y: origin.y }, v.binding);
   if (!u) { v.degenerate = true; return; } // x,y untouched — the last-valid cache
   v.degenerate = false;
@@ -214,10 +214,10 @@ function solveRay(scene, v) {
   v.t = s * mag; // stored signed so reload is deterministic (D3)
 }
 
-function solveIntersect(scene, v) {
+function solveIntersect(scene, v, index) {
   const [d1, d2] = v.defs;
-  const o1 = vertexById(scene, d1.origin);
-  const o2 = vertexById(scene, d2.origin);
+  const o1 = index ? index.get(d1.origin) : vertexById(scene, d1.origin);
+  const o2 = index ? index.get(d2.origin) : vertexById(scene, d2.origin);
   const u1 = bindingDirection(scene, { x: o1.x, y: o1.y }, d1.binding);
   const u2 = bindingDirection(scene, { x: o2.x, y: o2.y }, d2.binding);
   if (!u1 || !u2) { v.degenerate = true; return; }
@@ -232,37 +232,60 @@ function solveIntersect(scene, v) {
 // fixed. A dependency cycle in LOADED data (creation and rebind refuse them,
 // but a hand-edited project file is still a possible input) must terminate:
 // the unsolvable vertices keep their cached x,y and are flagged degenerate.
+//
+// Kahn's algorithm over an index built once — O(V+E). The obvious version of
+// this (a Set of pending deps per vertex, rescanned until nothing moves, with
+// a linear lookup by id inside) is O(V²) and measured 37ms per solve at the
+// 2,000 edges §11 asks for, against a 16ms frame. The shape of the algorithm
+// was the cost, not the constant (Doctrine §14), so it is the shape that
+// changed. Same semantics, including how cycles are reported.
 export function solveScene(scene) {
-  const remaining = new Map();
+  const index = new Map();
+  for (const v of scene.vertices) index.set(v.id, v);
+
+  const pending = new Map();     // id -> count of unsolved dependencies
+  const dependents = new Map();  // id -> ids waiting on it
+  const queue = [];
   for (const v of scene.vertices) {
-    if (v.kind !== "anchor") remaining.set(v.id, new Set(depsOf(v).filter(d => {
-      const dep = vertexById(scene, d);
-      return dep && dep.kind !== "anchor";
-    })));
+    if (v.kind === "anchor") continue;
+    let count = 0;
+    for (const d of depsOf(v)) {
+      const dep = index.get(d);
+      if (!dep || dep.kind === "anchor") continue;
+      count++;
+      let list = dependents.get(d);
+      if (!list) { list = []; dependents.set(d, list); }
+      list.push(v.id);
+    }
+    pending.set(v.id, count);
+    if (count === 0) queue.push(v.id);
   }
+
   const order = [];
-  let progress = true;
-  while (remaining.size && progress) {
-    progress = false;
-    for (const [id, deps] of remaining) {
-      if (deps.size === 0) {
-        order.push(id);
-        remaining.delete(id);
-        for (const other of remaining.values()) other.delete(id);
-        progress = true;
+  const degenerate = [];
+  for (let head = 0; head < queue.length; head++) {
+    const id = queue[head];
+    const v = index.get(id);
+    if (v.kind === "ray") solveRay(scene, v, index);
+    else solveIntersect(scene, v, index);
+    order.push(id);
+    if (v.degenerate) degenerate.push(id);
+    const waiting = dependents.get(id);
+    if (waiting) {
+      for (const w of waiting) {
+        const left = pending.get(w) - 1;
+        pending.set(w, left);
+        if (left === 0) queue.push(w);
       }
     }
   }
-  const degenerate = [];
-  for (const id of order) {
-    const v = vertexById(scene, id);
-    if (v.kind === "ray") solveRay(scene, v);
-    else solveIntersect(scene, v);
-    if (v.degenerate) degenerate.push(id);
-  }
-  const unresolved = [...remaining.keys()];
-  for (const id of unresolved) {
-    vertexById(scene, id).degenerate = true; // cycle in loaded data — visible, never a hang
+
+  const unresolved = [];
+  for (const [id, left] of pending) {
+    if (left > 0) {                 // cycle in loaded data — visible, never a hang
+      unresolved.push(id);
+      index.get(id).degenerate = true;
+    }
   }
   scene.modifiedAt = Date.now();
   return { order, degenerate, unresolved };

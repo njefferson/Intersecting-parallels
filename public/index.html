@@ -2,164 +2,212 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Zoom is never locked: no user-scalable=no, no maximum-scale (Doctrine §4). -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Intersecting Parallels — where you stand and what you see</title>
 
-<meta name="description" content="A free drawing tool for perspective construction — place vanishing points, and the lines you draw know where they lead. In design; nothing to use here yet.">
+<meta name="description" content="A free drawing tool for perspective construction — place vanishing points, and the lines you draw know where they lead. No account, works offline.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#0B1020" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#F4F6FB" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Parallels">
 <link rel="canonical" href="https://intersecting-parallels.pages.dev/">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M8 58L32 12' stroke='%23F2A65A'/%3E%3Cpath d='M26 58L32 12' stroke='%23E0619E'/%3E%3Cpath d='M38 58L32 12' stroke='%2358C6E0'/%3E%3Cpath d='M56 58L32 12' stroke='%238A97FF'/%3E%3C/g%3E%3Ccircle cx='32' cy='12' r='4' fill='%238A97FF'/%3E%3C/svg%3E">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/app.css">
 
-<!-- Text-only share tags. There is deliberately no og:image: the app has no
-     artwork yet, and a placeholder pretending to be artwork would be the false
-     confidence Doctrine §5 forbids. -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Intersecting Parallels">
 <meta property="og:title" content="Intersecting Parallels — where you stand and what you see">
-<meta property="og:description" content="A free drawing tool for perspective construction. In design; nothing to use here yet.">
+<meta property="og:description" content="A free drawing tool for perspective construction. No account, works offline.">
 <meta property="og:url" content="https://intersecting-parallels.pages.dev/">
-
-<style>
-  /* Palette shared with the family (hub public/index.html) — every pair below
-     is measured by a11y-gate.mjs; new pairs join its registry in the same
-     commit (Doctrine §4). Type is in rem so the reader's text-size preference
-     is honoured, not just page zoom. */
-  :root{
-    --bg:#0B1020;
-    --bg2:#0E1428;
-    --surface:#151B30;
-    --surface-hi:#1B2340;
-    --line:#26304F;
-    --text:#EAECF5;
-    --muted:#8B93AD;
-    --amber:#F2A65A;
-    --magenta:#E0619E;
-    --cyan:#58C6E0;
-    --slate:#8A97FF;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0}
-  body{
-    background:
-      radial-gradient(1200px 700px at 50% -10%, #16203f 0%, rgba(22,32,63,0) 60%),
-      linear-gradient(180deg,var(--bg2),var(--bg));
-    color:var(--text);
-    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;
-    min-height:100dvh;
-    padding:28px 20px 56px;
-  }
-  .wrap{max-width:34rem;margin:0 auto}
-
-  .head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:11px;margin-bottom:26px}
-  .mark{width:6rem;height:auto;display:block}
-  .mark .l1{stroke:var(--amber)}
-  .mark .l2{stroke:var(--magenta)}
-  .mark .l3{stroke:var(--cyan)}
-  .mark .l4{stroke:var(--slate)}
-  .mark .vp{fill:var(--text)}
-  h1{font-size:1.6875rem;font-weight:650;letter-spacing:-0.02em;margin:0}
-  .rule{
-    width:64px;height:3px;border-radius:3px;
-    background:linear-gradient(90deg,var(--amber),var(--magenta),var(--cyan));
-  }
-  .tag{margin:0;color:var(--muted);font-size:0.90625rem;letter-spacing:0.01em}
-
-  .lead{font-size:1rem;line-height:1.6;margin:0 0 14px;text-align:center}
-  .status{color:var(--muted);font-size:0.90625rem;line-height:1.6;margin:0 0 30px;text-align:center}
-
-  .links{display:flex;flex-direction:column;gap:11px}
-  .links a{
-    display:flex;align-items:center;min-height:44px;
-    padding:12px 16px;border-radius:15px;
-    background:var(--surface);border:1px solid var(--line);
-    color:var(--text);text-decoration:none;font-weight:600;font-size:0.9375rem;
-    transition:background .16s ease, border-color .16s ease;
-  }
-  .links a:hover{background:var(--surface-hi);border-color:#33406b}
-  .links a:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
-
-  .foot{margin-top:36px;color:var(--muted);font-size:0.8125rem;text-align:center}
-  .foot a{
-    display:inline-flex;align-items:center;justify-content:center;
-    min-height:44px;min-width:44px;padding:0 10px;
-    color:var(--muted);text-decoration:underline;
-  }
-  .foot a:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
-
-  @media (prefers-color-scheme:light){
-    :root{
-      --bg:#F4F6FB;
-      --bg2:#FBFCFE;
-      --surface:#FFFFFF;
-      --surface-hi:#F0F3FA;
-      --line:#D5DCEA;
-      --text:#171C2B;
-      --muted:#586079;
-      --amber:#B45309;
-      --magenta:#B03270;
-      --cyan:#0E6E88;
-      --slate:#4A54C8;
-    }
-    body{
-      background:
-        radial-gradient(1200px 700px at 50% -10%, #E8EEFC 0%, rgba(232,238,252,0) 60%),
-        linear-gradient(180deg,var(--bg2),var(--bg));
-    }
-    .links a:hover{border-color:#B9C4DC}
-  }
-
-  @media (prefers-contrast:more){
-    :root{--line:#3D4A72;--muted:#AEB6CE}
-    @media (prefers-color-scheme:light){
-      :root{--line:#9AA6C2;--muted:#3D445C}
-    }
-    .links a{border-width:2px}
-  }
-
-  @media (forced-colors:active){
-    .links a{border:1px solid CanvasText}
-    .links a:focus-visible,.foot a:focus-visible{outline:2px solid Highlight}
-    .mark .l1,.mark .l2,.mark .l3,.mark .l4{stroke:CanvasText}
-    .mark .vp{fill:CanvasText}
-  }
-</style>
 </head>
 <body>
-<main class="wrap">
-  <header class="head">
-    <svg class="mark" viewBox="0 0 96 56" aria-hidden="true">
-      <g stroke-width="3" stroke-linecap="round" fill="none">
-        <path class="l1" d="M10 52 L48 10"/>
-        <path class="l2" d="M36 52 L48 10"/>
-        <path class="l3" d="M60 52 L48 10"/>
-        <path class="l4" d="M86 52 L48 10"/>
-      </g>
-      <circle class="vp" cx="48" cy="10" r="3.5"/>
-    </svg>
-    <h1>Intersecting Parallels</h1>
-    <div class="rule"></div>
-    <p class="tag">Where you stand and what you see.</p>
+<div class="app">
+  <header class="bar">
+    <h1 class="title">Intersecting Parallels</h1>
+
+    <div class="bar-group" role="group" aria-label="Drawing mode">
+      <button class="btn" id="mode-place" type="button" aria-pressed="true">Place</button>
+      <button class="btn" id="mode-draw" type="button" aria-pressed="false">Draw</button>
+      <button class="btn" id="mode-select" type="button" aria-pressed="false">Select</button>
+    </div>
+
+    <div class="bar-group" role="group" aria-label="Guides">
+      <button class="btn" id="assist" type="button" aria-pressed="true">Assist</button>
+      <label class="sr-only" for="force">Force this stroke onto</label>
+      <select class="btn" id="force"></select>
+      <button class="btn" id="touch-draws" type="button" aria-pressed="false">Touch draws</button>
+    </div>
+
+    <div class="bar-group" role="group" aria-label="History">
+      <button class="btn" id="undo" type="button" disabled>Undo</button>
+      <button class="btn" id="redo" type="button" disabled>Redo</button>
+    </div>
+
+    <span class="spacer"></span>
+
+    <div class="bar-group">
+      <button class="btn" id="add-vp" type="button">Add VP</button>
+      <button class="btn" id="show-panel" type="button" aria-pressed="true" aria-controls="panel">Points</button>
+      <button class="btn" id="open-export" type="button">Export</button>
+      <button class="btn" id="open-project" type="button">Project</button>
+      <button class="btn" id="open-about" type="button">About</button>
+    </div>
   </header>
 
-  <p class="lead">A drawing tool for perspective construction: place vanishing
-  points anywhere, and the lines you draw know where they lead. Free, no
-  account, works on your device.</p>
+  <main class="stage" id="stage">
+    <canvas id="canvas" aria-label="Drawing canvas. The vanishing points list is the keyboard-accessible control surface for everything on it."></canvas>
 
-  <p class="status">It is being designed now — there is nothing to use here
-  yet. This page holds the address.</p>
+    <div class="mode-flag" id="touch-flag" data-on="false">
+      <span>Touch draws — two fingers to pan and zoom</span>
+      <button class="btn" id="touch-exit" type="button">Turn off</button>
+    </div>
 
-  <nav class="links" aria-label="Related pages">
-    <a href="https://noahjefferson.pages.dev/">Noah Jefferson's apps</a>
-    <a href="https://noahjefferson.pages.dev/accessibility">Accessibility statement</a>
-  </nav>
+    <section class="panel" id="panel" data-on="true" aria-labelledby="panel-title">
+      <div class="panel-head">
+        <h2 id="panel-title">Vanishing points</h2>
+        <button class="btn" id="panel-close" type="button" aria-label="Hide the vanishing points panel">Hide</button>
+      </div>
+      <div class="panel-body" id="panel-body">
+        <p class="hint" id="panel-hint">Arrow keys nudge a focused point; hold Shift for larger steps. Type exact coordinates in the boxes.</p>
+        <div id="vp-list"></div>
+        <h3 class="sr-only">Horizon</h3>
+        <div class="vp-row">
+          <span class="vp-name">Horizon</span>
+          <span class="coord">
+            <label for="horizon-y">y</label>
+            <input type="number" id="horizon-y" step="1">
+          </span>
+        </div>
+        <div id="inspector"></div>
+      </div>
+    </section>
 
-  <footer class="foot">
-    PolyForm Noncommercial 1.0.0 ·
-    <a href="https://github.com/njefferson/Intersecting-parallels">source</a>
-  </footer>
-</main>
+    <div class="toast" id="toast" data-on="false" role="status"></div>
+  </main>
+</div>
+
+<p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+<dialog id="dlg-export" aria-labelledby="export-title">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h2 id="export-title">Export</h2>
+      <button class="btn" type="submit" value="close" aria-label="Close export">Close</button>
+    </div>
+    <div class="dlg-body">
+      <div class="check"><input type="checkbox" id="ex-construction"><label for="ex-construction">Include construction lines (horizon and guides)</label></div>
+      <div class="field">
+        <label for="ex-weight">Stroke weight</label>
+        <input type="number" id="ex-weight" min="0.25" max="20" step="0.25" value="1">
+      </div>
+      <div class="check"><input type="checkbox" id="ex-hairline"><label for="ex-hairline">Hairline strokes in SVG (stay thin at any scale)</label></div>
+      <h3>PNG size</h3>
+      <p class="hint" id="ex-ceiling">Checking what this device can render…</p>
+      <div class="field">
+        <label for="ex-w">Width in pixels</label>
+        <input type="number" id="ex-w" min="1" step="1" value="2000">
+      </div>
+      <div class="field">
+        <label for="ex-h">Height in pixels</label>
+        <input type="number" id="ex-h" min="1" step="1" value="1600">
+      </div>
+      <p class="hint">Procreate does not read SVG — use PNG for it. SVG keeps editable layers for Inkscape, Illustrator and Affinity.</p>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" type="button" id="do-svg">Save SVG</button>
+      <button class="btn" type="button" id="do-png">Save PNG</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-project" aria-labelledby="project-title">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h2 id="project-title">Project</h2>
+      <button class="btn" type="submit" value="close" aria-label="Close project menu">Close</button>
+    </div>
+    <div class="dlg-body">
+      <div class="field">
+        <label for="pr-name">Name</label>
+        <input type="text" id="pr-name">
+      </div>
+      <div class="field">
+        <label for="pr-w">New drawing width</label>
+        <input type="number" id="pr-w" min="16" step="1" value="1600">
+      </div>
+      <div class="field">
+        <label for="pr-h">New drawing height</label>
+        <input type="number" id="pr-h" min="16" step="1" value="1200">
+      </div>
+      <div class="field">
+        <label for="pr-points">Vanishing points in a new drawing</label>
+        <select id="pr-points">
+          <option value="1">1-point</option>
+          <option value="2" selected>2-point</option>
+          <option value="3">3-point</option>
+        </select>
+      </div>
+      <h3>Saved on this device</h3>
+      <div id="pr-list"><p class="empty">Nothing saved yet.</p></div>
+      <h3>Backup</h3>
+      <p class="hint">A project file is the only reopenable artifact. Everything stays on your device — nothing is uploaded.</p>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" type="button" id="pr-new">New drawing</button>
+      <button class="btn" type="button" id="pr-save">Save file</button>
+      <button class="btn" type="button" id="pr-load">Open file</button>
+      <label class="sr-only" for="pr-file">Choose a project file to open</label>
+      <input type="file" id="pr-file" accept="application/json,.json" class="sr-only">
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-about" aria-labelledby="about-title">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h2 id="about-title">About</h2>
+      <button class="btn" type="submit" value="close" aria-label="Close about">Close</button>
+    </div>
+    <div class="dlg-body">
+      <p><strong>Intersecting Parallels</strong> — where you stand and what you see.</p>
+      <p>Draw lines that are bound to vanishing points. Move a point and every
+      line bound to it re-solves, so the drawing stays a coherent construction
+      instead of a set of strokes. Export the outline and finish it wherever you
+      like.</p>
+      <h3>What it is</h3>
+      <ul>
+        <li>Free, and yours to keep — no account, no sign-up.</li>
+        <li>Everything is stored on this device. Nothing is uploaded, and there is no analytics.</li>
+        <li>Works offline once loaded; add it to your home screen to launch it like an app.</li>
+        <li>It is not a paint app: no brushes, no pressure, no colour. It builds the geometry.</li>
+      </ul>
+      <h3>Keyboard</h3>
+      <ul>
+        <li>Arrow keys nudge a focused vanishing point; Shift makes larger steps.</li>
+        <li>Every point has exact x and y boxes in the Vanishing points panel.</li>
+        <li>Undo and redo are in the toolbar, one step per gesture.</li>
+      </ul>
+      <h3>Accessibility</h3>
+      <p>Everything on the canvas is reachable from the panel, because a canvas
+      cannot be tabbed into. If something here is hard to use, that is a bug
+      worth reporting.</p>
+      <p><a href="https://noahjefferson.pages.dev/accessibility">The accessibility statement</a> ·
+      <a href="https://noahjefferson.pages.dev/">Noah Jefferson's apps</a></p>
+      <h3>Licence</h3>
+      <p>PolyForm Noncommercial 1.0.0 —
+      <a href="https://github.com/njefferson/Intersecting-parallels">source on GitHub</a>.</p>
+      <p class="hint" id="about-version">version</p>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" type="submit" value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="/app/ui.mjs"></script>
 </body>
 </html>
