@@ -106,9 +106,38 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
-**Waiting on Noah — the aggregate pass, on staging, on his iPad.** This is the
-one decision point of the build, and the Doctrine §7 gate for all of it.
-https://staging.intersecting-parallels.pages.dev
+**PROMOTED TO PRODUCTION 2026-07-29 — 0.3.0.** Noah tested the aggregate on his
+iPad, reported two defects (D11's non-converging lines, then D16's unasked-for
+anchoring, then D17's undeletable lines and points), each was fixed and
+re-staged, and he said **"Promote"**. `main` fast-forwarded to `staging` at
+`c4bd5b4`, all four workflows green on that SHA before the merge. Live at
+https://intersecting-parallels.pages.dev
+
+**Shipped in 0.3.0 (the aggregate of the whole build):** the solver and its
+constraint graph; canvas render with pan and zoom; VP placement, drag,
+off-canvas markers and horizon; click-to-place and assisted freehand drawing;
+undo/redo one step per gesture; SVG and PNG export; IndexedDB persistence and
+JSON project files; installable PWA that cold-launches offline. Plus everything
+his device found: the closed guide set (D16), guides drawn to follow rather
+than aimed at (D15), a trustworthy direction sample (D13), honest bindings
+(D12), guide ranking that prefers a vanishing point (D11), deletion that works
+and never moves the drawing (D17), and the on-screen build stamp.
+
+**Hub link: DONE.** The hub tile and its noscript fallback both link out, with
+the icon Noah drew (hub commit `69294bc`). That was the last item of the
+bootstrap order.
+
+**Next candidate work — nothing is staged, the roadmap is honestly empty.** What
+is known to be open, in his words, not invented:
+- The welding toggle. D16 removed endpoint joining entirely at his instruction;
+  the machinery is intact behind `resolveEndpoint`'s `join` option and tested,
+  so restoring it as a toggle is small if he wants shapes to hold together
+  under a VP drag.
+- The icon's white rounded corners, cosmetic: iOS rounds again on top, so a
+  hair of white can show on the home screen. Bleeding the navy to the edge is
+  a one-line change to the crop.
+- `SNAP_THRESHOLD` against a real Apple Pencil (§12 asks for exactly this and
+  nothing in this sandbox can do it).
 
 UNTESTED until he does it, and labelled so honestly (Doctrine §5) — every one
 of these needs his hands and none can be checked from this sandbox:
