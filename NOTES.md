@@ -49,7 +49,7 @@ and on `staging`, awaiting Noah's single aggregate pass. What each step became:
 
 **Gates, all three green, all three run by CI on the same entry points a
 session runs locally:**
-- `npm test` — 51 tests (solver, snapping, D11 guide ranking, D12 binding
+- `npm test` — 53 tests (solver, snapping, D11 guide ranking, D12 binding
   honesty, D16 the closed guide set and no endpoint anchoring, export, project
   validation, undo). Every new block was made to fail against the unfixed code
   before it was trusted.
@@ -57,7 +57,7 @@ session runs locally:**
   themes, two viewports. It now SERVES `public/` over HTTP, because ES modules
   cannot load from `file://` and the old file:// scan would have measured a
   blank page.
-- `npm run walk` — 35 checks driving the real app: draw, drag, undo, keyboard
+- `npm run walk` — 40 checks driving the real app: draw, drag, undo, keyboard
   nudge, export, reload, offline cold launch, 2,000 edges under drag, an
   assertion that no request ever leaves the origin, and — since 0.1.1 — that a
   finger aimed at a vanishing point produces lines that MEASURABLY converge on
@@ -375,6 +375,33 @@ VPs legible.
 - PNG: probe the real canvas ceiling on Noah's iPad before offering dimensions,
   and clamp with an honest message rather than emitting the blank image iOS
   produces past the limit (Doctrine §5).
+
+### D17. Deleting is always possible, and deleting a guide moves nothing
+
+**Noah, 2026-07-29:** *"I could not delete lines earlier, and VPs said they
+could not be deleted without destroying existing lines."* Two separate faults.
+
+**A line could not be selected, so it could not be deleted.** Selection used
+`SNAP_RADIUS` — 12px, a DRAWING tolerance — as a TAP target. Doctrine §4 has
+required 44px the whole time and the canvas was quietly exempt from its own
+rule. Selection now uses `HANDLE_HIT` (22px radius) like every other handle,
+and a tap that finds nothing says so in a toast instead of a live region
+nobody sees. Tapping near a line's END selected the point, which offered
+nothing at all — a dead end. A point now deletes too, naming how many lines
+will go with it.
+
+**A vanishing point refused to be deleted.** The refusal was honest about the
+problem — the lines leaning on it would be stranded — and the wrong answer to
+it: his own drawing held his tool hostage. Deleting a point now FREEZES
+everything that depended on it exactly where it sits: a constructed point
+becomes a plain anchor at its current coordinates, and a line bound to that
+point keeps its geometry and loses only its guide. Not one pixel moves, which
+the walk asserts by comparing every vertex before and after. A dependent that
+never solved has no position to freeze, so it is removed and the count is
+reported rather than left as a mystery.
+
+Both are gated in the walk through the real UI, by touch: select-and-delete a
+line, then delete a point and prove 0 of N vertices moved.
 
 ### D16. The guide set is exactly VPs + vertical + horizontal. Nothing else anchors a line.
 

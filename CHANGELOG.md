@@ -8,6 +8,24 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.3.0 — CAPABILITY · 2026-07-29
+
+**You can delete things now.**
+
+- **Deleting a line works.** Selecting one needed a tap within 12 pixels of it,
+  which is a drawing tolerance, not something a finger can hit — so tapping a
+  line just said "nothing there". The target is 44px now, like everything else.
+  Tapping near a line's end used to select the point instead and offer nothing
+  at all; a point can be deleted too, and it says how many lines will go with it.
+- **A vanishing point can be deleted, and your drawing does not move.** It used
+  to refuse, on the grounds that lines were leaning on it. Now the point goes
+  and every line it held stays exactly where it is, to the pixel — it simply
+  has no guide any more. The message says what happened rather than leaving you
+  to check.
+- Undo puts any of it back, in one step.
+
+---
+
 ## 0.2.0 — CAPABILITY · 2026-07-29
 
 **Only vanishing points, vertical and horizontal touch your lines now.**

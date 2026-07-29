@@ -370,6 +370,79 @@ try {
   if (SHOTS) await tPage.screenshot({ path: `${SHOT_DIR}/9-convergence.png` });
   await touchCtx.close();
 
+  // ---- 10. deleting things works, and deleting a guide moves nothing (D17)
+  //
+  // Both reported by Noah, 2026-07-29: "I could not delete lines earlier, and
+  // VPs said they could not be deleted without destroying existing lines."
+  // Selecting used a 12px tolerance as a TAP target, and VP deletion refused
+  // outright. Checked here through the real UI, by touch.
+  const delCtx = await browser.newContext({
+    viewport: { width: 1194, height: 834 }, colorScheme: 'dark', hasTouch: true,
+  });
+  const dPage = await delCtx.newPage();
+  dPage.on('pageerror', e => pageErrors.push(`delete page: ${e}`));
+  await dPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await dPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 10000 });
+  await dPage.click('#mode-draw');
+  await dPage.click('#touch-draws');
+
+  const dFinger = async (fx, fy, tx, ty) => {
+    const cdp = await delCtx.newCDPSession(dPage);
+    const pt = (x, y) => [{ x, y, id: 1 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(fx, fy) });
+    for (let i = 1; i <= 16; i++) {
+      const t = i / 16;
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(fx + (tx - fx) * t, fy + (ty - fy) * t) });
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+    await dPage.waitForTimeout(40);
+  };
+  for (const [x, y] of [[420, 300], [460, 420], [400, 540]]) await dFinger(x, y, x - 260, y + 20);
+  const drew = await dPage.evaluate(() => window.__ip.scene.edges.length);
+
+  // Tap the MIDDLE of a line with a finger and delete it.
+  await dPage.click('#mode-select');
+  const midPt = await dPage.evaluate(() => {
+    const sc = window.__ip.scene, e = sc.edges[1];
+    const a = sc.vertices.find(v => v.id === e.a), b = sc.vertices.find(v => v.id === e.b);
+    return window.__ip.toScreen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  });
+  const tapCdp = await delCtx.newCDPSession(dPage);
+  await tapCdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: midPt.x, y: midPt.y, id: 1 }] });
+  await tapCdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await tapCdp.detach();
+  await dPage.waitForTimeout(80);
+  const offered = await dPage.evaluate(() => document.querySelector('#inspector .btn')?.textContent ?? null);
+  check('a finger can select a line to delete it (D17 — 44px, not 12px)',
+    offered === 'Delete line', `inspector offered: ${offered}`);
+  if (offered) { await dPage.click('#inspector .btn'); await dPage.waitForTimeout(80); }
+  const afterDel = await dPage.evaluate(() => window.__ip.scene.edges.length);
+  check('the line is actually gone', afterDel === drew - 1, `${drew} -> ${afterDel} lines`);
+
+  // Delete a vanishing point and prove the drawing did not move.
+  const vBefore = await dPage.evaluate(() => window.__ip.scene.vertices.map(v => ({ id: v.id, x: v.x, y: v.y })));
+  const edgesBefore = await dPage.evaluate(() => window.__ip.scene.edges.length);
+  await dPage.evaluate(() => [...document.querySelectorAll('#vp-list .btn')]
+    .find(b => b.textContent === 'Delete').click());
+  await dPage.waitForTimeout(120);
+  const vpOut = await dPage.evaluate(() => ({
+    vps: window.__ip.scene.vanishingPoints.length,
+    edges: window.__ip.scene.edges.length,
+    verts: window.__ip.scene.vertices.map(v => ({ id: v.id, x: v.x, y: v.y })),
+    finite: window.__ip.scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+  }));
+  check('a vanishing point can be deleted at all (D17)', vpOut.vps === 1, `${vpOut.vps} left`);
+  check('deleting it destroys no lines', vpOut.edges === edgesBefore, `${edgesBefore} -> ${vpOut.edges}`);
+  const movedCount = vBefore.filter(b => {
+    const n = vpOut.verts.find(v => v.id === b.id);
+    return n && (n.x !== b.x || n.y !== b.y);
+  }).length;
+  check('and not one pixel of the drawing moves', movedCount === 0 && vpOut.finite,
+    `${movedCount} of ${vBefore.length} vertices moved`);
+  if (SHOTS) await dPage.screenshot({ path: `${SHOT_DIR}/10-deleted.png` });
+  await delCtx.close();
+
   check('no page errors during the whole walk', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 } catch (err) {
   check('the walk ran to completion', false, String(err && err.stack ? err.stack.split('\n')[0] : err));

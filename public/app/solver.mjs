@@ -314,3 +314,79 @@ export function setHorizon(scene, y) {
   solveScene(scene);
   return { ok: true };
 }
+
+// D17 — a vanishing point can always be deleted, and deleting it moves nothing.
+//
+// Noah, 2026-07-29: "VPs said they could not be deleted without destroying
+// existing lines." The app refused the deletion outright, which is the wrong
+// answer to a real problem: the lines that lean on that point would be left
+// with no guide. Refusing makes his own drawing hold his tool hostage.
+//
+// What happens instead: everything that depended on the point is FROZEN EXACTLY
+// WHERE IT SITS. A constructed point becomes a plain anchor at its current
+// coordinates; a line bound to that point keeps its geometry and loses only its
+// guide. Not one pixel moves — deleting a guide must never redraw the drawing
+// (Doctrine §14: no silent mutation of the user's content).
+//
+// A dependent that never solved (NaN, so nothing was ever visible) has no
+// position to freeze; it is removed along with any line referencing it, and the
+// caller is told the count rather than left to wonder.
+export function deleteVp(scene, vpId) {
+  const vp = scene.vanishingPoints.find(v => v.id === vpId);
+  if (!vp) return { ok: false, reason: `vanishing point "${vpId}" does not exist` };
+
+  const usesVp = v =>
+    (v.kind === "ray" && v.binding && v.binding.vpId === vpId) ||
+    (v.kind === "intersect" && v.defs.some(d => d.binding && d.binding.vpId === vpId));
+
+  let frozen = 0;
+  const dropped = new Set();
+  for (const v of scene.vertices) {
+    if (!usesVp(v)) continue;
+    if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) { dropped.add(v.id); continue; }
+    const { x, y } = v;                       // its position now, kept to the pixel
+    delete v.binding; delete v.origin; delete v.defs; delete v.t; delete v.degenerate;
+    v.kind = "anchor";
+    v.x = x; v.y = y;
+    frozen++;
+  }
+
+  let freed = 0;
+  const before = scene.edges.length;
+  scene.edges = scene.edges.filter(e => !(dropped.has(e.a) || dropped.has(e.b)));
+  const removedEdges = before - scene.edges.length;
+  for (const e of scene.edges) {
+    if (e.binding && e.binding.vpId === vpId) { e.binding = "free"; freed++; }
+  }
+  if (dropped.size) scene.vertices = scene.vertices.filter(v => !dropped.has(v.id));
+
+  scene.vanishingPoints = scene.vanishingPoints.filter(v => v.id !== vpId);
+  solveScene(scene);
+  return { ok: true, label: vp.label, frozen, freed, removedEdges, dropped: dropped.size };
+}
+
+// D17 — deleting a point takes the lines that end on it with it, because a line
+// with one end is not a line. The count comes back so the user is told.
+export function deleteVertex(scene, vertexId) {
+  const v = scene.vertices.find(x => x.id === vertexId);
+  if (!v) return { ok: false, reason: `point "${vertexId}" does not exist` };
+  // Anything constructed FROM this point loses its origin, so it is frozen
+  // where it sits rather than silently jumping (same rule as above).
+  for (const other of scene.vertices) {
+    if (other.id === vertexId) continue;
+    const depends =
+      (other.kind === "ray" && other.origin === vertexId) ||
+      (other.kind === "intersect" && other.defs.some(d => d.origin === vertexId));
+    if (!depends || !Number.isFinite(other.x) || !Number.isFinite(other.y)) continue;
+    const { x, y } = other;
+    delete other.binding; delete other.origin; delete other.defs; delete other.t; delete other.degenerate;
+    other.kind = "anchor";
+    other.x = x; other.y = y;
+  }
+  const before = scene.edges.length;
+  scene.edges = scene.edges.filter(e => e.a !== vertexId && e.b !== vertexId);
+  const removedEdges = before - scene.edges.length;
+  scene.vertices = scene.vertices.filter(x => x.id !== vertexId);
+  solveScene(scene);
+  return { ok: true, removedEdges };
+}

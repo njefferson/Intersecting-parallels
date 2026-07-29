@@ -11,6 +11,7 @@
 
 import {
   createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS, bindingDirection,
+  deleteVp as deleteVpFromScene, deleteVertex,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, commitStroke, nearestVertex, nearestEdge, thresholdFor, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -24,7 +25,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: both in SCREEN px, because that is where a hand's noise lives — canvas
 // px shrink with zoom and stop describing the gesture.
@@ -288,20 +289,19 @@ function toggleButton(text, on, id, onClick, label) {
 }
 
 function deleteVp(point) {
-  const usedBy = scene.vertices.filter(v =>
-    (v.kind === "ray" && v.binding && v.binding.vpId === point.id) ||
-    (v.kind === "intersect" && v.defs.some(d => d.binding && d.binding.vpId === point.id))
-  ).length;
-  const usedByEdges = scene.edges.filter(e => e.binding && e.binding.vpId === point.id).length;
-  if (usedBy || usedByEdges) {
-    toast(`${point.label} still holds ${usedBy} point${usedBy === 1 ? "" : "s"} and ${usedByEdges} line${usedByEdges === 1 ? "" : "s"}. Rebind or delete those first — deleting it would strand them.`, "error");
-    return;
-  }
   beginGesture(history, scene);
-  scene.vanishingPoints = scene.vanishingPoints.filter(v => v.id !== point.id);
+  const res = deleteVpFromScene(scene, point.id);
+  if (!res.ok) { toast(res.reason, "error"); return; }
   if (activeVpId === point.id) activeVpId = null;
-  solveScene(scene);
-  afterEdit(`${point.label} deleted`, { structural: true });
+  if (selection) selection = null;
+  // D17: say exactly what happened to the work, because "deleted" alone leaves
+  // the reader wondering what it cost them.
+  const parts = [];
+  if (res.freed) parts.push(`${res.freed} line${res.freed === 1 ? "" : "s"} kept exactly where ${res.freed === 1 ? "it is" : "they are"}, now with no guide`);
+  if (res.frozen) parts.push(`${res.frozen} point${res.frozen === 1 ? "" : "s"} frozen in place`);
+  if (res.removedEdges) parts.push(`${res.removedEdges} line${res.removedEdges === 1 ? "" : "s"} that never had a position removed`);
+  toast(parts.length ? `${res.label} deleted — ${parts.join(", ")}.` : `${res.label} deleted.`);
+  afterEdit(null, { structural: true });
 }
 
 function renderInspector() {
@@ -322,6 +322,24 @@ function renderInspector() {
       ? "Its two guides are parallel or its vanishing point sits on its origin, so it is holding its last good position."
       : `At ${Math.round(v.x)}, ${Math.round(v.y)}.`;
     box.appendChild(detail);
+    // D17: this used to be a dead end — tapping near a line's end selected the
+    // point, and a point had nothing to delete.
+    const usedBy = scene.edges.filter(e => e.a === v.id || e.b === v.id).length;
+    const delPoint = document.createElement("button");
+    delPoint.type = "button";
+    delPoint.className = "btn danger";
+    delPoint.textContent = usedBy ? `Delete point and ${usedBy} line${usedBy === 1 ? "" : "s"}` : "Delete point";
+    delPoint.addEventListener("click", () => {
+      beginGesture(history, scene);
+      const res = deleteVertex(scene, v.id);
+      if (!res.ok) { toast(res.reason, "error"); return; }
+      selection = null;
+      toast(res.removedEdges
+        ? `Point deleted, with ${res.removedEdges} line${res.removedEdges === 1 ? "" : "s"} that ended on it. Undo puts it back.`
+        : "Point deleted. Undo puts it back.");
+      afterEdit(null);
+    });
+    box.appendChild(delPoint);
   } else {
     const e = scene.edges.find(x => x.id === selection.id);
     if (!e) { selection = null; return; }
@@ -491,15 +509,21 @@ el.canvas.addEventListener("pointerdown", ev => {
 
   if (prefs.mode === "select") {
     const c = toCanvas(view, p);
-    const v = nearestVertex(scene, c, SNAP_RADIUS / view.scale);
+    // D17: SNAP_RADIUS is 12px — a drawing tolerance, and far too small to be
+    // a TAP target. Doctrine §4 wants 44px, so selecting uses HANDLE_HIT (22px
+    // radius) like every other handle. Noah could not delete a line because he
+    // could not hit one.
+    const pick = HANDLE_HIT / view.scale;
+    const v = nearestVertex(scene, c, pick);
     selection = v ? { type: "vertex", id: v.id } : null;
     if (!selection) {
-      const e = nearestEdge(scene, c, SNAP_RADIUS / view.scale);
+      const e = nearestEdge(scene, c, pick);
       selection = e ? { type: "edge", id: e.id } : null;
     }
     renderPanel();
     render();
-    say(selection ? `Selected a ${selection.type}` : "Nothing there");
+    if (selection) say(`Selected a ${selection.type}`);
+    else toast("Nothing there — tap closer to a line or one of its ends", "info");
     return;
   }
 

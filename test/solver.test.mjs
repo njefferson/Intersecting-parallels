@@ -8,9 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  createScene, addVp, addAnchor, addRayVertex, addIntersectVertex, addEdge,
-  rebindVertex, moveVp, setHorizon, solveScene, wouldCycle,
-  projectPointOnLine, intersectLines, epsLen,
+  createScene, addVp, addAnchor, addRayVertex, addIntersectVertex, addEdge, rebindVertex, moveVp, setHorizon, solveScene, wouldCycle, projectPointOnLine, intersectLines, epsLen,
 } from "../public/app/solver.mjs";
 
 // Deterministic PRNG so a fuzz failure is reproducible from its seed.
@@ -274,4 +272,75 @@ test("EPS_LEN is relative to the canvas diagonal, so it survives any document si
   const small = createScene({ name: "s", width: 100, height: 100 });
   const big = createScene({ name: "b", width: 100000, height: 100000 });
   assert.ok(epsLen(big) / epsLen(small) === 1000);
+});
+
+// ---- D17: deleting a vanishing point moves nothing ------------------------
+//
+// Noah, 2026-07-29: "VPs said they could not be deleted without destroying
+// existing lines." The app refused outright. Now the point goes and the drawing
+// stays put, to the pixel.
+
+test("D17: a vanishing point can be deleted, and not one pixel of the drawing moves", async () => {
+  const { deleteVp } = await import("../public/app/solver.mjs");
+  const scene = createScene({ name: "d17", width: 1600, height: 1200 });
+  setHorizon(scene, 540);
+  const vp1 = addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true }).vp;
+  const vp2 = addVp(scene, { label: "VP2", x: 2960, y: 540, onHorizon: true }).vp;
+  const a = addAnchor(scene, { x: 700, y: 700 }).vertex;
+  const r1 = addRayVertex(scene, { origin: a.id, binding: { vpId: vp1.id }, t: 260 }).vertex;
+  const r2 = addRayVertex(scene, { origin: a.id, binding: { vpId: vp2.id }, t: 240 }).vertex;
+  const up = addRayVertex(scene, { origin: a.id, binding: "vertical", t: -180 }).vertex;
+  addEdge(scene, { a: a.id, b: r1.id, binding: { vpId: vp1.id } });
+  addEdge(scene, { a: a.id, b: r2.id, binding: { vpId: vp2.id } });
+  addEdge(scene, { a: a.id, b: up.id, binding: "vertical" });
+
+  const before = scene.vertices.map(v => ({ id: v.id, x: v.x, y: v.y }));
+  const res = deleteVp(scene, vp1.id);
+  assert.equal(res.ok, true, res.reason);
+  assert.equal(res.label, "VP1");
+  assert.equal(res.freed, 1, "the line that leaned on VP1 lost its guide");
+  assert.equal(res.frozen, 1, "and the point it built is frozen");
+  assert.equal(scene.vanishingPoints.length, 1);
+
+  // The whole point of the amendment: nothing moved.
+  for (const b of before) {
+    const now = scene.vertices.find(v => v.id === b.id);
+    assert.ok(now, `vertex ${b.id} survived`);
+    assert.equal(now.x, b.x, `${b.id} x unmoved`);
+    assert.equal(now.y, b.y, `${b.id} y unmoved`);
+  }
+  assert.equal(scene.edges.length, 3, "no line was destroyed");
+  // The frozen point is a plain anchor now, and nothing still names VP1.
+  assert.equal(scene.vertices.find(v => v.id === r1.id).kind, "anchor");
+  const names = JSON.stringify(scene);
+  assert.equal(names.includes(vp1.id), false, "no dangling reference to the deleted point");
+
+  // And the lines that never used VP1 still follow their own guides.
+  moveVp(scene, vp2.id, { x: 2000, y: 300 });
+  const stillBound = scene.vertices.find(v => v.id === r2.id);
+  assert.equal(stillBound.kind, "ray");
+  assert.ok(Math.abs(Math.hypot(stillBound.x - a.x, stillBound.y - a.y) - 240) < 1e-9);
+});
+
+test("D17: deleting a point takes its lines with it and freezes what was built from it", async () => {
+  const { deleteVertex } = await import("../public/app/solver.mjs");
+  const scene = createScene({ name: "d17b", width: 1600, height: 1200 });
+  setHorizon(scene, 540);
+  const vp = addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true }).vp;
+  const a = addAnchor(scene, { x: 700, y: 700 }).vertex;
+  const b = addRayVertex(scene, { origin: a.id, binding: { vpId: vp.id }, t: 300 }).vertex;
+  const c = addRayVertex(scene, { origin: b.id, binding: "vertical", t: -120 }).vertex;
+  addEdge(scene, { a: a.id, b: b.id, binding: { vpId: vp.id } });
+  addEdge(scene, { a: b.id, b: c.id, binding: "vertical" });
+  const cWas = { x: c.x, y: c.y };
+
+  const res = deleteVertex(scene, b.id);
+  assert.equal(res.ok, true, res.reason);
+  assert.equal(res.removedEdges, 2, "both lines ending on it went with it");
+  assert.equal(scene.vertices.find(v => v.id === b.id), undefined);
+  // c was built FROM b. It keeps its position rather than jumping.
+  const cNow = scene.vertices.find(v => v.id === c.id);
+  assert.equal(cNow.kind, "anchor");
+  assert.deepEqual({ x: cNow.x, y: cNow.y }, cWas);
+  assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)));
 });
