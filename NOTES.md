@@ -31,8 +31,15 @@ amendments can be implemented against a spec nobody can read.
 **Waiting on Noah (his device — the sandbox cannot reach these):**
 - App Store search for the name.
 - USPTO search for the name.
-- (`intersecting-parallels.pages.dev` availability is settled by the first
-  deploy — see Project facts.)
+- A first look at https://intersecting-parallels.pages.dev on his iPad — the
+  deploy is verified server-side (wrangler logs), but no eye from this sandbox
+  has seen the served page; its gateway refuses CONNECT to pages.dev.
+
+**SETTLED 2026-07-29: `intersecting-parallels.pages.dev` was free.** The first
+deploy run created the Pages project ("Successfully created the
+'intersecting-parallels' project", staging deploy log, 17:27 UTC) — creation
+would have failed had anyone held the name. It is now Noah's. Of the three
+device-blocked name checks in the handoff, only App Store and USPTO remain.
 
 **Repo metadata (Doctrine §10, Noah's manual GitHub-UI step, unconfirmed):**
 - Description: `Where you stand and what you see.`
@@ -56,6 +63,16 @@ placeholder linking back to the hub is fine; the hub does not link out yet.
 - Repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. The deploy
   workflow strips whitespace and masks before use (Cloudflare 6111), and routes
   cleaned values through job env, never step outputs (Doctrine §16.4).
+- KNOWN MISLEADING INSTRUMENT: the workflow's "Verify cleaned token" step
+  reports `Invalid API Token` from `/client/v4/user/tokens/verify` for this
+  token, while every real Pages call succeeds — that endpoint validates
+  user-level tokens and this one is account-scoped. The deploy succeeding is
+  the proof; do not "fix" the token because of that step (both deploys of
+  2026-07-29 show exactly this pattern).
+- First deploys, 2026-07-29, both verified in Actions logs: production
+  deployment `ea46953e` on `main`, preview `ddf242fd` aliased to
+  `staging.intersecting-parallels.pages.dev`. The a11y gate ran green in CI on
+  both branches the same day.
 - Branches: `staging` and `main` only; harness `claude/*` designations ignored
   (Doctrine §11).
 - Gate: `a11y-gate.mjs` — locally `npm run a11y`, in CI the same file. New
