@@ -8,6 +8,32 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.2.0 — CAPABILITY · 2026-07-29
+
+**Only vanishing points, vertical and horizontal touch your lines now.**
+
+Your endpoints were being pulled onto whatever you had already drawn — any
+existing point or line within 12px grabbed them. That was never asked for, and
+it is what dragged a line off the guide it was drawn along. It is gone.
+
+- The only things that can catch a stroke: each vanishing point, true vertical,
+  true horizontal. Nothing else. Ever.
+- **45°** is a new toggle in the toolbar, off until you turn it on.
+- Where you lift your finger is where the line ends. Nothing snaps it to
+  anything.
+- A consequence worth knowing: lines are no longer welded to each other at
+  shared corners, so moving a vanishing point swings each line about its own
+  start rather than holding a shape together. Say the word if you want the
+  welding back as its own toggle.
+- The guides you can follow are drawn from the moment your finger lands —
+  faint dotted lines through the point you started from, for every vanishing
+  point plus vertical and horizontal. No aiming at a marker on the edge of the
+  screen that was never on your line to begin with.
+- The version number now sits next to the app name, so a screenshot says which
+  build it came from.
+
+---
+
 ## 0.1.2 — ITERATION · 2026-07-29
 
 **A line only claims a guide when it really follows one.**

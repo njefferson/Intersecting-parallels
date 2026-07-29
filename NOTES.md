@@ -36,8 +36,8 @@ and on `staging`, awaiting Noah's single aggregate pass. What each step became:
    `test/solver.test.mjs`.
 2. Canvas render + pan/zoom transform — `public/app/render.mjs`.
 3. VP placement, drag, off-canvas handles, horizon — `render.mjs` + `ui.mjs`.
-4. Click-to-place edges with vertex merging — `public/app/snap.mjs` (D2's
-   endpoint precedence lives here).
+4. Click-to-place edges — `public/app/snap.mjs`. D2's endpoint precedence lives
+   here but is now OFF at Noah's instruction: see D16.
 5. VP drag → live re-solve. **The proof of concept.** It works; the aggregate
    handoff below is the "stop and validate" this step asks for.
 6. Assisted freehand with ghost ray and threshold fallback — `snap.mjs` +
@@ -49,9 +49,10 @@ and on `staging`, awaiting Noah's single aggregate pass. What each step became:
 
 **Gates, all three green, all three run by CI on the same entry points a
 session runs locally:**
-- `npm test` — 48 tests (solver, snapping and D2 precedence, D11 guide
-  ranking, D12 binding honesty, export, project validation, undo). Every new
-  block was made to fail against the unfixed code before it was trusted.
+- `npm test` — 51 tests (solver, snapping, D11 guide ranking, D12 binding
+  honesty, D16 the closed guide set and no endpoint anchoring, export, project
+  validation, undo). Every new block was made to fail against the unfixed code
+  before it was trusted.
 - `npm run a11y` — the app in four surfaces (canvas + three dialogs), both
   themes, two viewports. It now SERVES `public/` over HTTP, because ES modules
   cannot load from `file://` and the old file:// scan would have measured a
@@ -362,6 +363,54 @@ VPs legible.
 - PNG: probe the real canvas ceiling on Noah's iPad before offering dimensions,
   and clamp with an honest message rather than emitting the blank image iOS
   produces past the limit (Doctrine §5).
+
+### D16. The guide set is exactly VPs + vertical + horizontal. Nothing else anchors a line.
+
+**Noah, 2026-07-29, in anger and correctly:** *"WHY is there ANYTHING besides
+VPs, and perfect vertical and horizontal lines acting as ANCHORS FOR MY LINES?!
+I DIDN'T ASK FOR THAT!!! 45 degrees may be a toggle."*
+
+He is the owner and this OVERRIDES spec §2.4 and the D2 endpoint precedence,
+both of which a session adopted from the handoff without his asking.
+
+- **The guide set is closed:** every unlocked vanishing point, true vertical,
+  true horizontal. Optionally the 45°/135° pair, behind a toolbar toggle that
+  starts OFF. A property test sweeps 360° of stroke directions and asserts that
+  nothing outside that set is ever even offered.
+- **Endpoint anchoring is OFF.** §2.4's "shared vertices are mandatory" merge
+  and D2's snap-onto-an-existing-edge were silently moving the ends of his
+  strokes onto earlier geometry — which is exactly what pulled a line off the
+  guide it was drawn along. `resolveEndpoint` still supports joining, and the
+  app passes `join: false`.
+- **The consequence, stated plainly rather than discovered:** lines no longer
+  share corner vertices, so a VP drag swings each line about its own start
+  instead of holding a box together. That is what he asked for. If he wants
+  welding back it is one toggle, not a rebuild — the machinery is intact and
+  tested.
+- **What this replaced in the gates:** the walk's check that "strokes starting
+  at the same point share one vertex (§2.4)" now asserts the OPPOSITE. It was
+  inverted deliberately, and says so where it lives.
+
+### D15. Guides are followed, not aimed at
+
+An off-screen vanishing point had only an edge marker to aim at, and that marker
+sits on the ray from the VIEWPORT CENTRE to the point — a compass, not a target.
+Measured on Noah's own scene: VP2's marker drawn at screen x=834 while the
+point's true direction from a stroke's origin left the viewport at x=1819.
+Aiming at the marker was therefore aiming several degrees off the guide, from
+every origin, and no scoring rule can recover an intent the gesture never
+contained. So the moment a stroke begins, every candidate guide line through
+that exact origin is drawn across the canvas. The line to follow is visible
+instead of inferred.
+
+### D13. The guide is decided from a sample worth trusting
+
+§3.2 takes the stroke direction after ~10 CANVAS px. At a fit-to-screen zoom
+that is about five SCREEN pixels, which on a fingertip is the finger settling,
+not an aim. The sample is now measured in screen px, the choice is re-picked as
+the stroke grows, and it locks at 28 screen px so the line stops moving under
+the hand. A stroke that never reaches the lock is decided from the whole
+gesture at commit.
 
 ### D12. A binding is a fact about the line, never an aspiration
 

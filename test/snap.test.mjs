@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createScene, addVp, addAnchor, setHorizon, solveScene, moveVp } from "../public/app/solver.mjs";
+import { createScene, addVp, addAnchor, setHorizon, solveScene, moveVp, addRayVertex } from "../public/app/solver.mjs";
 import {
   scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge, resolveEndpoint, commitStroke, thresholdFor, bindingSatisfied, effectiveBinding,
 } from "../public/app/snap.mjs";
@@ -343,4 +343,63 @@ test("D12: a binding that goes stale after a drag is reported as free, and the f
   assert.equal(effectiveBinding(scene, res.edge), "free", "no longer true, so no longer reported");
   assert.deepEqual(res.edge.binding, { vpId: vp1.id },
     "but the stored file is left alone — a drag must not silently edit the drawing");
+});
+
+// ---- D16: the guide set is exactly VPs + vertical + horizontal ------------
+//
+// Noah, 2026-07-29: "WHY is there ANYTHING besides VPs, and perfect vertical
+// and horizontal lines acting as ANCHORS FOR MY LINES?! I DIDN'T ASK FOR THAT!
+// 45 degrees may be a toggle."
+
+test("D16: nothing outside {vanishing points, vertical, horizontal} is ever offered", () => {
+  const { scene } = farVpScene();
+  const offered = new Set();
+  for (let a = 0; a < 360; a += 7) {
+    const r = a * Math.PI / 180;
+    for (const c of scoreBindings(scene, { x: 800, y: 600 }, { x: Math.cos(r), y: Math.sin(r) })) {
+      offered.add(typeof c.binding === "string" ? c.binding : "vp");
+    }
+  }
+  assert.deepEqual([...offered].sort(), ["horizontal", "vertical", "vp"]);
+});
+
+test("D16: the 45° pair appears ONLY when it is switched on", () => {
+  const { scene } = farVpScene();
+  const dir = { x: Math.SQRT1_2, y: Math.SQRT1_2 };           // exactly 45°
+  const off = scoreBindings(scene, { x: 800, y: 600 }, dir).map(c => c.binding);
+  assert.equal(off.includes("diag45"), false, "off by default");
+  assert.equal(chooseBinding(scene, { x: 800, y: 600 }, dir, {}).binding, "free",
+    "a 45° stroke matches nothing when the toggle is off");
+  const on = scoreBindings(scene, { x: 800, y: 600 }, dir, { diagonals: true }).map(c => c.binding);
+  assert.equal(on.includes("diag45"), true);
+  assert.equal(chooseBinding(scene, { x: 800, y: 600 }, dir, { diagonals: true }).binding, "diag45");
+});
+
+test("D16: an endpoint lands where it was put — no merging, no snapping to a line", () => {
+  const { scene, vp1 } = farVpScene();
+  const p = addAnchor(scene, { x: 900, y: 400 }).vertex;      // something already drawn
+  const dx = vp1.x - 900, dy = vp1.y - 400, L = Math.hypot(dx, dy);
+  addRayVertex(scene, { origin: p.id, binding: { vpId: vp1.id }, t: 300 });
+  const before = scene.vertices.length;
+
+  // A stroke starting 3px from that existing point — well inside the old 12px
+  // snap radius — must NOT be captured by it.
+  const start = { x: 903, y: 402 };
+  const desc = resolveEndpoint(scene, start, 12, { join: false });
+  assert.equal(desc.type, "plain");
+  assert.deepEqual(desc.at, start, "the point stays exactly where it was put");
+
+  const dir = { x: dx / L, y: dy / L };
+  const end = { x: start.x + dir.x * 250, y: start.y + dir.y * 250 };
+  const res = commitStroke(scene, desc,
+    resolveEndpoint(scene, end, 12, { join: false }), { vpId: vp1.id });
+  assert.equal(res.ok, true, res.reason);
+  assert.notEqual(res.a, p.id, "the stroke did not get welded to the existing point");
+  assert.equal(scene.vertices.length, before + 2, "it made its own two endpoints");
+  // And it still honours the guide it was drawn along.
+  const a = scene.vertices.find(v => v.id === res.a), b = scene.vertices.find(v => v.id === res.b);
+  const ex = b.x - a.x, ey = b.y - a.y, eL = Math.hypot(ex, ey);
+  const missed = Math.abs(ex * (a.y - vp1.y) - ey * (a.x - vp1.x)) / eL;
+  assert.ok(missed < 1e-6, `the line still converges on VP1 (off by ${missed})`);
+  assert.deepEqual(res.edge.binding, { vpId: vp1.id });
 });

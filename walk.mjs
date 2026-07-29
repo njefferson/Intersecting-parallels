@@ -102,12 +102,15 @@ try {
   check('a stroke drawn along a guide binds to it, not to nothing',
     bindings.filter(b => b !== 'free').length >= 3, `bindings: ${bindings.join(', ')}`);
 
-  // §2.4: shared vertices. The three strokes started at the same point, so
-  // they must SHARE one vertex id — this is the mechanism the whole app rests
-  // on, and it is invisible in a screenshot.
+  // D16 replaces §2.4's mandatory merging. Noah's rule: nothing but a GUIDE may
+  // influence a stroke — an endpoint lands where it was put and is never welded
+  // to earlier geometry. Three strokes from the same spot therefore keep three
+  // separate start vertices. This check used to assert the OPPOSITE; it is
+  // inverted deliberately, not relaxed.
   const corner = s.scene.edges.map(e => e.a);
-  check('strokes starting at the same point share one vertex (§2.4)',
-    new Set(corner).size === 1, `${new Set(corner).size} distinct start vertices`);
+  check('an endpoint is never welded to earlier geometry (D16)',
+    new Set(corner).size === s.scene.edges.length,
+    `${new Set(corner).size} distinct start vertices for ${s.scene.edges.length} lines`);
   if (SHOTS) await page.screenshot({ path: `${SHOT_DIR}/2-drawn.png` });
 
   // ---- 3. drag a vanishing point -----------------------------------------

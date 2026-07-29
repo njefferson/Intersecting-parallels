@@ -200,6 +200,37 @@ export function draw(ctx, view, viewport, opts = {}) {
     }
   }
 
+  // 5b — CANDIDATE guide rays, from the moment a stroke begins (D15).
+  //
+  // A vanishing point that is off-screen has only an edge marker to aim at, and
+  // that marker sits on the ray from the VIEWPORT CENTRE to the point — it is a
+  // compass, not a target. Measured: VP2's marker at screen x=834 while the
+  // point's true direction from the same origin left the viewport at x=1819.
+  // Aiming at the marker is therefore aiming several degrees off the guide, and
+  // no amount of scoring can recover an intent the gesture never contained.
+  //
+  // So the guide stops being something to aim at and becomes something to
+  // follow: the moment a stroke starts, every candidate line through that exact
+  // origin is drawn, labelled, across the whole canvas.
+  if (ghost && ghost.origin && ghost.candidates?.length) {
+    const far = Math.max(viewport.width, viewport.height) * 4 / view.scale;
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 7]);
+    for (const cand of ghost.candidates) {
+      if (cand.chosen) continue;                 // the chosen one is drawn heavier below
+      const a = toScreen(view, { x: ghost.origin.x - cand.u.x * far, y: ghost.origin.y - cand.u.y * far });
+      const b = toScreen(view, { x: ghost.origin.x + cand.u.x * far, y: ghost.origin.y + cand.u.y * far });
+      ctx.strokeStyle = c.guide;
+      ctx.globalAlpha = 0.4;                     // decoration; the dash carries the meaning
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   // 6 — the active ghost ray: full length, faint, long-dashed (§3.2)
   if (ghost && ghost.origin && ghost.u) {
     const far = Math.max(viewport.width, viewport.height) * 4 / view.scale;

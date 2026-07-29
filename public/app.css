@@ -65,6 +65,18 @@ button,select,input[type="number"],input[type="text"]{font:inherit;font-size:var
 .btn[aria-pressed="true"]::before{content:"✓ ";font-weight:700}
 .btn.danger{border-color:var(--danger);color:var(--danger)}
 
+/* The build stamp. A real colour token, never opacity: an opacity is invisible
+   to a contrast gate, which is how two sibling apps shipped a stamp that
+   measured 2.54:1 while the gate read 4.79:1 (hub LESSONS §8). */
+.build{
+  font-size:0.75rem;
+  font-variant-numeric:tabular-nums;
+  color:var(--muted);
+  letter-spacing:0.02em;
+  align-self:center;
+  margin-left:-4px;
+}
+
 .title{
   font-size:.8125rem;font-weight:700;letter-spacing:.02em;color:var(--muted);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;

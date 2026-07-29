@@ -47,6 +47,7 @@ export const AXIS_MARGIN = 4;          // degrees
 // other, the one being drawn TOWARD wins.
 export const VP_TIE = 4;               // degrees
 
+
 // §12 leaves SNAP_THRESHOLD "to tune against real stylus input". A FINGER is
 // measurably coarser than a stylus: the direction is taken over ~10 canvas px,
 // and a fingertip covers more than that. Touch therefore gets a wider band —
@@ -62,6 +63,8 @@ const isVpBinding = b => typeof b !== "string";
 // Human name for a binding, for the status line and the inspector.
 export function bindingName(scene, binding) {
   if (binding === "free") return "no guide";
+  if (binding === "diag45") return "45°";
+  if (binding === "diag135") return "135°";
   if (typeof binding === "string") return binding;
   return scene.vanishingPoints.find(v => v.id === binding.vpId)?.label ?? "a vanishing point";
 }
@@ -72,10 +75,20 @@ function lineAngle(dir, u) {
   return Math.acos(Math.min(1, dot)) * DEG;
 }
 
-// Score every candidate binding for a stroke that starts at originPos and
-// travels along dir (§3.2): each unlocked VP's line through the origin, plus
-// vertical and horizontal. Sorted best-first.
-export function scoreBindings(scene, originPos, dir) {
+// D16 — THE GUIDE SET IS EXACTLY: every unlocked vanishing point, true
+// vertical, true horizontal. Optionally the 45° pair, behind a toggle that is
+// OFF by default. Nothing else may ever capture a stroke.
+//
+// Noah, 2026-07-29: "WHY is there ANYTHING besides VPs, and perfect vertical
+// and horizontal lines acting as ANCHORS FOR MY LINES?! I DIDN'T ASK FOR THAT!
+// 45 degrees may be a toggle."
+//
+// This function was already that list. What was NOT on the list, and was
+// silently anchoring his lines anyway, was ENDPOINT snapping: §2.4's mandatory
+// merge into any existing vertex within 12px, and D2's snap onto any existing
+// bound edge. Those pulled the END of a stroke off its guide and onto whatever
+// he had drawn earlier — see `resolveEndpoint`, where it is now off.
+export function scoreBindings(scene, originPos, dir, { diagonals = false } = {}) {
   const out = [];
   for (const vp of scene.vanishingPoints) {
     if (vp.locked) continue;
@@ -85,23 +98,29 @@ export function scoreBindings(scene, originPos, dir) {
   }
   out.push({ binding: "vertical", u: { x: 0, y: 1 }, angle: lineAngle(dir, { x: 0, y: 1 }), label: "vertical" });
   out.push({ binding: "horizontal", u: { x: 1, y: 0 }, angle: lineAngle(dir, { x: 1, y: 0 }), label: "horizontal" });
+  if (diagonals) {
+    for (const [binding, u, label] of [
+      ["diag45", { x: Math.SQRT1_2, y: Math.SQRT1_2 }, "45°"],
+      ["diag135", { x: Math.SQRT1_2, y: -Math.SQRT1_2 }, "135°"],
+    ]) out.push({ binding, u, angle: lineAngle(dir, u), label });
+  }
   out.sort((a, b) => a.angle - b.angle);
   return out;
 }
 
 // The stroke's binding (§3.2): forced wins; assist off means free; otherwise
 // the best candidate, unless its angular error exceeds SNAP_THRESHOLD.
-export function chooseBinding(scene, originPos, dir, { forced = null, assist = true, threshold = SNAP_THRESHOLD } = {}) {
+export function chooseBinding(scene, originPos, dir, { forced = null, assist = true, threshold = SNAP_THRESHOLD, diagonals = false } = {}) {
   if (forced) return forced === "free" ? { binding: "free", u: null } : bestForced(scene, originPos, forced);
   if (!assist) return { binding: "free", u: null };
-  const ranked = scoreBindings(scene, originPos, dir);
+  const ranked = scoreBindings(scene, originPos, dir, { diagonals });
   const inRange = ranked.filter(c => c.angle <= threshold);
   if (!inRange.length) return { binding: "free", u: null };
   const best = inRange[0];                                   // sorted best-first
   const vps = inRange.filter(c => isVpBinding(c.binding));   // therefore angle-sorted too
   let bestVp = vps[0];
-  // D11, part two: between vanishing points too close in angle to tell apart,
-  // the one the stroke is reaching toward wins.
+  // D11, part two: among points that are still too close to tell apart after
+  // that, the one being reached toward wins outright.
   if (bestVp) {
     const tied = vps.filter(c => c.angle <= bestVp.angle + VP_TIE);
     if (tied.length > 1) {
@@ -180,7 +199,12 @@ export function nearestEdge(scene, p, r = SNAP_RADIUS) {
 // ---- endpoint resolution (D2) --------------------------------------------
 
 // Describe what a tap at p should become, before anything is created.
-export function resolveEndpoint(scene, p, r = SNAP_RADIUS) {
+//
+// D16: `join` is what §2.4 called mandatory and Noah calls an anchor he never
+// asked for. With join off — which is how the app now draws — an endpoint lands
+// exactly where it was put, and only a GUIDE can influence a stroke.
+export function resolveEndpoint(scene, p, r = SNAP_RADIUS, { join = true } = {}) {
+  if (!join) return { type: "plain", at: { x: p.x, y: p.y } };
   const v = nearestVertex(scene, p, r);
   if (v) return { type: "merge", vertexId: v.id, at: { x: v.x, y: v.y } };
   const hit = nearestBoundEdge(scene, p, r);

@@ -10,7 +10,7 @@
 // announced by a standing indicator with an obvious exit (Doctrine §3).
 
 import {
-  createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS,
+  createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS, bindingDirection,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, commitStroke, nearestVertex, nearestEdge, thresholdFor, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -24,14 +24,18 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "0.1.2";
+const VERSION = "0.2.0";
 const NUDGE = 1, NUDGE_BIG = 20;
+// D13: both in SCREEN px, because that is where a hand's noise lives — canvas
+// px shrink with zoom and stop describing the gesture.
+const MIN_TRAVEL = 10;    // before any guide is offered at all
+const LOCK_TRAVEL = 28;   // past this the choice stops moving under the finger
 
 const $ = id => document.getElementById(id);
 const el = {
   stage: $("stage"), canvas: $("canvas"), panel: $("panel"), vpList: $("vp-list"),
   inspector: $("inspector"), horizonY: $("horizon-y"), toast: $("toast"), live: $("live"),
-  touchFlag: $("touch-flag"), force: $("force"),
+  touchFlag: $("touch-flag"), force: $("force"), build: $("build-stamp"),
   undo: $("undo"), redo: $("redo"),
 };
 
@@ -39,7 +43,7 @@ const ctx = el.canvas.getContext("2d");
 let scene = createScene({ name: "untitled", width: 1600, height: 1200 });
 let view = createView(scene);
 let history = createHistory();
-let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true };
+let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true, snap45: false };
 let selection = null;
 let ghost = null;
 let activeVpId = null;
@@ -360,6 +364,24 @@ function renderForceOptions() {
   prefs.forced = el.force.value;
 }
 
+// D15: the candidate guide lines through a stroke's origin — one per unlocked
+// vanishing point, plus the two axes. Drawn faint until one is chosen.
+function candidateRays(origin) {
+  const out = [];
+  for (const vp of scene.vanishingPoints) {
+    if (vp.locked) continue;
+    const u = bindingDirection(scene, origin, { vpId: vp.id });
+    if (u) out.push({ u, label: vp.label, vpId: vp.id });
+  }
+  out.push({ u: { x: 0, y: 1 }, label: "vertical" });
+  out.push({ u: { x: 1, y: 0 }, label: "horizontal" });
+  if (prefs.snap45) {
+    out.push({ u: { x: Math.SQRT1_2, y: Math.SQRT1_2 }, label: "45°" });
+    out.push({ u: { x: Math.SQRT1_2, y: -Math.SQRT1_2 }, label: "135°" });
+  }
+  return out;
+}
+
 function forcedBinding() {
   if (!prefs.forced) return null;
   if (prefs.forced === "free") return "free";
@@ -483,7 +505,10 @@ el.canvas.addEventListener("pointerdown", ev => {
 
   // draw / place
   const c = toCanvas(view, p);
-  const startDesc = resolveEndpoint(scene, c, SNAP_RADIUS / view.scale);
+  // D16: join OFF. An endpoint lands exactly where it was put — no merging
+  // into a nearby point, no snapping onto an existing line. Only a GUIDE may
+  // influence a stroke (Noah, 2026-07-29).
+  const startDesc = resolveEndpoint(scene, c, SNAP_RADIUS / view.scale, { join: false });
   gesture = {
     kind: "draw",
     startDesc,
@@ -495,8 +520,11 @@ el.canvas.addEventListener("pointerdown", ev => {
     // D11: a fingertip aims coarser than a stylus, so the band it snaps within
     // is wider. Captured at pointerdown — one stroke, one instrument.
     pointerType: ev.pointerType,
+    // D15: every guide available from THIS origin, so the line to follow is
+    // visible from the first moment instead of having to be aimed at.
+    candidates: candidateRays(startDesc.at),
   };
-  ghost = null;
+  ghost = { origin: gesture.startCanvas, u: null, candidates: gesture.candidates };
   render();
 });
 
@@ -544,24 +572,46 @@ el.canvas.addEventListener("pointermove", ev => {
     gesture.last = c;
     const dx = c.x - gesture.startCanvas.x, dy = c.y - gesture.startCanvas.y;
     const travel = Math.hypot(dx, dy);
-    // §3.2: the direction is taken after ~10 canvas px of travel, and the
-    // binding is decided ONCE — from then on the line follows the ray.
-    if (!gesture.binding && travel >= 10) {
+    // D13 — decide the guide from a sample worth trusting.
+    //
+    // §3.2 says take the direction after ~10 CANVAS px and decide once. At a
+    // fit-to-screen zoom that is about five SCREEN pixels, which on a fingertip
+    // is the roll of the finger settling, not an aim. Measured on Noah's scene:
+    // a stroke aimed at VP2 came out 9.2° off its guide while VP1's line — the
+    // same line ridden backwards — sat 9.6° away, so which point captured the
+    // stroke was a coin toss, and one in six landed on VP1 and missed VP2 by
+    // 700px.
+    //
+    // So the sample is measured in SCREEN px, where the hand's noise actually
+    // lives, and the guide is re-picked as the stroke grows until it is long
+    // enough to mean something. §3.2's "decide once" survives where it matters:
+    // once LOCK_TRAVEL is reached the choice stops moving, so the line does not
+    // wander under the finger.
+    const screenTravel = travel * view.scale;
+    if (screenTravel >= MIN_TRAVEL && !gesture.locked) {
       const dir = { x: dx / travel, y: dy / travel };
       const chosen = chooseBinding(scene, gesture.startCanvas, dir, {
         forced: forcedBinding(), assist: prefs.assist,
-        threshold: thresholdFor(gesture.pointerType),
+        threshold: thresholdFor(gesture.pointerType), diagonals: prefs.snap45,
       });
+      const changed = JSON.stringify(chosen.binding) !== JSON.stringify(gesture.binding);
       gesture.binding = chosen.binding;
       gesture.u = chosen.u;
-      say(`Following ${bindingName(scene, chosen.binding)}`);
+      if (screenTravel >= LOCK_TRAVEL) gesture.locked = true;
+      if (changed) say(`Following ${bindingName(scene, chosen.binding)}`);
     }
+    const cands = (gesture.candidates || []).map(k => ({
+      ...k,
+      chosen: !!(gesture.u && Math.abs(k.u.x * gesture.u.x + k.u.y * gesture.u.y) > 0.9999),
+    }));
     if (gesture.binding && gesture.u) {
       const t = (c.x - gesture.startCanvas.x) * gesture.u.x + (c.y - gesture.startCanvas.y) * gesture.u.y;
       const end = { x: gesture.startCanvas.x + t * gesture.u.x, y: gesture.startCanvas.y + t * gesture.u.y };
-      ghost = { origin: gesture.startCanvas, u: gesture.u, preview: { a: gesture.startCanvas, b: end } };
+      ghost = { origin: gesture.startCanvas, u: gesture.u, candidates: cands, preview: { a: gesture.startCanvas, b: end } };
     } else if (gesture.binding === "free") {
-      ghost = { origin: gesture.startCanvas, u: null, preview: { a: gesture.startCanvas, b: c } };
+      ghost = { origin: gesture.startCanvas, u: null, candidates: cands, preview: { a: gesture.startCanvas, b: c } };
+    } else {
+      ghost = { origin: gesture.startCanvas, u: null, candidates: cands };
     }
     render();
   }
@@ -591,15 +641,18 @@ function endPointer(ev) {
     const travel = Math.hypot(end.x - wasGesture.startCanvas.x, end.y - wasGesture.startCanvas.y);
     if (travel < 6) { render(); return; }                 // a tap, not a stroke
     let binding = wasGesture.binding;
-    if (!binding) {
+    // D13: a stroke that never grew long enough to lock is decided from the
+    // whole gesture, which is a far better estimate of aim than its first
+    // few pixels.
+    if (!binding || !wasGesture.locked) {
       const dir = { x: (end.x - wasGesture.startCanvas.x) / travel, y: (end.y - wasGesture.startCanvas.y) / travel };
       binding = chooseBinding(scene, wasGesture.startCanvas, dir, {
         forced: forcedBinding(), assist: prefs.assist,
-        threshold: thresholdFor(wasGesture.pointerType),
+        threshold: thresholdFor(wasGesture.pointerType), diagonals: prefs.snap45,
       }).binding;
     }
     beginGesture(history, scene);                          // D7: the whole stroke is one step
-    const endDesc = resolveEndpoint(scene, end, SNAP_RADIUS / view.scale);
+    const endDesc = resolveEndpoint(scene, end, SNAP_RADIUS / view.scale, { join: false });
     const res = commitStroke(scene, wasGesture.startDesc, endDesc, binding);
     if (!res.ok) {
       undoHistoryInPlace();
@@ -710,6 +763,16 @@ $("assist").addEventListener("click", () => {
   prefs.assist = !prefs.assist;
   $("assist").setAttribute("aria-pressed", String(prefs.assist));
   toast(prefs.assist ? "Guides on — strokes snap to a vanishing point" : "Guides off — strokes stay exactly as drawn");
+  autosaver.poke();
+});
+
+// D16: the 45° pair is the ONE optional extra Noah allowed, and it starts off.
+$("snap45")?.addEventListener("click", () => {
+  prefs.snap45 = !prefs.snap45;
+  $("snap45")?.setAttribute("aria-pressed", String(prefs.snap45));
+  toast(prefs.snap45
+    ? "45° guides on — vanishing points, vertical, horizontal and 45°"
+    : "45° guides off — vanishing points, vertical and horizontal only");
   autosaver.poke();
 });
 
@@ -896,6 +959,10 @@ $("open-about").addEventListener("click", () => {
 
 // ---- boot ----------------------------------------------------------------
 
+// The build stamp is written at BOOT, not when some dialog opens: its whole
+// purpose is that a screenshot taken at any moment says which build it is.
+if (el.build) el.build.textContent = VERSION;
+
 const autosaver = makeAutosaver(() => scene, () => prefs);
 
 window.addEventListener("resize", sizeCanvas);
@@ -908,6 +975,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
   if (restored && restored.scene) {
     scene = restored.scene;
     if (restored.prefs) prefs = { ...prefs, ...restored.prefs };
+    $("snap45")?.setAttribute("aria-pressed", String(prefs.snap45));
     view.scene = scene;
     solveScene(scene);
   } else {

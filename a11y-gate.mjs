@@ -64,7 +64,7 @@ function serveRoot() {
 const PAGES = [
   {
     url: '/',
-    registry: ['h1.title', '.btn', '.hint', '.vp-name', '.coord label', '.panel-head h2'],
+    registry: ['h1.title', '.build', '.btn', '.hint', '.vp-name', '.coord label', '.panel-head h2'],
     states: [
       { name: 'canvas', open: null },
       { name: 'export', open: '#open-export', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body label', '.hint'] },

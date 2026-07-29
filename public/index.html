@@ -28,6 +28,9 @@
 <div class="app">
   <header class="bar">
     <h1 class="title">Intersecting Parallels</h1>
+    <!-- Doctrine §5: the running version is ON SCREEN, so a screenshot says
+         which build it came from without anyone having to remember. -->
+    <span class="build" id="build-stamp" aria-label="App version"></span>
 
     <div class="bar-group" role="group" aria-label="Drawing mode">
       <button class="btn" id="mode-place" type="button" aria-pressed="true">Place</button>
@@ -39,6 +42,7 @@
       <button class="btn" id="assist" type="button" aria-pressed="true">Assist</button>
       <label class="sr-only" for="force">Force this stroke onto</label>
       <select class="btn" id="force"></select>
+      <button class="btn" id="snap45" type="button" aria-pressed="false">45°</button>
       <button class="btn" id="touch-draws" type="button" aria-pressed="false">Touch draws</button>
     </div>
 

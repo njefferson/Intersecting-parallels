@@ -54,6 +54,9 @@ export function intersectLines(p1, u1, p2, u2, eps = PARALLEL_EPS) {
 export function bindingDirection(scene, originPos, binding) {
   if (binding === "vertical") return { x: 0, y: 1 };
   if (binding === "horizontal") return { x: 1, y: 0 };
+  // D16: the optional 45° pair. Off unless the toolbar toggle is on.
+  if (binding === "diag45") return { x: Math.SQRT1_2, y: Math.SQRT1_2 };
+  if (binding === "diag135") return { x: Math.SQRT1_2, y: -Math.SQRT1_2 };
   const vp = scene.vanishingPoints.find(v => v.id === binding.vpId);
   if (!vp) return null;
   const dx = vp.x - originPos.x, dy = vp.y - originPos.y;
@@ -107,8 +110,10 @@ function vertexById(scene, id) {
   return scene.vertices.find(v => v.id === id);
 }
 
+const AXIS_BINDINGS = new Set(["vertical", "horizontal", "diag45", "diag135"]);
+
 function validBinding(scene, binding) {
-  if (binding === "vertical" || binding === "horizontal") return true;
+  if (AXIS_BINDINGS.has(binding)) return true;
   return !!(binding && binding.vpId && scene.vanishingPoints.some(v => v.id === binding.vpId));
 }
 
