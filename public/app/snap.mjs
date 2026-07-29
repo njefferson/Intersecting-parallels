@@ -17,6 +17,55 @@ import {
 
 const DEG = 180 / Math.PI;
 
+// D11 — a vanishing point outranks an axis guide when both fit.
+//
+// FOUND ON NOAH'S IPAD, 2026-07-29: "the lines do not converge on the vanishing
+// point." Reproduced headlessly — strokes aimed straight at VP1 were binding to
+// `horizontal`. The cause is structural, not a rounding accident: a VP far away
+// and near the horizon has a guide direction within a degree of horizontal
+// everywhere on the canvas, so `horizontal` won on measurement noise. And
+// `horizontal` is a PARALLEL family — lines bound to it can never converge,
+// which is precisely the fan he saw.
+//
+// The rule: an axis guide (`vertical`/`horizontal`) only beats the best VP
+// guide if it beats it by more than AXIS_MARGIN. Below that the two lines are
+// visually identical over a stroke, and in a perspective construction tool the
+// VP is the constraint the user aimed at while the axes are available
+// everywhere. Anyone who genuinely wants an axis can force it in the toolbar —
+// that control exists for exactly this.
+export const AXIS_MARGIN = 4;          // degrees
+
+// The same measurement, run against the real default scene, exposed a SECOND
+// ambiguity underneath the first: with both VPs on the horizon, a stroke drawn
+// near the horizon is within a couple of degrees of BOTH of them as lines —
+//   wobble 3°:  VP2 0.87°  |  horizontal 1.99°  |  VP1 3.00°
+// — so angle alone cannot say which vanishing point was meant, and a hand
+// tremor flips the answer between two guides that converge in OPPOSITE
+// directions. The stroke's direction is the information that settles it: D3
+// made a binding a direction-less LINE for solving, but the drag still says
+// which way the user was reaching. Among VP guides within VP_TIE of each
+// other, the one being drawn TOWARD wins.
+export const VP_TIE = 4;               // degrees
+
+// §12 leaves SNAP_THRESHOLD "to tune against real stylus input". A FINGER is
+// measurably coarser than a stylus: the direction is taken over ~10 canvas px,
+// and a fingertip covers more than that. Touch therefore gets a wider band —
+// same rule, different instrument. Pen and mouse keep the spec's 15°.
+export const TOUCH_SNAP_THRESHOLD = 22;
+
+export function thresholdFor(pointerType) {
+  return pointerType === "touch" ? TOUCH_SNAP_THRESHOLD : SNAP_THRESHOLD;
+}
+
+const isVpBinding = b => typeof b !== "string";
+
+// Human name for a binding, for the status line and the inspector.
+export function bindingName(scene, binding) {
+  if (binding === "free") return "no guide";
+  if (typeof binding === "string") return binding;
+  return scene.vanishingPoints.find(v => v.id === binding.vpId)?.label ?? "a vanishing point";
+}
+
 // Angle between a direction and a LINE (not a ray — D3): 0..90 degrees.
 function lineAngle(dir, u) {
   const dot = Math.abs(dir.x * u.x + dir.y * u.y);
@@ -46,9 +95,34 @@ export function chooseBinding(scene, originPos, dir, { forced = null, assist = t
   if (forced) return forced === "free" ? { binding: "free", u: null } : bestForced(scene, originPos, forced);
   if (!assist) return { binding: "free", u: null };
   const ranked = scoreBindings(scene, originPos, dir);
-  const best = ranked[0];
-  if (!best || best.angle > threshold) return { binding: "free", u: null };
+  const inRange = ranked.filter(c => c.angle <= threshold);
+  if (!inRange.length) return { binding: "free", u: null };
+  const best = inRange[0];                                   // sorted best-first
+  const vps = inRange.filter(c => isVpBinding(c.binding));   // therefore angle-sorted too
+  let bestVp = vps[0];
+  // D11, part two: between vanishing points too close in angle to tell apart,
+  // the one the stroke is reaching toward wins.
+  if (bestVp) {
+    const tied = vps.filter(c => c.angle <= bestVp.angle + VP_TIE);
+    if (tied.length > 1) {
+      const toward = tied.filter(c => headingToward(scene, originPos, dir, c.binding));
+      if (toward.length) bestVp = toward[0];
+    }
+  }
+  // D11, part one: the VP takes a near-tie with an axis. Only a clearly better
+  // axis beats it.
+  if (bestVp && bestVp !== best && bestVp.angle <= best.angle + AXIS_MARGIN) {
+    return { binding: bestVp.binding, u: bestVp.u };
+  }
   return { binding: best.binding, u: best.u };
+}
+
+// Is the drag reaching toward this vanishing point, or away from it? Both draw
+// the same line; only the gesture says which end the user is working to.
+function headingToward(scene, originPos, dir, binding) {
+  const vp = scene.vanishingPoints.find(v => v.id === binding.vpId);
+  if (!vp) return false;
+  return dir.x * (vp.x - originPos.x) + dir.y * (vp.y - originPos.y) > 0;
 }
 
 function bestForced(scene, originPos, forced) {

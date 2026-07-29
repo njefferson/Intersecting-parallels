@@ -8,6 +8,28 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.1.1 — ITERATION · 2026-07-29
+
+**Lines drawn to a vanishing point now actually meet there.**
+
+Noah drew four lines at a vanishing point on his iPad and they fanned out
+instead of converging. They had been captured by the *horizontal* guide, which
+sits within a degree of a vanishing point that is far away and near the
+horizon — and horizontal lines are parallel, so they meet nowhere.
+
+- A vanishing point now wins any close call against the horizontal and vertical
+  guides. If you want one of those, pick it in the Guide menu and it is yours.
+- When two vanishing points are almost the same line from where you started —
+  which is what happens near the horizon — the one you are drawing *toward*
+  wins, instead of a hand tremor deciding.
+- Drawing with a finger gets a wider aim than drawing with a pencil, because a
+  fingertip is blunter than a nib.
+- If nothing catches your stroke, the app now says so on screen rather than
+  only to a screen reader. That line is plain, and it will not move when you
+  move a vanishing point.
+
+---
+
 ## 0.1.0 — CAPABILITY · 2026-07-29
 
 The first working app. Everything below is new, because before this there was

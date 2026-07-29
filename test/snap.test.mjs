@@ -4,8 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createScene, addVp, addAnchor, setHorizon, solveScene, moveVp } from "../public/app/solver.mjs";
 import {
-  scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge,
-  resolveEndpoint, commitStroke,
+  scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge, resolveEndpoint, commitStroke, thresholdFor,
 } from "../public/app/snap.mjs";
 
 function scene2pt() {
@@ -158,4 +157,103 @@ test("a free edge is never offered for intersection (D2 rule 2 needs a line)", (
     "free",
   );
   assert.equal(nearestBoundEdge(scene, { x: 300, y: 101 }), null);
+});
+
+// ---- D11: a vanishing point outranks an axis guide on a near-tie ----------
+//
+// Regression for the defect Noah found on his iPad, 2026-07-29 — "the lines do
+// not converge on the vanishing point". Strokes aimed at a VP near the horizon
+// were binding to `horizontal`, and horizontal lines are parallel: they can
+// never converge. These tests fail against the old rank-by-angle-alone rule.
+
+function farVpScene() {
+  // The app's own defaults: VPs far outside the document, on the horizon.
+  const scene = createScene({ name: "d11", width: 1600, height: 1200 });
+  setHorizon(scene, 540);
+  const vp1 = addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true }).vp;
+  const vp2 = addVp(scene, { label: "VP2", x: 2960, y: 540, onHorizon: true }).vp;
+  return { scene, vp1, vp2 };
+}
+
+// Unit direction from a point toward a VP, i.e. a perfectly aimed stroke.
+function aimAt(from, vp) {
+  const dx = vp.x - from.x, dy = vp.y - from.y, L = Math.hypot(dx, dy);
+  return { x: dx / L, y: dy / L };
+}
+
+test("D11: a stroke aimed straight at a near-horizontal VP binds to the VP, not to `horizontal`", () => {
+  const { scene, vp1 } = farVpScene();
+  const from = { x: 900, y: 500 };
+  const chosen = chooseBinding(scene, from, aimAt(from, vp1), {});
+  assert.equal(typeof chosen.binding, "object", "should be a VP binding, not an axis");
+  assert.equal(chosen.binding.vpId, vp1.id);
+});
+
+test("D11: the same stroke with a degree of hand wobble still binds to the VP", () => {
+  const { scene, vp1 } = farVpScene();
+  const from = { x: 900, y: 500 };
+  const ideal = aimAt(from, vp1);
+  const base = Math.atan2(ideal.y, ideal.x);
+  // ±3° of wobble either side of a perfect aim — a finger, not a plotter.
+  for (const wobble of [-3, -2, -1, -0.5, 0.5, 1, 2, 3]) {
+    const a = base + wobble / (180 / Math.PI);
+    const chosen = chooseBinding(scene, from, { x: Math.cos(a), y: Math.sin(a) }, {});
+    assert.equal(typeof chosen.binding, "object", `wobble ${wobble}° should still find VP1`);
+    assert.equal(chosen.binding.vpId, vp1.id, `wobble ${wobble}° bound to the wrong guide`);
+  }
+});
+
+test("D11: several strokes aimed at one VP all converge on it", () => {
+  // The property Noah was actually asserting: lines drawn to a vanishing point
+  // meet there. Checked as geometry, not as a binding label.
+  const { scene, vp1 } = farVpScene();
+  for (const from of [{ x: 800, y: 300 }, { x: 900, y: 500 }, { x: 850, y: 700 }, { x: 1000, y: 900 }]) {
+    const chosen = chooseBinding(scene, from, aimAt(from, vp1), {});
+    const start = resolveEndpoint(scene, from);
+    const dir = aimAt(from, vp1);
+    const end = resolveEndpoint(scene, { x: from.x + dir.x * 260, y: from.y + dir.y * 260 });
+    const res = commitStroke(scene, start, end, chosen.binding);
+    assert.equal(res.ok, true, res.reason);
+  }
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  for (const e of scene.edges) {
+    const a = byId.get(e.a), b = byId.get(e.b);
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+    const distance = Math.abs(dx * (a.y - vp1.y) - dy * (a.x - vp1.x)) / L;
+    assert.ok(distance < 1e-6, `edge ${e.id} misses VP1 by ${distance.toFixed(1)}px`);
+  }
+});
+
+test("D11: an axis still wins when it is clearly the better fit", () => {
+  // The margin is a near-tie rule, not a VP override. A VP well off horizontal
+  // must not capture a stroke the user drew flat.
+  const scene = createScene({ name: "d11b", width: 1600, height: 1200 });
+  setHorizon(scene, 540);
+  addVp(scene, { label: "VP1", x: -600, y: 100, onHorizon: false });   // ~8° off horizontal at the origin below
+  const chosen = chooseBinding(scene, { x: 900, y: 640 }, { x: -1, y: 0 }, {});
+  assert.equal(chosen.binding, "horizontal");
+});
+
+test("D11: a vertical stroke is unaffected — verticals still bind vertical", () => {
+  const { scene } = farVpScene();
+  const chosen = chooseBinding(scene, { x: 900, y: 500 }, { x: 0, y: 1 }, {});
+  assert.equal(chosen.binding, "vertical");
+});
+
+test("D11: touch gets a wider snap band than a stylus, and both refuse a wild angle", () => {
+  const { scene, vp1 } = farVpScene();
+  const from = { x: 900, y: 500 };
+  const base = Math.atan2(aimAt(from, vp1).y, aimAt(from, vp1).x);
+  const at = deg => { const a = base + deg / (180 / Math.PI); return { x: Math.cos(a), y: Math.sin(a) }; };
+
+  // 18° off: outside the pen band (15°), inside the touch band (22°).
+  assert.equal(chooseBinding(scene, from, at(18), { threshold: thresholdFor("pen") }).binding, "free");
+  const touched = chooseBinding(scene, from, at(18), { threshold: thresholdFor("touch") });
+  assert.equal(typeof touched.binding, "object");
+  assert.equal(touched.binding.vpId, vp1.id);
+
+  // 40° off: no guide, whatever the instrument. Assist must not invent one.
+  for (const kind of ["pen", "touch", "mouse"]) {
+    assert.equal(chooseBinding(scene, from, at(40), { threshold: thresholdFor(kind) }).binding, "free");
+  }
 });

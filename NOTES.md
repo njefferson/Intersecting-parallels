@@ -352,6 +352,43 @@ VPs legible.
   and clamp with an honest message rather than emitting the blank image iOS
   produces past the limit (Doctrine §5).
 
+### D11. Guide ranking — a vanishing point outranks an axis, and the drag picks between VPs
+
+Added 2026-07-29 after Noah drew on his iPad and reported **"the lines do not
+converge on the vanishing point."** He was right, and the cause was in the
+scoring of §3.2, not in the solver.
+
+Reproduced headlessly before anything was changed: strokes aimed straight at
+VP1 were binding to `horizontal`. Two separate ambiguities, one under the
+other.
+
+**First — an axis guide steals a near-horizontal VP.** The default VPs sit far
+outside the document on the horizon, so the guide toward VP1 is within about a
+degree of horizontal across the whole canvas. `horizontal` was competing on
+equal terms and winning on measurement noise. It is a PARALLEL family: lines
+bound to it converge nowhere, which is exactly the fan he saw. The rule now: an
+axis guide only beats the best VP guide if it beats it by more than
+`AXIS_MARGIN` (4°). Inside that band the two lines are visually identical over
+a stroke, and the VP is the constraint the user aimed at — the axes are
+available everywhere. Anyone who wants an axis can force it in the toolbar.
+
+**Second — two VPs on the horizon are nearly the same LINE.** Measured from a
+point near the horizon, with a 3° hand tremor: `VP2 0.87° | horizontal 1.99° |
+VP1 3.00°`. Angle alone cannot say which vanishing point was meant, and a
+tremor flips the answer between two guides that converge in OPPOSITE
+directions. D3 made a binding a direction-less line for solving; the drag still
+carries which way the hand was reaching. So among VPs within `VP_TIE` (4°) of
+each other, the one being drawn TOWARD wins.
+
+**And the band depends on the instrument.** §12 left `SNAP_THRESHOLD` to be
+tuned against real input. A fingertip aims coarser than a stylus and the
+direction is taken over ~10 canvas px, so touch gets 22° where pen and mouse
+keep the spec's 15°. Same rule, different instrument.
+
+**The silent case is now audible.** When assist is on and nothing catches the
+stroke, the line is plain and will not move when a VP does — a fact that had
+been announced only to a screen reader. It is a toast now.
+
 ### D10. Family conventions the spec doesn't know about
 
 PolyForm Noncommercial 1.0.0. `staging` and `main` only, harness `claude/*`

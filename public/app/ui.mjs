@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS,
 } from "./solver.mjs";
-import { chooseBinding, resolveEndpoint, commitStroke, nearestVertex, nearestEdge } from "./snap.mjs";
+import { chooseBinding, resolveEndpoint, commitStroke, nearestVertex, nearestEdge, thresholdFor, bindingName } from "./snap.mjs";
 import {
   createView, fitView, toCanvas, toScreen, zoomAt, draw, vpAt, offscreenMarker, HANDLE_HIT,
 } from "./render.mjs";
@@ -24,7 +24,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const NUDGE = 1, NUDGE_BIG = 20;
 
 const $ = id => document.getElementById(id);
@@ -423,7 +423,10 @@ window.addEventListener("keydown", ev => { if (ev.code === "Space") spaceHeld = 
 window.addEventListener("keyup", ev => { if (ev.code === "Space") spaceHeld = false; });
 
 el.canvas.addEventListener("pointerdown", ev => {
-  el.canvas.setPointerCapture(ev.pointerId);
+  // Capture can throw when the pointer is already gone (Safari does this on a
+  // fast tap). Losing capture costs a little tracking accuracy; throwing here
+  // would abandon the stroke entirely.
+  try { el.canvas.setPointerCapture(ev.pointerId); } catch { /* not capturable */ }
   pointers.set(ev.pointerId, pointerPos(ev));
 
   // Two touches always navigate — with touch-draws on this is the ONLY way to
@@ -486,6 +489,9 @@ el.canvas.addEventListener("pointerdown", ev => {
     binding: null,
     u: null,
     last: c,
+    // D11: a fingertip aims coarser than a stylus, so the band it snaps within
+    // is wider. Captured at pointerdown — one stroke, one instrument.
+    pointerType: ev.pointerType,
   };
   ghost = null;
   render();
@@ -541,13 +547,11 @@ el.canvas.addEventListener("pointermove", ev => {
       const dir = { x: dx / travel, y: dy / travel };
       const chosen = chooseBinding(scene, gesture.startCanvas, dir, {
         forced: forcedBinding(), assist: prefs.assist,
+        threshold: thresholdFor(gesture.pointerType),
       });
       gesture.binding = chosen.binding;
       gesture.u = chosen.u;
-      const name = chosen.binding === "free" ? "no guide" :
-        (typeof chosen.binding === "string" ? chosen.binding :
-          scene.vanishingPoints.find(v => v.id === chosen.binding.vpId)?.label);
-      say(`Following ${name}`);
+      say(`Following ${bindingName(scene, chosen.binding)}`);
     }
     if (gesture.binding && gesture.u) {
       const t = (c.x - gesture.startCanvas.x) * gesture.u.x + (c.y - gesture.startCanvas.y) * gesture.u.y;
@@ -586,7 +590,10 @@ function endPointer(ev) {
     let binding = wasGesture.binding;
     if (!binding) {
       const dir = { x: (end.x - wasGesture.startCanvas.x) / travel, y: (end.y - wasGesture.startCanvas.y) / travel };
-      binding = chooseBinding(scene, wasGesture.startCanvas, dir, { forced: forcedBinding(), assist: prefs.assist }).binding;
+      binding = chooseBinding(scene, wasGesture.startCanvas, dir, {
+        forced: forcedBinding(), assist: prefs.assist,
+        threshold: thresholdFor(wasGesture.pointerType),
+      }).binding;
     }
     beginGesture(history, scene);                          // D7: the whole stroke is one step
     const endDesc = resolveEndpoint(scene, end, SNAP_RADIUS / view.scale);
@@ -597,7 +604,16 @@ function endPointer(ev) {
       return;
     }
     const v = scene.vertices.find(x => x.id === res.b);
-    afterEdit(v && v.kind === "intersect" ? "Line drawn, corner locked to both guides" : "Line drawn");
+    afterEdit(v && v.kind === "intersect"
+      ? `Line drawn along ${bindingName(scene, binding)}, corner locked to both guides`
+      : `Line drawn along ${bindingName(scene, binding)}`);
+    // The surprising outcome is the silent one: assist was ON and nothing
+    // caught the stroke, so a line the user believes is bound to a guide is a
+    // plain line that will not move when a VP does. The live region alone said
+    // so to a screen reader and to nobody else (D11).
+    if (prefs.assist && binding === "free" && !forcedBinding()) {
+      toast("No guide matched that angle — drawn as a plain line", "info");
+    }
   }
 }
 

@@ -289,6 +289,84 @@ try {
   check('2,000 edges stay finite under drag', perf.finite);
   steps.push(`     (headless Chromium on a CI runner — a real iPad is Noah's to confirm)`);
 
+  // ---- 9. lines drawn to a vanishing point CONVERGE on it (D11) ----------
+  //
+  // Noah found this on his iPad on 2026-07-29: "the lines do not converge on
+  // the vanishing point." The walk was green at the time, because §2 above
+  // checked that each stroke carried SOME binding — a label — and every stroke
+  // did: `horizontal`. Horizontal lines are parallel; they converge nowhere.
+  //
+  // So this checks the GEOMETRY, which is what he was actually looking at, and
+  // it draws with real touch events because that is what his hand sends.
+  const touchCtx = await browser.newContext({
+    viewport: { width: 1100, height: 800 }, colorScheme: 'dark', hasTouch: true,
+  });
+  const tPage = await touchCtx.newPage();
+  tPage.on('pageerror', e => pageErrors.push(`convergence page: ${e}`));
+  await tPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await tPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 10000 });
+  await tPage.click('#mode-draw');
+  await tPage.click('#touch-draws');                       // D5: finger draws, two fingers navigate
+
+  const tBox = await tPage.locator('#canvas').boundingBox();
+  const vpScreen = await tPage.evaluate(() => {
+    const vp = window.__ip.scene.vanishingPoints[0];
+    return { id: vp.id, ...window.__ip.toScreen({ x: vp.x, y: vp.y }) };
+  });
+  // One finger, dragged toward VP1 — with a little tremor, because a fingertip
+  // is not a plotter and the bug lived exactly in that tremor.
+  const drawWithFinger = async (fromX, fromY) => {
+    const dx = vpScreen.x - fromX, dy = vpScreen.y - fromY, L = Math.hypot(dx, dy);
+    const to = { x: fromX + dx / L * 260, y: fromY + dy / L * 260 };
+    const cdp = await touchCtx.newCDPSession(tPage);
+    const pt = (x, y) => [{ x: tBox.x + x, y: tBox.y + y, id: 1 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(fromX, fromY) });
+    for (let i = 1; i <= 16; i++) {
+      const t = i / 16;
+      const wobble = Math.sin(t * 7) * 2.5;               // ~±2.5px of hand tremor
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: pt(fromX + (to.x - fromX) * t, fromY + (to.y - fromY) * t + wobble),
+      });
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+    await tPage.waitForTimeout(40);
+  };
+  // Started well clear of the side panel, which overlays the stage on the right.
+  for (const [x, y] of [[620, 260], [640, 380], [600, 500], [660, 600]]) await drawWithFinger(x, y);
+
+  const conv = await tPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const byId = new Map(s.vertices.map(v => [v.id, v]));
+    const vp1 = s.vanishingPoints[0];
+    const bound = [];
+    let worst = 0;
+    for (const e of s.edges) {
+      if (typeof e.binding === 'string') continue;         // an axis or free line
+      const vp = s.vanishingPoints.find(v => v.id === e.binding.vpId);
+      const a = byId.get(e.a), b = byId.get(e.b);
+      const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+      // Perpendicular distance from the VP to the line the edge lies on.
+      const miss = L === 0 ? Infinity : Math.abs(dx * (a.y - vp.y) - dy * (a.x - vp.x)) / L;
+      worst = Math.max(worst, miss);
+      bound.push({ vp: vp.id, miss });
+    }
+    return {
+      edges: s.edges.length,
+      toVp1: bound.filter(b => b.vp === vp1.id).length,
+      bound: bound.length,
+      worst,
+      bindings: s.edges.map(e => (typeof e.binding === 'string' ? e.binding : e.binding.vpId)),
+    };
+  });
+  check('a finger aimed at a vanishing point binds to THAT point, not to an axis (D11)',
+    conv.toVp1 >= 3, `bindings: ${conv.bindings.join(', ')}`);
+  check('every line bound to a vanishing point actually converges on it',
+    conv.bound > 0 && conv.worst < 0.001, `worst miss ${conv.worst.toFixed(3)}px across ${conv.bound} bound lines`);
+  if (SHOTS) await tPage.screenshot({ path: `${SHOT_DIR}/9-convergence.png` });
+  await touchCtx.close();
+
   check('no page errors during the whole walk', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 } catch (err) {
   check('the walk ran to completion', false, String(err && err.stack ? err.stack.split('\n')[0] : err));
