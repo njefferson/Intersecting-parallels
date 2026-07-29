@@ -22,11 +22,23 @@ file's first content, per the handoff.
   design, nothing to use yet", links back to the hub and the shared
   accessibility statement.
 
-**BLOCKER — the spec file is not in this session.** `vpdrawingappspec.md` is
-referenced throughout the design below but was never uploaded to the bootstrap
-session and exists in no repo it can reach. Noah supplies it; it gets committed
-here next to this file; then build-order step 1 can start. Nothing in the D1–D10
-amendments can be implemented against a spec nobody can read.
+**BLOCKER CLEARED 2026-07-29:** Noah uploaded `vpdrawingappspec.md` later the
+same day (it had never reached the bootstrap session's uploads — a Drive and
+repo search confirmed no other copy existed anywhere reachable). Committed here
+verbatim, next to this file. Every section the D1–D10 amendments cite is where
+they said it was. Read the spec WITH the amendments; where they disagree, the
+amendments win.
+
+**Build-order step 1 DONE (2026-07-29, same session):** the constraint graph
+and solver land as `public/app/solver.mjs` with `test/solver.test.mjs` — the
+D1 discriminated union, D3 line-with-continuity (signed `t`, deterministic
+reload), D4 degeneracy guards with the last-valid cache, topological solve,
+cycle rejection with surfaced reasons, and acceptance tests 1 and 2 driven
+against the solver. `npm test` (the same entry point CI runs, workflow
+`tests.yml`) — 15 tests green; the suite was made to fail twice against
+deliberately broken solvers before it was trusted (Doctrine §6). Next:
+build-order step 2, canvas render + pan/zoom — the deploy D10 moved up to
+step 2 is already live.
 
 **Waiting on Noah (his device — the sandbox cannot reach these):**
 - App Store search for the name.
@@ -310,7 +322,7 @@ Inkscape open, iPad standalone airplane-mode cold launch, real stylus
    Pages project is lowercase).
 2. ~~Session with both repos selected~~ — this session, 2026-07-29.
 3. ~~CLAUDE.md, LICENSE, NOTES.md, ACCESSIBILITY.md, `staging` and `main`~~ —
-   done. Build-order step 1 **cannot start until the spec file lands** (see
-   Status).
+   done, and the spec landed later the same day, so build-order step 1 is
+   done too (see Status).
 4. Repo metadata — Noah's manual GitHub-UI step, values in Status, unconfirmed.
 5. The hub link lands only once the app is actually live. Not yet.

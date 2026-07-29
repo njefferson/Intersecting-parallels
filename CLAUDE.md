@@ -20,9 +20,9 @@ deployed site.
 ## Source of truth
 `NOTES.md`, first, every session — thesis, the name and its graveyard, the
 settled design (the D1–D10 amendments to `vpdrawingappspec.md`), Project facts,
-and what is currently waiting on Noah. The spec file itself is committed here
-next to NOTES.md once Noah supplies it; until then NOTES.md flags it as the
-open blocker.
+and what is currently waiting on Noah. The spec file is committed here next to
+NOTES.md; read it WITH the amendments — where they disagree, the amendments
+win.
 
 ## Branches & releases
 `staging` and `main` only; the harness's `claude/*` branch designations are
