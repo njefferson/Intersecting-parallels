@@ -10,7 +10,8 @@
   },
   "scripts": {
     "a11y": "node a11y-gate.mjs",
-    "a11y:verbose": "node a11y-gate.mjs --verbose"
+    "a11y:verbose": "node a11y-gate.mjs --verbose",
+    "test": "node --test"
   },
   "devDependencies": {
     "axe-core": "4.10.2",
