@@ -8,6 +8,28 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.1.2 — ITERATION · 2026-07-29
+
+**A line only claims a guide when it really follows one.**
+
+Found by auditing the 0.1.1 fix rather than waiting for it to be reported.
+When both ends of a stroke land on points that already exist — which is what
+happens constantly once a drawing gets busy — the line runs between those two
+points, and nothing makes it pass through the guide you asked for. It was
+being recorded as bound anyway. Measured: a line stored as bound to VP1 whose
+path missed VP1 by 1,866px. It would not converge, and it would not move when
+you moved that point.
+
+- A guide is now only recorded when the line actually follows it. If it
+  cannot, you get the line exactly as you drew it and the app says why.
+- Nothing is ever nudged to make a claim come true. Where you put a point is
+  where it stays.
+- If a line lined up with a point only by coincidence and you later move that
+  point, the app stops describing it as bound — in the inspector and in
+  exported layer names — without editing your drawing.
+
+---
+
 ## 0.1.1 — ITERATION · 2026-07-29
 
 **Lines drawn to a vanishing point now actually meet there.**

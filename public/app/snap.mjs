@@ -10,7 +10,7 @@
 // drag reads as perspective rather than rotation.
 
 import {
-  SNAP_RADIUS, SNAP_THRESHOLD,
+  SNAP_RADIUS, SNAP_THRESHOLD, EPS_LEN_FACTOR,
   projectPointOnLine, bindingDirection,
   addAnchor, addRayVertex, addIntersectVertex, addEdge,
 } from "./solver.mjs";
@@ -188,18 +188,53 @@ export function resolveEndpoint(scene, p, r = SNAP_RADIUS) {
   return { type: "plain", at: { x: p.x, y: p.y } };
 }
 
+// D12 — a binding is a FACT about the line, never an aspiration.
+//
+// §2.4 makes endpoint merging mandatory: it is what keeps a box coherent when
+// a VP moves. But when BOTH ends merge into points that already exist, the
+// edge's geometry is fully determined by those points — and nothing makes it
+// pass through the vanishing point the stroke asked for. Measured on a plain
+// two-point scene: an edge stored as bound to VP1 whose line misses VP1 by
+// 1,866px. It draws as a line that does not converge and does not move when
+// that point moves, which is the defect Noah reported wearing a second
+// costume.
+//
+// So the binding is CHECKED against the geometry at commit, and an unsatisfied
+// one is demoted to `free` rather than recorded as a claim the drawing does not
+// support. Nothing is moved to make the claim true: silently repositioning a
+// point the user already placed is exactly what Doctrine §14 forbids.
+export function bindingSatisfied(scene, aPos, bPos, binding) {
+  if (binding === "free") return true;
+  const dx = bPos.x - aPos.x, dy = bPos.y - aPos.y;
+  const L = Math.hypot(dx, dy);
+  if (L === 0) return false;
+  const u = bindingDirection(scene, aPos, binding);
+  if (!u) return false;
+  // Perpendicular distance from b to the binding's line through a, relative to
+  // the document like every other tolerance here (D4).
+  const perp = Math.abs(dx * u.y - dy * u.x);
+  return perp <= EPS_LEN_FACTOR * Math.hypot(scene.canvas.width, scene.canvas.height) * 10;
+}
+
 // Commit one stroke: endpoint descriptors from resolveEndpoint, the stroke's
 // chosen binding, and the raw positions. Creates the vertices D2 asks for and
-// the edge, returns { ok, edge, a, b } or { ok:false, reason }.
+// the edge, returns { ok, edge, a, b, demoted } or { ok:false, reason }.
 export function commitStroke(scene, aDesc, bDesc, binding, role = "committed") {
   const aId = materializeStart(scene, aDesc, binding);
   if (!aId.ok) return aId;
   const bId = materializeEnd(scene, bDesc, binding, aId.vertexId, aDesc.at);
   if (!bId.ok) return bId;
   if (aId.vertexId === bId.vertexId) return { ok: false, reason: "a stroke needs two distinct endpoints" };
-  const e = addEdge(scene, { a: aId.vertexId, b: bId.vertexId, binding, role });
+  const av = scene.vertices.find(v => v.id === aId.vertexId);
+  const bv = scene.vertices.find(v => v.id === bId.vertexId);
+  // D12: only a binding the drawn line actually satisfies is recorded.
+  const honest = bindingSatisfied(scene, av, bv, binding);
+  const e = addEdge(scene, { a: aId.vertexId, b: bId.vertexId, binding: honest ? binding : "free", role });
   if (!e.ok) return e;
-  return { ok: true, edge: e.edge, a: aId.vertexId, b: bId.vertexId };
+  return {
+    ok: true, edge: e.edge, a: aId.vertexId, b: bId.vertexId,
+    demoted: honest ? null : binding,
+  };
 }
 
 // First endpoint: merge, or ride an existing bound edge's line (a ray vertex
@@ -247,4 +282,18 @@ function materializeEnd(scene, desc, binding, startVertexId, startPos) {
   const proj = projectPointOnLine({ x: start.x, y: start.y }, u, desc.at);
   const r = addRayVertex(scene, { origin: startVertexId, binding, t: proj.t });
   return r.ok ? { ok: true, vertexId: r.vertex.id } : r;
+}
+
+// D12, read side. A stored binding is trusted only while the geometry still
+// satisfies it. Both endpoints being anchors that lined up by coincidence, and
+// a vanishing point moving afterwards, leaves a true-at-the-time label that is
+// no longer true — and the drawing, not the label, is the thing the reader
+// believes. Derived at the point of use rather than rewritten on every drag,
+// because rewriting would edit the user's file behind their back.
+export function effectiveBinding(scene, edge) {
+  if (edge.binding === "free") return "free";
+  const a = scene.vertices.find(v => v.id === edge.a);
+  const b = scene.vertices.find(v => v.id === edge.b);
+  if (!a || !b || !Number.isFinite(a.x) || !Number.isFinite(b.x)) return edge.binding;
+  return bindingSatisfied(scene, a, b, edge.binding) ? edge.binding : "free";
 }

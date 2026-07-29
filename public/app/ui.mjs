@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS,
 } from "./solver.mjs";
-import { chooseBinding, resolveEndpoint, commitStroke, nearestVertex, nearestEdge, thresholdFor, bindingName } from "./snap.mjs";
+import { chooseBinding, resolveEndpoint, commitStroke, nearestVertex, nearestEdge, thresholdFor, bindingName, effectiveBinding } from "./snap.mjs";
 import {
   createView, fitView, toCanvas, toScreen, zoomAt, draw, vpAt, offscreenMarker, HANDLE_HIT,
 } from "./render.mjs";
@@ -24,7 +24,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 const NUDGE = 1, NUDGE_BIG = 20;
 
 const $ = id => document.getElementById(id);
@@ -321,10 +321,13 @@ function renderInspector() {
   } else {
     const e = scene.edges.find(x => x.id === selection.id);
     if (!e) { selection = null; return; }
-    const name = e.binding === "free" ? "free" :
-      (typeof e.binding === "string" ? e.binding :
-        (scene.vanishingPoints.find(v => v.id === e.binding.vpId)?.label ?? "free"));
-    title.textContent = `Line · bound to ${name}`;
+    // D12: report the binding the geometry still satisfies, not the stored
+    // label — a line the reader can see is not converging must not be
+    // described as bound.
+    const live = effectiveBinding(scene, e);
+    title.textContent = live === "free"
+      ? "Line · no guide"
+      : `Line · bound to ${bindingName(scene, live)}`;
     box.appendChild(title);
     const del = document.createElement("button");
     del.type = "button";
@@ -611,7 +614,12 @@ function endPointer(ev) {
     // caught the stroke, so a line the user believes is bound to a guide is a
     // plain line that will not move when a VP does. The live region alone said
     // so to a screen reader and to nobody else (D11).
-    if (prefs.assist && binding === "free" && !forcedBinding()) {
+    if (res.demoted) {
+      // D12: both ends landed on points that already existed, and the line
+      // between them does not pass through the guide. Saying so beats
+      // recording a guide the drawing does not support.
+      toast(`Those points are not on a line to ${bindingName(scene, res.demoted)} — drawn as a plain line`, "info");
+    } else if (prefs.assist && binding === "free" && !forcedBinding()) {
       toast("No guide matched that angle — drawn as a plain line", "info");
     }
   }

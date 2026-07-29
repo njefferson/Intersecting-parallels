@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createScene, addVp, addAnchor, setHorizon, solveScene, moveVp } from "../public/app/solver.mjs";
 import {
-  scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge, resolveEndpoint, commitStroke, thresholdFor,
+  scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge, resolveEndpoint, commitStroke, thresholdFor, bindingSatisfied, effectiveBinding,
 } from "../public/app/snap.mjs";
 
 function scene2pt() {
@@ -256,4 +256,91 @@ test("D11: touch gets a wider snap band than a stylus, and both refuse a wild an
   for (const kind of ["pen", "touch", "mouse"]) {
     assert.equal(chooseBinding(scene, from, at(40), { threshold: thresholdFor(kind) }).binding, "free");
   }
+});
+
+// ---- D12: a binding is a fact about the line, never an aspiration ---------
+//
+// Found by adversarially auditing the D11 fix (Doctrine §14 — after a
+// regression reaches Noah's device, the next handoff gets an exhaustive audit
+// first). §2.4 makes endpoint merging mandatory; when BOTH ends merge into
+// points that already exist, nothing makes the line pass through the guide the
+// stroke asked for. Measured before the fix: an edge stored as bound to VP1
+// whose line missed VP1 by 1,866px.
+
+test("D12: a stroke between two existing points that are not on the guide is not recorded as bound", () => {
+  const { scene, vp1 } = farVpScene();
+  const p1 = addAnchor(scene, { x: 900, y: 400 }).vertex;
+  const p2 = addAnchor(scene, { x: 600, y: 900 }).vertex;
+  const res = commitStroke(scene,
+    resolveEndpoint(scene, { x: p1.x, y: p1.y }),
+    resolveEndpoint(scene, { x: p2.x, y: p2.y }),
+    { vpId: vp1.id });                                   // as the Guide picker forces it
+  assert.equal(res.ok, true, res.reason);
+  assert.equal(res.edge.binding, "free", "an unsatisfiable binding must not be stored");
+  assert.deepEqual(res.demoted, { vpId: vp1.id }, "and the caller must be told, so the user can be");
+  // Nothing was moved to make the claim true (Doctrine §14: no silent mutation).
+  assert.deepEqual({ x: p1.x, y: p1.y }, { x: 900, y: 400 });
+  assert.deepEqual({ x: p2.x, y: p2.y }, { x: 600, y: 900 });
+});
+
+test("D12: a stroke between two existing points that ARE on the guide keeps its binding", () => {
+  const { scene, vp1 } = farVpScene();
+  const p1 = addAnchor(scene, { x: 900, y: 400 }).vertex;
+  // p2 placed exactly on the line from p1 to VP1 — closing a corner properly.
+  const dx = vp1.x - p1.x, dy = vp1.y - p1.y, L = Math.hypot(dx, dy);
+  const p2 = addAnchor(scene, { x: p1.x + dx / L * 300, y: p1.y + dy / L * 300 }).vertex;
+  const res = commitStroke(scene,
+    resolveEndpoint(scene, { x: p1.x, y: p1.y }),
+    resolveEndpoint(scene, { x: p2.x, y: p2.y }),
+    { vpId: vp1.id });
+  assert.equal(res.ok, true, res.reason);
+  assert.deepEqual(res.edge.binding, { vpId: vp1.id }, "a satisfied binding is kept");
+  assert.equal(res.demoted, null);
+});
+
+test("D12: every edge the drawing flow produces satisfies the binding it stores", () => {
+  // The invariant, asserted over a messy drawing rather than one tidy case:
+  // strokes that merge, strokes that cross, strokes drawn at every angle.
+  const { scene, vp1, vp2 } = farVpScene();
+  const rand = (() => { let a = 7; return () => (a = (a * 1103515245 + 12345) % 2147483648) / 2147483648; })();
+  for (let i = 0; i < 60; i++) {
+    const from = { x: 300 + rand() * 1000, y: 200 + rand() * 800 };
+    const angle = rand() * Math.PI * 2;
+    const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+    const chosen = chooseBinding(scene, from, dir, {});
+    const to = { x: from.x + dir.x * 250, y: from.y + dir.y * 250 };
+    commitStroke(scene, resolveEndpoint(scene, from), resolveEndpoint(scene, to), chosen.binding);
+  }
+  assert.ok(scene.edges.length > 30, `only ${scene.edges.length} edges were built`);
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  for (const e of scene.edges) {
+    assert.equal(bindingSatisfied(scene, byId.get(e.a), byId.get(e.b), e.binding), true,
+      `edge ${e.id} stores a binding its geometry does not satisfy`);
+  }
+  // And the same holds after the vanishing points are dragged around.
+  for (const [vp, x, y] of [[vp1, -400, 700], [vp2, 2000, 200], [vp1, 800, 100]]) {
+    moveVp(scene, vp.id, { x, y });
+    for (const e of scene.edges) {
+      const a = byId.get(e.a), b = byId.get(e.b);
+      if (!Number.isFinite(a.x) || !Number.isFinite(b.x)) continue;
+      assert.equal(effectiveBinding(scene, e) === "free" || bindingSatisfied(scene, a, b, e.binding), true,
+        `edge ${e.id} reports a binding it no longer satisfies after a drag`);
+    }
+  }
+});
+
+test("D12: a binding that goes stale after a drag is reported as free, and the file is not rewritten", () => {
+  const { scene, vp1 } = farVpScene();
+  // Two anchors that line up with VP1 only by coincidence.
+  const c = addAnchor(scene, { x: 400, y: 300 }).vertex;
+  const dx = vp1.x - c.x, dy = vp1.y - c.y, L = Math.hypot(dx, dy);
+  const d = addAnchor(scene, { x: c.x + dx / L * 200, y: c.y + dy / L * 200 }).vertex;
+  const res = commitStroke(scene,
+    resolveEndpoint(scene, { x: c.x, y: c.y }), resolveEndpoint(scene, { x: d.x, y: d.y }),
+    { vpId: vp1.id });
+  assert.deepEqual(res.edge.binding, { vpId: vp1.id }, "honest at creation");
+  moveVp(scene, vp1.id, { x: -400, y: 900 });
+  assert.equal(effectiveBinding(scene, res.edge), "free", "no longer true, so no longer reported");
+  assert.deepEqual(res.edge.binding, { vpId: vp1.id },
+    "but the stored file is left alone — a drag must not silently edit the drawing");
 });

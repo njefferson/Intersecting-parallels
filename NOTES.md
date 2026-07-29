@@ -49,15 +49,18 @@ and on `staging`, awaiting Noah's single aggregate pass. What each step became:
 
 **Gates, all three green, all three run by CI on the same entry points a
 session runs locally:**
-- `npm test` — 38 tests (solver, snapping and D2 precedence, export, project
-  validation, undo). Made to fail twice against broken solvers before trusted.
+- `npm test` — 48 tests (solver, snapping and D2 precedence, D11 guide
+  ranking, D12 binding honesty, export, project validation, undo). Every new
+  block was made to fail against the unfixed code before it was trusted.
 - `npm run a11y` — the app in four surfaces (canvas + three dialogs), both
   themes, two viewports. It now SERVES `public/` over HTTP, because ES modules
   cannot load from `file://` and the old file:// scan would have measured a
   blank page.
-- `npm run walk` — 33 checks driving the real app: draw, drag, undo, keyboard
-  nudge, export, reload, offline cold launch, 2,000 edges under drag, and an
-  assertion that no request ever leaves the origin.
+- `npm run walk` — 35 checks driving the real app: draw, drag, undo, keyboard
+  nudge, export, reload, offline cold launch, 2,000 edges under drag, an
+  assertion that no request ever leaves the origin, and — since 0.1.1 — that a
+  finger aimed at a vanishing point produces lines that MEASURABLY converge on
+  it (0.000px), drawn with real touch events.
 
 **What the gates caught before anything shipped** (recorded because a green
 tree that never went red proves nothing — hub LESSONS 7d): an unlabelled file
@@ -93,6 +96,14 @@ He tests the AGGREGATE once, on staging on his iPad, before it becomes V1.
 Until that pass: all app work lands on `staging`; `main` keeps the placeholder
 (docs may still land on `main`). The single staging handoff at the end IS the
 Doctrine §7 gate for this build — one gate, his call, not skipped.
+
+**Post-report audit, 2026-07-29 (Doctrine §14).** Noah found the D11 defect on
+his device, which makes the next handoff require an exhaustive adversarial pass
+first — "Noah is never the test bench". That pass found D12 by measurement
+before it was ever reported, and separately confirmed by probe that SVG layer
+grouping and cold-reload determinism (D3) both still hold. Two defects of one
+class — a stored label diverging from the geometry — are now both closed, and
+the walk asserts the geometry rather than the label.
 
 **Waiting on Noah — the aggregate pass, on staging, on his iPad.** This is the
 one decision point of the build, and the Doctrine §7 gate for all of it.
@@ -351,6 +362,34 @@ VPs legible.
 - PNG: probe the real canvas ceiling on Noah's iPad before offering dimensions,
   and clamp with an honest message rather than emitting the blank image iOS
   produces past the limit (Doctrine §5).
+
+### D12. A binding is a fact about the line, never an aspiration
+
+Added 2026-07-29, from the adversarial audit Doctrine §14 requires once a
+regression has reached Noah's device. It is the same defect class as D11
+wearing a second costume, and it was found by measurement, not by report.
+
+§2.4 makes endpoint merging mandatory — it is what keeps a box coherent when a
+VP moves. But when BOTH ends of a stroke merge into points that already exist,
+the edge's geometry is fully determined by those two points, and nothing makes
+it pass through the guide the stroke asked for. The binding was stored anyway.
+Measured on a plain two-point scene: an edge recorded as bound to VP1 whose
+line missed VP1 by **1,866px**. It draws as a line that does not converge and
+does not move when that point moves.
+
+- **At commit**, the binding is checked against the geometry. An unsatisfied
+  one is demoted to `free` and the caller is told, so the user is told.
+- **Nothing is moved to make the claim true.** Silently repositioning a point
+  the user already placed is what Doctrine §14 forbids; the honest answer is to
+  keep their line and drop the false label.
+- **On read**, `effectiveBinding()` derives the binding from the geometry. A
+  binding can go stale later — two anchors that lined up with a point only by
+  coincidence stop lining up when it moves — so the inspector and the SVG layer
+  grouping ask the drawing rather than trusting the stored label. The stored
+  file is left alone: a drag must not silently edit the user's work.
+
+The invariant now has a property test over a messy 60-stroke drawing, asserted
+again after three VP drags.
 
 ### D11. Guide ranking — a vanishing point outranks an axis, and the drag picks between VPs
 

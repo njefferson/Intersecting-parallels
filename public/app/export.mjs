@@ -9,6 +9,8 @@
 // buildSvg is pure (string in, string out) so it is testable headless; only
 // the PNG path needs a DOM.
 
+import { effectiveBinding } from "./snap.mjs";
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 const INKSCAPE_NS = "http://www.inkscape.org/namespaces/inkscape";
 
@@ -59,7 +61,11 @@ export function buildSvg(scene, {
   if (subgroupByBinding) {
     const groups = new Map();
     for (const item of committed) {
-      const key = bindingGroupKey(scene, item.edge.binding);
+      // D12: group by the binding the line actually satisfies. A stored
+      // binding goes stale when both ends are anchors that lined up only by
+      // coincidence and a vanishing point later moved; exporting on the stored
+      // label would file a line under a layer it does not belong to.
+      const key = bindingGroupKey(scene, effectiveBinding(scene, item.edge));
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(item);
     }
