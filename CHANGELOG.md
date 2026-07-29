@@ -31,6 +31,8 @@ it is what dragged a line off the guide it was drawn along. It is gone.
   screen that was never on your line to begin with.
 - The version number now sits next to the app name, so a screenshot says which
   build it came from.
+- Your artwork is in: the app icon on the home screen, and the picture that
+  shows when the link is shared.
 
 ---
 

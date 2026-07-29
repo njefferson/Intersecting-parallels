@@ -130,12 +130,24 @@ deploy run created the Pages project ("Successfully created the
 would have failed had anyone held the name. It is now Noah's. Of the three
 device-blocked name checks in the handoff, only App Store and USPTO remain.
 
+**Artwork, supplied by Noah 2026-07-29.** Two wordless images (Doctrine §3 —
+no lettering inside generated imagery): a designed rounded app icon and a
+full-bleed banner. Both live in the upload; the derived files are committed.
+The icon drives `icon-192`, `icon-512` and `apple-touch-icon`; the BANNER drives
+`icon-maskable-512` and `og.png`, because a maskable icon a launcher crops into
+must not have white corners. Every crop is cover-fit and centred, never
+stretched. Open question for Noah, cosmetic: his icon's rounded corners are
+white, and iOS rounds again on top of that, so a hair of white can show at the
+home-screen corners — say the word and the navy gets bled out to the edge.
+
 **Repo metadata (Doctrine §10, Noah's manual GitHub-UI step, unconfirmed):**
 - Description: `Where you stand and what you see.`
 - Website: `https://intersecting-parallels.pages.dev`
 - Topics (suggested): `perspective` · `drawing-tool` · `vanishing-points` ·
   `pwa` · `offline-first`
-- Social preview: none yet — it comes with the app's real artwork, not before.
+- Social preview: **ready now** — `public/og.png` (1200×630), cut from the
+  banner Noah supplied on 2026-07-29. Upload it in the GitHub UI as the
+  repo's social preview image.
 
 **Hub link:** lands only once the app is actually live (bootstrap step 5). The
 placeholder linking back to the hub is fine; the hub does not link out yet.
