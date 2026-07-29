@@ -1,0 +1,31 @@
+# Doctrine §16.1 — pin what executes, then keep the pins current.
+#
+# SHA-pinning actions makes them safe but frozen; without this file the pins
+# quietly rot and stop receiving security fixes. Dependabot updates the SHA and
+# the trailing version comment together.
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "Keep a build tool up to date"
+    labels:
+      - dependencies
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "Keep a build tool up to date"
+    labels:
+      - dependencies
+    # Dev tooling only — nothing here is shipped in public/. Grouped so a
+    # routine bump is one PR to glance at, not several.
+    groups:
+      tooling:
+        patterns:
+          - "*"

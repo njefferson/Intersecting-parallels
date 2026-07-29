@@ -1,0 +1,23 @@
+# Security headers for intersecting-parallels.pages.dev — Doctrine §16.6
+#
+# The four the whole family ships, plus a Content-Security-Policy the hub
+# cannot have: this placeholder carries ZERO script, so default-src 'none' is
+# free today. style-src 'unsafe-inline' covers the page's inline <style>; with
+# no script allowed at all, that is a small concession.
+#
+# HONESTY NOTE for the session that ships the real app: the app will almost
+# certainly carry inline script and a service worker, and this CSP will block
+# both. REVISIT IT DELIBERATELY in that commit — loosen it and say so, or
+# extract scripts and keep it. Do not let the first broken deploy be the way
+# anyone finds out it was here.
+#
+# No Strict-Transport-Security: pages.dev is HTTPS-only and Cloudflare handles
+# TLS; a lock-in header that cannot be tested from here would be worse than
+# leaving it to the platform.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+  Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'

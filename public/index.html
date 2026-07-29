@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intersecting Parallels — where you stand and what you see</title>
+
+<meta name="description" content="A free drawing tool for perspective construction — place vanishing points, and the lines you draw know where they lead. In design; nothing to use here yet.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0B1020" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F4F6FB" media="(prefers-color-scheme: light)">
+<link rel="canonical" href="https://intersecting-parallels.pages.dev/">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M8 58L32 12' stroke='%23F2A65A'/%3E%3Cpath d='M26 58L32 12' stroke='%23E0619E'/%3E%3Cpath d='M38 58L32 12' stroke='%2358C6E0'/%3E%3Cpath d='M56 58L32 12' stroke='%238A97FF'/%3E%3C/g%3E%3Ccircle cx='32' cy='12' r='4' fill='%238A97FF'/%3E%3C/svg%3E">
+
+<!-- Text-only share tags. There is deliberately no og:image: the app has no
+     artwork yet, and a placeholder pretending to be artwork would be the false
+     confidence Doctrine §5 forbids. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Intersecting Parallels">
+<meta property="og:title" content="Intersecting Parallels — where you stand and what you see">
+<meta property="og:description" content="A free drawing tool for perspective construction. In design; nothing to use here yet.">
+<meta property="og:url" content="https://intersecting-parallels.pages.dev/">
+
+<style>
+  /* Palette shared with the family (hub public/index.html) — every pair below
+     is measured by a11y-gate.mjs; new pairs join its registry in the same
+     commit (Doctrine §4). Type is in rem so the reader's text-size preference
+     is honoured, not just page zoom. */
+  :root{
+    --bg:#0B1020;
+    --bg2:#0E1428;
+    --surface:#151B30;
+    --surface-hi:#1B2340;
+    --line:#26304F;
+    --text:#EAECF5;
+    --muted:#8B93AD;
+    --amber:#F2A65A;
+    --magenta:#E0619E;
+    --cyan:#58C6E0;
+    --slate:#8A97FF;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #16203f 0%, rgba(22,32,63,0) 60%),
+      linear-gradient(180deg,var(--bg2),var(--bg));
+    color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100dvh;
+    padding:28px 20px 56px;
+  }
+  .wrap{max-width:34rem;margin:0 auto}
+
+  .head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:11px;margin-bottom:26px}
+  .mark{width:6rem;height:auto;display:block}
+  .mark .l1{stroke:var(--amber)}
+  .mark .l2{stroke:var(--magenta)}
+  .mark .l3{stroke:var(--cyan)}
+  .mark .l4{stroke:var(--slate)}
+  .mark .vp{fill:var(--text)}
+  h1{font-size:1.6875rem;font-weight:650;letter-spacing:-0.02em;margin:0}
+  .rule{
+    width:64px;height:3px;border-radius:3px;
+    background:linear-gradient(90deg,var(--amber),var(--magenta),var(--cyan));
+  }
+  .tag{margin:0;color:var(--muted);font-size:0.90625rem;letter-spacing:0.01em}
+
+  .lead{font-size:1rem;line-height:1.6;margin:0 0 14px;text-align:center}
+  .status{color:var(--muted);font-size:0.90625rem;line-height:1.6;margin:0 0 30px;text-align:center}
+
+  .links{display:flex;flex-direction:column;gap:11px}
+  .links a{
+    display:flex;align-items:center;min-height:44px;
+    padding:12px 16px;border-radius:15px;
+    background:var(--surface);border:1px solid var(--line);
+    color:var(--text);text-decoration:none;font-weight:600;font-size:0.9375rem;
+    transition:background .16s ease, border-color .16s ease;
+  }
+  .links a:hover{background:var(--surface-hi);border-color:#33406b}
+  .links a:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+
+  .foot{margin-top:36px;color:var(--muted);font-size:0.8125rem;text-align:center}
+  .foot a{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:44px;min-width:44px;padding:0 10px;
+    color:var(--muted);text-decoration:underline;
+  }
+  .foot a:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+
+  @media (prefers-color-scheme:light){
+    :root{
+      --bg:#F4F6FB;
+      --bg2:#FBFCFE;
+      --surface:#FFFFFF;
+      --surface-hi:#F0F3FA;
+      --line:#D5DCEA;
+      --text:#171C2B;
+      --muted:#586079;
+      --amber:#B45309;
+      --magenta:#B03270;
+      --cyan:#0E6E88;
+      --slate:#4A54C8;
+    }
+    body{
+      background:
+        radial-gradient(1200px 700px at 50% -10%, #E8EEFC 0%, rgba(232,238,252,0) 60%),
+        linear-gradient(180deg,var(--bg2),var(--bg));
+    }
+    .links a:hover{border-color:#B9C4DC}
+  }
+
+  @media (prefers-contrast:more){
+    :root{--line:#3D4A72;--muted:#AEB6CE}
+    @media (prefers-color-scheme:light){
+      :root{--line:#9AA6C2;--muted:#3D445C}
+    }
+    .links a{border-width:2px}
+  }
+
+  @media (forced-colors:active){
+    .links a{border:1px solid CanvasText}
+    .links a:focus-visible,.foot a:focus-visible{outline:2px solid Highlight}
+    .mark .l1,.mark .l2,.mark .l3,.mark .l4{stroke:CanvasText}
+    .mark .vp{fill:CanvasText}
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="head">
+    <svg class="mark" viewBox="0 0 96 56" aria-hidden="true">
+      <g stroke-width="3" stroke-linecap="round" fill="none">
+        <path class="l1" d="M10 52 L48 10"/>
+        <path class="l2" d="M36 52 L48 10"/>
+        <path class="l3" d="M60 52 L48 10"/>
+        <path class="l4" d="M86 52 L48 10"/>
+      </g>
+      <circle class="vp" cx="48" cy="10" r="3.5"/>
+    </svg>
+    <h1>Intersecting Parallels</h1>
+    <div class="rule"></div>
+    <p class="tag">Where you stand and what you see.</p>
+  </header>
+
+  <p class="lead">A drawing tool for perspective construction: place vanishing
+  points anywhere, and the lines you draw know where they lead. Free, no
+  account, works on your device.</p>
+
+  <p class="status">It is being designed now — there is nothing to use here
+  yet. This page holds the address.</p>
+
+  <nav class="links" aria-label="Related pages">
+    <a href="https://noahjefferson.pages.dev/">Noah Jefferson's apps</a>
+    <a href="https://noahjefferson.pages.dev/accessibility">Accessibility statement</a>
+  </nav>
+
+  <footer class="foot">
+    PolyForm Noncommercial 1.0.0 ·
+    <a href="https://github.com/njefferson/Intersecting-parallels">source</a>
+  </footer>
+</main>
+</body>
+</html>

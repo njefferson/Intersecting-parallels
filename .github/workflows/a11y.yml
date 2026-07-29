@@ -1,0 +1,42 @@
+name: Accessibility gate
+
+# Doctrine §4 requires a CI gate that EXITS NON-ZERO on any accessibility
+# failure. This repo ships the hub's proven a11y-gate.mjs from its first
+# commit, so there is never a moment where §4 describes enforcement that does
+# not exist (which is exactly what the hub audit of 2026-07-28 found there).
+#
+# Runs on staging too — the staging gate is where Noah looks at candidates, so
+# a candidate that fails §4 must be caught before he ever opens the preview.
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a11y-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+
+      # npm ci, never npm install (Doctrine §16.1) — the lockfile is the pin.
+      - run: npm ci
+
+      # The sandbox Chromium at /opt/pw-browsers does not exist on a runner, so
+      # playwright-core downloads the revision it is pinned to. Same browser
+      # build either way; a11y-gate.mjs detects which is present.
+      - run: npx --no-install playwright-core install --with-deps chromium
+
+      - run: node a11y-gate.mjs --verbose

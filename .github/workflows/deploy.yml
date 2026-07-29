@@ -1,0 +1,96 @@
+name: Deploy
+
+# main    -> production (intersecting-parallels.pages.dev)
+# staging -> preview    (staging.intersecting-parallels.pages.dev)
+#
+# Deploys the static site in public/ to Cloudflare Pages via wrangler.
+# Needs two repo secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
+#
+# Staging deploys exist because the staging gate (Doctrine §7) needs a preview
+# URL Noah can open on his actual iPad before anything is promoted to main.
+# Note: a Pages project with no production deployment serves broken previews
+# (hub LESSONS 7c) — main must deploy at least once before staging URLs work.
+#
+# Actions are pinned by SHA, not tag (Doctrine §16.1) — a tag is a mutable
+# pointer someone else controls, and these steps execute holding a live
+# Pages:Edit token. Dependabot keeps the pins current.
+
+on:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Prepare Cloudflare credentials
+        id: cf
+        env:
+          RAW_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RAW_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Strip any whitespace/newlines that sneak in when a secret is pasted.
+          # A trailing newline corrupts the Authorization header (Cloudflare 6111).
+          TOKEN=$(printf '%s' "$RAW_TOKEN" | tr -d '[:space:]')
+          ACCOUNT=$(printf '%s' "$RAW_ACCOUNT" | tr -d '[:space:]')
+          echo "::add-mask::$TOKEN"
+          echo "::add-mask::$ACCOUNT"
+          if [ -n "$TOKEN" ] && [ -n "$ACCOUNT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare secrets not configured yet - skipping deploy."
+          fi
+          # Doctrine §16.4: the cleaned values go to the job environment, never to
+          # step outputs. Outputs persist in the run's stored output and are
+          # readable through the API; env is scoped to this job's steps. Only the
+          # non-secret `ready` flag is an output.
+          echo "CF_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          echo "CF_ACCOUNT=$ACCOUNT" >> "$GITHUB_ENV"
+
+      - name: Verify cleaned token
+        if: steps.cf.outputs.ready == 'true'
+        continue-on-error: true
+        run: |
+          echo "cleaned token length: ${#CF_TOKEN}"
+          curl -s https://api.cloudflare.com/client/v4/user/tokens/verify \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print('valid:', d.get('success'), '| status:', (d.get('result') or {}).get('status'), '| errors:', d.get('errors'))"
+
+      - name: Ensure Pages project exists
+        if: steps.cf.outputs.ready == 'true'
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+        with:
+          apiToken: ${{ env.CF_TOKEN }}
+          accountId: ${{ env.CF_ACCOUNT }}
+          command: pages project create intersecting-parallels --production-branch=main
+
+      - name: Deploy to Cloudflare Pages
+        if: steps.cf.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+        with:
+          apiToken: ${{ env.CF_TOKEN }}
+          accountId: ${{ env.CF_ACCOUNT }}
+          command: pages deploy public --project-name=intersecting-parallels --branch=${{ github.ref_name }} --commit-dirty=true
+
+      - name: How to roll this back
+        if: always() && steps.cf.outputs.ready == 'true'
+        run: |
+          # Doctrine §16 — the rollback path is printed on every deploy so it is
+          # known BEFORE it is needed, not looked up during an outage.
+          echo "If this deploy is bad:"
+          echo "  Cloudflare dashboard -> Workers & Pages -> intersecting-parallels -> Deployments"
+          echo "  -> pick the last good one -> Manage deployment -> Rollback."
+          echo "That is instant. A git revert is also fine but waits for a fresh build,"
+          echo "and note concurrency cancel-in-progress can cancel an in-flight deploy."

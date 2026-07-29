@@ -1,0 +1,20 @@
+{
+  "name": "intersecting-parallels",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tooling for intersecting-parallels.pages.dev. The deployed site is public/ and has no build step; these scripts run the accessibility gate.",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "a11y": "node a11y-gate.mjs",
+    "a11y:verbose": "node a11y-gate.mjs --verbose"
+  },
+  "devDependencies": {
+    "axe-core": "4.10.2",
+    "playwright-core": "1.56.0"
+  },
+  "//browser": "playwright-core 1.56.0 ships chromium revision 1194, which matches /opt/pw-browsers/chromium-1194 in the session sandbox. These are a MATCHED PAIR (hub LESSONS §8): the gate launches that executablePath when present, and a playwright-core expecting a different revision connects and then hangs on a protocol mismatch with no error. If the sandbox browser changes, re-pin here and re-verify."
+}
