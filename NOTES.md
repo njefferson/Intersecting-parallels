@@ -106,6 +106,29 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-07-30 — 1.0.0. THIS IS V1.** Fifth and final promote
+of the build. Noah asked for Clear in the toolbar (D25), then said *"This is now
+version 1"*, then *"Promote"*. `main` fast-forwarded to `staging` at `b300903` — no
+merge commit, the identical tree.
+
+All four workflows verified green on that exact SHA on `staging` BEFORE the merge,
+and all four re-ran green on `main` after it: Deploy, Accessibility gate, Solver
+tests, App walk (runs 30515691985 / 30515691988 / 30515691986 / 30515691975). The
+production deploy was watched to `completed / success`, and then — the part that
+needed patience — this record was held until the a11y and walk runs on `main` had
+finished too, because a push to `main` starts fresh runs and the concurrency group
+would have cancelled the ones still in flight. That is the hub lesson about a
+watched run being killed by your own next push, applied instead of re-learned.
+
+Gates at 1.0.0: 89 unit tests, a11y PASS (four surfaces × two themes × two
+viewports), walk 65 checks including offline cold launch.
+
+Standing caveat, unchanged and worth keeping in the record: this sandbox cannot read
+pages.dev (the agent proxy returns `CONNECT tunnel failed, response 403`), so the
+evidence is a successful wrangler deploy of this tree rather than a page anyone
+fetched. The on-screen stamp reading 1.0.0 on Noah's iPad is what closes that gap,
+which is why §7b puts it there.
+
 **V1 DECLARED BY NOAH, 2026-07-30.** *"This is now version 1."* The first slot of
 the triplet is his to set (Doctrine §7) and he set it: this build is
 **1.0.0**, and it is 0.6.1 plus D25 — nothing was added to earn the number. What
