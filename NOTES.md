@@ -106,6 +106,40 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-07-30 — 1.3.2.** Sixth promote, and the largest
+one: `main` fast-forwarded from `e60543b` (1.0.0's record) to `172749c` — no merge
+commit, the identical tree, and `git diff origin/main origin/staging` empty on the
+remote afterwards. It carries five releases at once, because everything since V1
+had been stacking on staging awaiting Noah's device pass:
+
+- **1.1.0** — Noah's five defects, and the §4 gates that should have caught them
+  (off-screen markers that say they are markers, arrow keys, draggable corners,
+  the first-run panel, and the drag-declaration gate itself)
+- **1.2.0** — every corner of a box moves, through one entry point (D29's inverse
+  solve). This was the "four corners do nothing" report
+- **1.3.0** — the anchor is visibly the anchor (D30), and a box is two steps with
+  the second automatic (D31)
+- **1.3.1** — no iOS text selection on a long press (F-08); the Clear confirmation
+  moved under the Clear button (F-09)
+- **1.3.2** — D33's double-headed arrow: the second step now says WHICH WAY
+
+All four workflows were verified green on `172749c` on `staging` BEFORE the merge,
+and all four re-ran green on `main` after it: Deploy, Accessibility gate, Solver
+tests, App walk. This record was again held until every run on `main` had reached
+`completed / success` rather than being written on the strength of the deploy
+alone — the same patience the 1.0.0 record describes, applied a second time.
+
+Gates at 1.3.2: **109 unit tests** (89 at 1.0.0), a11y PASS, **102 walk checks**
+(65 at 1.0.0), 7 declared interactions with 2 registered gaps (F-04). The standing
+caveat below is unchanged: this sandbox cannot read pages.dev, so the evidence is
+a successful deploy of this exact tree, and the on-screen stamp reading 1.3.2 on
+Noah's iPad is what closes the gap.
+
+Two things carried into production that are worth stating plainly rather than
+burying: F-04 is still open — drawing a line or a box is drag-only, with no
+keyboard path — and the canvas grid still measures 1.38:1, now recorded as an
+explicit non-assertion in ACCESSIBILITY.md rather than a silent omission.
+
 **PROMOTED TO PRODUCTION 2026-07-30 — 1.0.0. THIS IS V1.** Fifth and final promote
 of the build. Noah asked for Clear in the toolbar (D25), then said *"This is now
 version 1"*, then *"Promote"*. `main` fast-forwarded to `staging` at `b300903` — no
