@@ -62,6 +62,30 @@ sometimes is a flaky gate. Its pair (`--muted` on `--surface`) is the one
 **Adding a new foreground/background pair? Add it here and to the registry in
 the same commit that introduces it** (§4).
 
+### Text baked into an image — the social tile
+
+`public/og.png` carries the wordmark, so it has foreground/background pairs
+that no DOM-based gate can see: the background is a photograph-like gradient
+with a sun in it, and the "background colour" of a letter is whatever pixel
+happens to be under it. Its gate is
+[`render-og.mjs`](render-og.mjs) (`npm run render:og`), which renders the tile
+twice — once with the text hidden — samples the real backdrop inside each
+line's tight rect, takes the **lightest pixel found** (worst case for light
+text) and computes the WCAG ratio against the real text colour. It exits
+non-zero below 4.5:1 and prints the offending pixel's rgb and coordinates.
+4.5 is required although every line is large text (3:1 would pass): the tile is
+displayed at roughly a third of its size in a link card.
+
+Measured 2026-07-30, at the composition that shipped:
+- wordmark `#F7EEDC` 72px — **9.97:1** (lightest backdrop pixel rgb(61,57,49))
+- tagline `#F4CE93` 31px — **8.44:1** (rgb(50,52,48) — the left vanishing
+  point's glow, showing through the wash)
+- plain line `#CBD4EA` 24px — **5.10:1** (rgb(97,82,56))
+
+Alt text carries the words, not just the picture: an image containing text is
+inaccessible if its alt describes only the scene, so `og:image:alt` and
+`twitter:image:alt` both quote the tile's wording before describing the art.
+
 ### Design-time bindings for the app itself (from NOTES.md D5/D6)
 
 The spec's interactive objects live inside a canvas — untabbable, no focus
@@ -144,3 +168,15 @@ framerate failure at 2,000 edges (37.2ms per solve+frame against a 33ms bar).
 All four were fixed and both gates re-run green. A gate that has failed on
 something real is better evidence than one that has failed on something
 planted.
+
+**2026-07-30, the social tile** — `render-og.mjs` failed on its first two runs
+without anything being planted. Run one failed all three text blocks, and the
+failure was in the INSTRUMENT: it sampled each block's element box, which is as
+wide as its container, so it was reading backdrop out where the sun is and no
+letter is ever drawn. Fixed to sample `Range.getClientRects()` — the tight rect
+per rendered line, where the ink actually is. Run two then failed for real: the
+tagline, set across a wide column, ran out to x=602 and sat on the horizon glow
+at **2.92:1**. Fixed by narrowing the column rather than by deepening the wash,
+because a wash deep enough to cover the horizon also covers the building the
+picture is of. Both facts came from the printed pixel coordinates, which is why
+the script prints them.

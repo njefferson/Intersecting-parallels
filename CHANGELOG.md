@@ -8,6 +8,22 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.5.1 — ITERATION · 2026-07-30
+
+**The link preview says what it is.**
+
+- When you paste the app's link into Messages, Slack or anywhere else that
+  shows a preview card, the picture now has the name on it — "Intersecting
+  Parallels", the tagline, and one plain line saying it is free perspective
+  drawing that works offline. Before, the card was the artwork alone, which is
+  pretty and tells a stranger nothing. The same image is the repo's social
+  preview.
+- The picture's description (what a screen reader announces) now reads the
+  words on the tile out loud before describing the drawing behind them.
+- Nothing about drawing changed in this release.
+
+---
+
 ## 0.5.0 — CAPABILITY · 2026-07-29
 
 **Boxes in one drag, and line ends connect again so adjustments hold.**

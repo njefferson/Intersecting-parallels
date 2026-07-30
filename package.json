@@ -13,6 +13,7 @@
     "a11y:verbose": "node a11y-gate.mjs --verbose",
     "test": "node --test",
     "render:icons": "node render-icons.mjs",
+    "render:og": "node render-og.mjs",
     "walk": "node walk.mjs",
     "walk:shots": "node walk.mjs --shots"
   },
