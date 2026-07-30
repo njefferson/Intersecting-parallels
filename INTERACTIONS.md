@@ -39,8 +39,14 @@ exist in the built page, and every alternative must be reachable by keyboard.
     guide system means a line is fully described by an origin, a guide and a
     length, so a keyboard path is possible and is the next accessibility item.
     Recorded in ACCESSIBILITY.md as an open finding, not as a pass.
-- **Draw a box** (one drag)
-  → same gap, same entry.
+- **Draw a box** — FIRST drag (height, and depth toward the point you drag toward)
+  → same gap as drawing a line, same entry (F-04).
+- **Finish a box** — SECOND step, D31. The remaining depth is live the moment the
+  first drag releases: drag anywhere, with no handle to find and no mode to pick.
+  → the corner is pre-selected, so the arrow keys set that depth with no drag;
+    its distance is also a number field in the Points panel; and Done, Escape or
+    switching tools all end the step, always KEEPING the box.
+    Nothing about it is timed (§4), and it never commits anything by itself.
 
 ## Multi-point gestures
 

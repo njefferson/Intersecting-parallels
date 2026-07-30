@@ -61,8 +61,18 @@ export const INTERACTIONS = [
   {
     id: "draw-box",
     kind: "drag",
-    what: "One drag builds a box",
+    what: "First drag builds the box: height, and depth toward the point you drag toward",
     gap: "F-04",
     alternatives: [],
+  },
+  {
+    id: "extrude-box",
+    kind: "drag",
+    what: "The second step (D31): the remaining depth is live under the finger the moment the first drag releases — drag anywhere, no handle to find",
+    alternatives: [
+      { how: "The corner is pre-selected, so the arrow keys set that depth with no drag at all", selector: "canvas[tabindex]", keyboard: true },
+      { how: "Its distance is a number field in the Points panel", selector: "#inspector", keyboard: true },
+      { how: "Done ends the step and keeps the box; so does Escape or switching tools", selector: "#extrude-done", keyboard: true },
+    ],
   },
 ];

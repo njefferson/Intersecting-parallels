@@ -71,12 +71,11 @@ try {
   for (let i = 1; i <= 12; i++) await page.mouse.move(600 + i * 6, 640 - i * 9);
   await page.mouse.up();
   await page.waitForTimeout(150);
-  await page.click("#mode-select");
-  await page.evaluate(() => {
-    const s = window.__ip.scene;
-    const v = s.vertices.find(x => x.kind === "ray") || s.vertices[0];
-    if (v) window.__ip.select({ type: "vertex", id: v.id });
-  });
+  // Deliberately NOT switching modes here: releasing that box leaves the app in
+  // D31's second step, which pre-selects the corner it is about. So the inspector,
+  // the focusable canvas and the step's own Done button are all live at once, and
+  // the gate measures the alternatives in the state a person is actually in
+  // rather than in a state assembled for the gate.
   await page.waitForTimeout(80);
 
   console.log("=== interaction declarations (Doctrine §4) ===\n");

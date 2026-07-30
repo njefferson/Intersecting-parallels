@@ -89,6 +89,14 @@
   <main class="stage" id="stage">
     <canvas id="canvas" aria-label="Drawing canvas. The vanishing points list is the keyboard-accessible control surface for everything on it."></canvas>
 
+    <!-- D31 — the second half of a box. A standing indicator, not a toast: it is
+         a state you are IN, so it says so until it ends, and it carries its own
+         way out (§3). Nothing about it is timed. -->
+    <div class="mode-flag" id="extrude-flag" data-on="false">
+      <span id="extrude-say">Now drag anywhere to set the depth the other way</span>
+      <button class="btn" id="extrude-done" type="button">Done</button>
+    </div>
+
     <div class="mode-flag" id="touch-flag" data-on="false">
       <span>Touch draws — two fingers to pan and zoom</span>
       <button class="btn" id="touch-exit" type="button">Turn off</button>
@@ -139,10 +147,10 @@
         <li><strong>Draw</strong> — drag on the canvas. The line takes the nearest
           guide: a vanishing point, vertical, horizontal, or 45° if you turn it on.
           Swing toward another guide mid-stroke and it changes its mind.</li>
-        <li><strong>Box</strong> — one drag makes a whole box: straight up is tall
-          and thin, sideways deepens the side you drag toward. Then drag any
-          corner to reshape it — the far bottom corner sets both depths at
-          once.</li>
+        <li><strong>Box</strong> — two steps, and the second one comes to you. The
+          first drag sets the height and the depth toward whichever point you drag
+          toward; then the other depth is immediately live, so just drag again
+          anywhere. Every corner stays draggable afterwards.</li>
         <li><strong>Place</strong> — drag a vanishing point and watch everything
           bound to it move. That is the whole idea of the app in one gesture.</li>
       </ul>

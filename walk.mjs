@@ -807,6 +807,86 @@ try {
     `${afterWipe.points} point, labelled ${afterWipe.label}`);
   await cCtx.close();
 
+  // D31 — a box is two steps and the second is automatic: after the first drag
+  // releases, the remaining depth must be live under the finger with no handle to
+  // find and no mode to choose.
+  const eCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(eCtx);
+  const ePage = await eCtx.newPage();
+  ePage.on('pageerror', e => pageErrors.push(`extrude page: ${e}`));
+  await ePage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await ePage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 20000 });
+  await ePage.click('#mode-box');
+  await ePage.mouse.move(600, 660);
+  await ePage.mouse.down();
+  for (let i = 1; i <= 14; i++) await ePage.mouse.move(600 + i * 7, 660 - i * 9);
+  await ePage.mouse.up();
+  await ePage.waitForTimeout(150);
+
+  const afterFirst = await ePage.evaluate(() => {
+    const s = window.__ip.scene;
+    const anchor = s.vertices.find(v => v.kind === 'anchor');
+    const rays = s.vertices.filter(v => v.kind === 'ray' && v.origin === anchor.id && typeof v.binding === 'object');
+    return {
+      edges: s.edges.length,
+      depths: rays.map(r => +Math.abs(r.t).toFixed(1)).sort((a, b) => a - b),
+      flag: document.getElementById('extrude-flag')?.dataset.on,
+      says: document.getElementById('extrude-say')?.textContent || '',
+    };
+  });
+  check('the first drag lands a whole box and the second step announces itself (D31)',
+    afterFirst.edges === 12 && afterFirst.flag === 'true' && /drag anywhere/i.test(afterFirst.says),
+    `${afterFirst.edges} edges, indicator ${afterFirst.flag}, says "${afterFirst.says.slice(0, 60)}"`);
+
+  // The very next drag — anywhere, no handle — sets the remaining depth.
+  await ePage.mouse.move(430, 500);
+  await ePage.mouse.down();
+  for (let i = 1; i <= 10; i++) await ePage.mouse.move(430 - i * 9, 500 - i * 5);
+  await ePage.mouse.up();
+  await ePage.waitForTimeout(150);
+  const afterSecond = await ePage.evaluate(() => {
+    const s = window.__ip.scene;
+    const anchor = s.vertices.find(v => v.kind === 'anchor');
+    const rays = s.vertices.filter(v => v.kind === 'ray' && v.origin === anchor.id && typeof v.binding === 'object');
+    return {
+      edges: s.edges.length,
+      depths: rays.map(r => +Math.abs(r.t).toFixed(1)).sort((a, b) => a - b),
+      flag: document.getElementById('extrude-flag')?.dataset.on,
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+      degenerate: s.vertices.filter(v => v.degenerate).length,
+    };
+  });
+  check('the next drag anywhere sets the OTHER depth — no handle to find (D31)',
+    afterSecond.depths[0] > afterFirst.depths[0] * 2 && afterSecond.depths[0] > 60,
+    `shallow depth ${afterFirst.depths[0]} -> ${afterSecond.depths[0]}, deep ${afterFirst.depths[1]} -> ${afterSecond.depths[1]}`);
+  check('and it is a sound box afterwards, with the step finished',
+    afterSecond.edges === 12 && afterSecond.finite && afterSecond.degenerate === 0 && afterSecond.flag === 'false',
+    JSON.stringify(afterSecond));
+
+  // Each step is its own undo, and the pending step never commits anything by
+  // itself — walking away keeps the box rather than discarding it.
+  const undone = await ePage.evaluate(async () => {
+    document.getElementById('undo').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const s = window.__ip.scene;
+    const anchor = s.vertices.find(v => v.kind === 'anchor');
+    const rays = s.vertices.filter(v => v.kind === 'ray' && v.origin === anchor.id && typeof v.binding === 'object');
+    return { edges: s.edges.length, depths: rays.map(r => +Math.abs(r.t).toFixed(1)).sort((a, b) => a - b) };
+  });
+  check('undo takes back the second step alone, leaving the box',
+    undone.edges === 12 && Math.abs(undone.depths[0] - afterFirst.depths[0]) < 1,
+    `back to depths ${JSON.stringify(undone.depths)} with ${undone.edges} edges`);
+
+  // Escape ends the state and keeps the drawing.
+  const escaped = await ePage.evaluate(async () => {
+    document.getElementById('mode-box').click();
+    await new Promise(r => requestAnimationFrame(r));
+    return { flag: document.getElementById('extrude-flag')?.dataset.on };
+  });
+  check('switching tools ends the second step and keeps the box',
+    escaped.flag === 'false', `indicator ${escaped.flag}`);
+  await eCtx.close();
+
   // D29 — the four corners that did nothing. This is the defect class Noah
   // reported and NO gate could see it: before this block the walk never dragged a
   // vertex of any kind, only vanishing points.

@@ -190,17 +190,38 @@ export function draw(ctx, view, viewport, opts = {}) {
     const isSel = selection && selection.type === "vertex" && selection.id === v.id;
     ctx.fillStyle = v.degenerate ? c.bad : (isSel ? c.sel : c.ink);
     if (!v.degenerate) {
+      // D30 — the three kinds of corner are three SHAPES, because they are three
+      // different things and Noah could not tell them apart:
+      //   anchor    filled square inside an open ring — you placed it, it is free
+      //             in the plane, and it is the one that moves the whole shape
+      //   ray       filled square — slides along one guide
+      //   intersect open square — derived: it is where two guides cross, and it
+      //             moves by adjusting the distances behind it
+      // Shape, never hue (§4): it survives a greyscale render and it reads at a
+      // glance instead of by scrubbing each corner to see which responds.
       const r = (isSel ? VERTEX_DOT + 1.5 : VERTEX_DOT) + 0.5;
-      ctx.beginPath();
-      ctx.rect(p.x - r, p.y - r, r * 2, r * 2);
-      ctx.fill();
+      ctx.lineWidth = 2;
+      if (v.kind === "intersect") {
+        ctx.strokeStyle = isSel ? c.sel : c.ink;
+        ctx.beginPath();
+        ctx.rect(p.x - r, p.y - r, r * 2, r * 2);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.rect(p.x - r, p.y - r, r * 2, r * 2);
+        ctx.fill();
+      }
+      if (v.kind === "anchor") {
+        ctx.strokeStyle = isSel ? c.sel : c.ink;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r + 4.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       if (isSel) {
-        // A selected corner also carries an open outer square, so "this is the
-        // one the arrow keys will move" reads without relying on the fill colour.
         ctx.strokeStyle = c.sel;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.rect(p.x - r - 4, p.y - r - 4, (r + 4) * 2, (r + 4) * 2);
+        ctx.rect(p.x - r - 6, p.y - r - 6, (r + 6) * 2, (r + 6) * 2);
         ctx.stroke();
       }
       continue;

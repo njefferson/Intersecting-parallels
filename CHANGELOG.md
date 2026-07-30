@@ -8,6 +8,28 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.3.0 — CAPABILITY · 2026-07-30
+
+**A box is two steps now, and the second one comes to you.**
+
+- **Drag once, then drag again.** The first drag sets the height and the depth
+  toward whichever vanishing point you drag toward. The moment you let go, the
+  OTHER depth is live: drag anywhere on the canvas and it follows. No handle to
+  find, no mode to choose. A drag carries two numbers and a box needs three —
+  this is where the third one comes from.
+- The step says it is happening, and it has a **Done** button. Escape does the
+  same, so does picking another tool, and every one of them **keeps the box** —
+  there is nothing to lose by walking away from it. It never expires on its own.
+- If you would rather type it: the corner is already selected, so the arrow keys
+  set that depth without any drag, and its distance is a number field in Points.
+- Each step is its own undo, so you can take back the depth and keep the box.
+- **The anchor corner looks different now.** Three kinds of corner, three shapes:
+  the corner you placed is a filled square inside a ring, a corner that slides
+  along one guide is a filled square, and a corner where two guides cross is an
+  open square. You should not have to drag one to find out what it is.
+
+---
+
 ## 1.2.0 — CAPABILITY · 2026-07-30
 
 **Every corner of a box moves now.**

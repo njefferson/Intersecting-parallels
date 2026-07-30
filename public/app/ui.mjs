@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -39,6 +39,7 @@ const el = {
   stage: $("stage"), canvas: $("canvas"), panel: $("panel"), vpList: $("vp-list"),
   inspector: $("inspector"), horizonY: $("horizon-y"), toast: $("toast"), live: $("live"),
   touchFlag: $("touch-flag"), force: $("force"), build: $("build-stamp"),
+  extrudeFlag: $("extrude-flag"), extrudeSay: $("extrude-say"),
   undo: $("undo"), redo: $("redo"),
 };
 
@@ -667,6 +668,25 @@ el.canvas.addEventListener("pointerdown", ev => {
     return;
   }
 
+  // D31 — the second step. It takes precedence over starting another box,
+  // because that is what "immediately draggable" means: the drag you make next
+  // is the one that finishes this box.
+  if (extruding) {
+    const ray = scene.vertices.find(v => v.id === extruding.rayId);
+    if (ray) {
+      gesture = {
+        kind: "extrude",
+        rayId: ray.id,
+        startCanvas: toCanvas(view, p),
+        startPos: { x: ray.x, y: ray.y },
+        moved: false,
+      };
+      render();
+      return;
+    }
+    endExtrude(false);
+  }
+
   if (prefs.mode === "box") {
     // D21: one drag builds the whole box. Its start is the near bottom corner,
     // which may join an existing end like any other start (D20).
@@ -738,6 +758,21 @@ el.canvas.addEventListener("pointermove", ev => {
     // solving per event does the work twice and shows half of it. The latest
     // position wins; intermediate ones were never going to be drawn.
     pendingVpMove = { vpId: gesture.vpId, at: toCanvas(view, p) };
+    render();
+    return;
+  }
+
+  if (gesture.kind === "extrude") {
+    const c = toCanvas(view, p);
+    const dx = c.x - gesture.startCanvas.x, dy = c.y - gesture.startCanvas.y;
+    if (!gesture.moved && Math.hypot(dx, dy) * view.scale < 4) return;
+    if (!gesture.moved) { beginGesture(history, scene); gesture.moved = true; }   // D7
+    // Same manipulate() as every other move: it projects onto that guide, so the
+    // depth follows the drag however the finger travels.
+    pendingManipulate = {
+      vertexId: gesture.rayId,
+      target: { x: gesture.startPos.x + dx, y: gesture.startPos.y + dy },
+    };
     render();
     return;
   }
@@ -847,6 +882,18 @@ function endPointer(ev) {
   }
   if (wasGesture.kind === "pan") return;
 
+  if (wasGesture.kind === "extrude") {
+    if (!wasGesture.moved) { render(); return; }        // a tap keeps the box as it is
+    if (pendingManipulate) {
+      manipulate(scene, pendingManipulate.vertexId, pendingManipulate.target);
+      pendingManipulate = null;
+    }
+    const ray = scene.vertices.find(v => v.id === wasGesture.rayId);
+    endExtrude(false);
+    afterEdit(ray ? `Depth toward ${bindingName(scene, ray.binding)} set to ${Math.round(Math.abs(ray.t))}` : null);
+    return;
+  }
+
   if (wasGesture.kind === "vertex") {
     manipulateWarned = false;
     if (!wasGesture.moved) { render(); return; }              // a tap that selected, nothing more
@@ -868,7 +915,8 @@ function endPointer(ev) {
       depthL: wasGesture.depthL, depthR: wasGesture.depthR,
     });
     if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
-    afterEdit(`Box drawn — ${res.edges.length} lines, every corner held by two guides. Drag any corner to reshape it.`);
+    afterEdit(`Box drawn — ${res.edges.length} lines, every corner held by two guides.`);
+    beginExtrude(res);                                   // D31: the second step, immediately
     return;
   }
 
@@ -1033,6 +1081,12 @@ el.canvas.addEventListener("keydown", ev => {
   if (nudgeSelection(d[0], d[1], ev.shiftKey)) ev.preventDefault();
 });
 
+// Escape leaves the second step the same way the Done button does — keeping the
+// box, never discarding it.
+window.addEventListener("keydown", ev => {
+  if (ev.key === "Escape" && extruding) { endExtrude(); ev.preventDefault(); }
+});
+
 // D28 — the first-run explanation.
 //
 // §4: interrupting surfaces are EXPECTED, and what is not negotiable is the way
@@ -1070,9 +1124,54 @@ function maybeShowWelcome() {
   $("welcome-close")?.focus({ preventScroll: true });
 }
 
+// D31 — a box is two steps, and the second one is automatic.
+//
+// Noah, 2026-07-30: "Drawing a box *should* be a two-step process, but it should
+// be automatic - first square goes in, then the other axis is immediately
+// draggable." A drag carries two numbers and a box needs three, so the first drag
+// states the near face — height, and depth toward the vanishing point you drag
+// toward — and the remaining depth is left live under the finger instead of
+// needing a handle to be found and grabbed.
+//
+// It is a state, so it announces itself and carries its own exit (§3), it never
+// expires (§4: no timed gestures), and ending it always KEEPS what is drawn —
+// there is nothing to lose by walking away.
+let extruding = null;    // { rayId, label } — the depth still to be set
+
+function showExtrude(on, message) {
+  if (el.extrudeFlag) el.extrudeFlag.dataset.on = String(!!on);
+  if (on && message && el.extrudeSay) el.extrudeSay.textContent = message;
+}
+
+function beginExtrude(res) {
+  // The axis still at its floor is the one to offer: the first drag gave its
+  // distance to whichever side it leaned toward.
+  const base = [res.corners.leftBottom, res.corners.rightBottom];
+  if (!base.every(Boolean)) return;
+  const shallow = Math.abs(base[0].t) <= Math.abs(base[1].t) ? base[0] : base[1];
+  extruding = { rayId: shallow.id, label: bindingName(scene, shallow.binding) };
+  // §4 — the second step needs a non-drag path, and the cheapest honest one is to
+  // SELECT the corner it is about: the arrow keys and the panel's distance field
+  // then act on exactly what the drag would, with no extra control invented.
+  selection = { type: "vertex", id: shallow.id };
+  el.canvas.focus({ preventScroll: true });
+  renderPanel();
+  showExtrude(true, `Box: now drag anywhere to set the depth toward ${extruding.label}`);
+  say(`Box drawn. Drag anywhere — or use the arrow keys, this corner is already selected — to set its depth toward ${extruding.label}. Done keeps it as it is.`);
+}
+
+function endExtrude(announce = true) {
+  if (!extruding) return;
+  extruding = null;
+  showExtrude(false);
+  if (announce) say("Box finished.");
+}
+$("extrude-done")?.addEventListener("click", () => endExtrude());
+
 // ---- toolbar wiring ------------------------------------------------------
 
 function setMode(mode) {
+  endExtrude(false);          // switching tools ends the pending step, keeping the box
   prefs.mode = mode;
   for (const [id, m] of [["mode-place", "place"], ["mode-draw", "draw"], ["mode-box", "box"], ["mode-select", "select"]]) {
     $(id)?.setAttribute("aria-pressed", String(prefs.mode === m));

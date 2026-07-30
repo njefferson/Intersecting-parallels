@@ -596,6 +596,45 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D30/D31 — three shapes, and the box's second step (SHIPPED 1.3.0, staging)
+
+**Noah, 2026-07-30:** *"Indicate the corner that is the anchor. It currently looks
+the same. Drawing a box *should* be a two-step process, but it should be automatic
+- first square goes in, then the other axis is immediately draggable."*
+
+**D30 — three kinds of corner, three shapes.** Anchor: filled square inside an
+open ring (you placed it; free in the plane; moves the whole shape). Ray: filled
+square (slides along one guide). Intersect: OPEN square (derived — it moves by
+adjusting the distances behind it). Shape and never hue (§4): it survives a
+greyscale render. D29 made every corner move; this says which is which without
+having to drag one to find out.
+
+**D31 — the box's second step, automatic.** The first drag sets height and the
+depth toward the point you drag toward. On release the remaining depth is LIVE:
+the next drag anywhere sets it, with no handle to find and no mode to pick. This
+is the answer to "a drag carries two numbers and a box needs three" that does not
+require the user to know which corner is magic.
+- It is a state, so it announces itself in a standing strip with a Done button
+  (§3). Escape and switching tools do the same. Every exit KEEPS the box — the
+  step can only add, never take away, so walking away from it costs nothing.
+- Nothing about it is timed (§4: no timed gestures), and it commits nothing by
+  itself: a tap during the step leaves the box exactly as drawn.
+- Each step is its own undo, so the depth can be taken back while the box stays.
+- The non-drag path is not a new control: beginning the step SELECTS the corner
+  it is about, so the arrow keys act on exactly what the drag would, and the
+  panel already carries its distance as a number. Declared in INTERACTIONS.md and
+  gated — and the gate caught the honest version of this: it first failed because
+  it measured the Done button while the step was over, so `check-interactions.mjs`
+  now leaves the app IN the step rather than assembling a state for the gate.
+- Gated in the walk: the first release lands 12 edges and raises the indicator;
+  the next drag anywhere lifts the shallow depth (19.8 -> 192.1 measured) with the
+  other unchanged; the box stays sound; undo takes back the second step alone;
+  switching tools ends the step and keeps the box.
+
+splitBoxDepths is still untouched — the first drag keeps its floor because the
+second step is now what supplies the other depth, which is a better answer than
+retuning a heuristic that can only ever trade one impossible box for another.
+
 ### D29 — every corner moves, through one entry (SHIPPED 1.2.0, staging)
 
 The first half of the assessment below, built and gated. `manipulate(scene, id,
