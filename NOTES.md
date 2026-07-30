@@ -106,6 +106,21 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-07-30 — 0.6.1.** Fourth promote, carrying two
+releases: 0.6.0 (the Weld toggle D22, two depths from one box drag and editable
+corners D23) and 0.6.1 (clearing the screen, D24). Noah said **"Promote"** and
+`main` fast-forwarded to `staging` at `312f648` — no merge commit, the identical
+tree. All four workflows verified green on that exact SHA before the merge: Deploy,
+Accessibility gate, Solver tests, App walk. Gates at that SHA: 89 tests, a11y PASS,
+walk 59 checks. The production deploy (run 30514949074) was watched to
+`completed / success` before this record was pushed.
+
+Both of the roadmap's open product items are now closed, and both were closed with
+a correction attached rather than quietly: the welding item was stale (D20 had
+already restored joining — what was missing was the choice), and D21's claim that
+box corners were "adjustable afterwards" was true of the data model and false of
+the app until D23 made it true.
+
 **PROMOTED TO PRODUCTION 2026-07-30 — 0.5.2.** Third promote. New icon and social
 tile, both drawn through a real three-point camera rather than generated (see "The
 artwork is computed" above). Noah chose the shifted-right tile and the wider icon
