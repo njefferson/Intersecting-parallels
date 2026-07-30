@@ -81,7 +81,7 @@ const SKYLINE = city({
 // both. Taking the window in scene coordinates instead gives the same lines with
 // more sky above them, which is a crop of the drawing rather than of the file.
 const WIDE_SHIFT = {
-  name: "wide-shift", out: "art/og-wide-shift.svg", w: 1200, h: 630,
+  name: "wide-shift", out: "art/og-wide-shift.svg", raster: "art/og-base.png", w: 1200, h: 630,
   vps: { A: { x: 431, y: 88 }, B: { x: 1093, y: 88 }, C: { x: 762, y: 556 } },
   cluster: { x: 792, y: 336 }, unitPx: 104, hScale: 0.80, grid: [[-2.5, 3.5], [-2.5, 3]], step: 0.5,
   overshoot: 1.14, roads: DOWNTOWN, boxes: DOWNTOWN.boxes,
@@ -90,7 +90,7 @@ const WIDE_SHIFT = {
 
 const VARIANTS = [
   {
-    name: "icon", out: "art/icon-asdrawn.svg", w: 1024, h: 1024,
+    name: "icon-asdrawn", out: "art/icon-asdrawn.svg", w: 1024, h: 1024,
     vps: { A: { x: 68, y: 168 }, B: { x: 950, y: 168 }, C: { x: 512, y: 940 } },
     cluster: { x: 512, y: 452 }, unitPx: 118, hScale: 0.80, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5, raster: "art/icon-asdrawn.png",
     note: "Noah's icon layout, unchanged — it is already a valid camera",
@@ -123,14 +123,28 @@ const VARIANTS = [
   },
   {
     ...WIDE_SHIFT,
-    name: "icon-crop-wide", out: "art/icon-crop-wide.svg", raster: "art/icon-crop-wide.png",
+    name: "icon", out: "public/icon.svg", raster: "art/icon-crop-wide.png",
     w: 1024, h: 1024,
     // Same centre, wider window. Pulling the horizon points inside the middle 80%
     // matters: a maskable icon is cropped by the launcher, and at the tight window
     // both dots are within 7% of the edge, so a launcher would eat them.
     window: { x: 342, y: -145, size: 840 },
     strokeWidth: 3.4, dotR: 9.5,
-    note: "wider window — horizon points inside the middle 80%, so a maskable crop keeps them",
+    note: "CHOSEN — wider window; horizon points inside the middle 80%, so a maskable crop keeps them",
+  },
+  {
+    ...WIDE_SHIFT,
+    name: "icon-maskable", out: "art/icon-maskable.svg", raster: "art/icon-maskable.png",
+    w: 1024, h: 1024,
+    // A maskable icon is cropped to a circle-ish shape by the launcher, so its art
+    // must sit inside the inner 80%. The old pipeline achieved that by SHRINKING the
+    // whole icon onto a flat navy field, which leaves a seam where the flat colour
+    // meets the art's own gradient — and a flat pad is also what put white at the
+    // corners of the previous icon. A wider window instead is full bleed: same scene,
+    // same camera, just more sky and ground around it, so there is nothing to seam.
+    window: { x: 236, y: -251, size: 1052 },
+    strokeWidth: 4.0, dotR: 11,
+    note: "maskable — same scene through a wider window, so the safe zone is real margin rather than a shrunk copy",
   },
   {
     name: "wide-out", out: "art/og-wide-out.svg", w: 1200, h: 630,
@@ -209,6 +223,16 @@ for (const v of VARIANTS) {
   catch (e) { console.log(`FAIL ${v.name}: ${e.message}`); failures++; continue; }
 
   writeFileSync(v.out, built.svg);
+  if (v.raster === "art/og-base.png") {
+    // The wordmark tool needs to know where the three points are, because its
+    // legibility wash covers the left one — measured at 1.60:1 against its own sky,
+    // which is erased. It redraws them on top. This sidecar exists so those
+    // coordinates are never retyped into a second file and left to drift.
+    writeFileSync("art/og-base.json", JSON.stringify({
+      w: v.w, h: v.h, vps: v.vps, horizonY: v.vps.A.y,
+      amber: AMBER, cyan: CYAN, dotR: v.dotR ?? 6.5,
+    }, null, 2) + "\n");
+  }
   rendered.push({ v, svg: built.svg });
 
   const { P, f } = built.cam;

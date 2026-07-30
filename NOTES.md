@@ -197,7 +197,8 @@ home-screen corners — say the word and the navy gets bled out to the edge.
 - Topics (suggested): `perspective` · `drawing-tool` · `vanishing-points` ·
   `pwa` · `offline-first`
 - Social preview: **ready now** — `public/og.png` (1200×630). Upload it in the
-  GitHub UI as the repo's social preview image.
+  GitHub UI as the repo's social preview image. Regenerated 2026-07-30 from the
+  computed three-point city (see "The artwork is computed" below).
   Noah, 2026-07-30: *"The social preview tile has no words."* It was the bare
   artwork; a preview card is shown at ~360px beside nothing but a domain, so a
   wordless tile tells a stranger nothing. It now carries the name, the tagline
@@ -206,6 +207,57 @@ home-screen corners — say the word and the navy gets bled out to the edge.
   wordless cut of the banner and is kept OUT of `public/` so the deployed site
   does not ship a 1.1MB image nothing references. That script is also the gate
   for text-on-image contrast — see ACCESSIBILITY.md, "Text baked into an image".
+
+### The artwork is computed, not generated (2026-07-30, 0.5.2)
+
+Noah redid the icon and tile himself, then hit the wall: *"It CANNOT draw in 3
+point perspective."* Three rounds of prompting an image model produced pictures
+with both horizon points drawn, a third point drawn, and every vertical edge
+PARALLEL — so the third point was decoration. Then: *"I want what I have now, but
+with proper lines following the 3rd vp."*
+
+So the art is now solved rather than described. `art/scene.mjs` +
+[`render-art.mjs`](render-art.mjs) (`npm run render:art`):
+
+- **The camera is derived from the three vanishing points.** The principal point
+  is the ORTHOCENTRE of their triangle and f² = -(A-P)·(B-P). Every line drawn is
+  a projected 3D edge, so convergence is a consequence, not an aim.
+- **His wide layout was impossible and the tool says so.** Horizon points 1076px
+  apart with the third point 502px below gives f² = -43,002. The condition is
+  d > s: the third point must be farther out than half the horizon spread. His own
+  hand-drawn reference sits just inside it, d=835 to s=795. `cameraFrom()` refuses
+  the impossible case and names both exits ("44px closer together, or 44px farther
+  out") rather than drawing something inconsistent.
+- **Two numbers are printed per point, every run**: worst perpendicular miss
+  (~1e-13px) and the family's angular SPREAD (27-77°). Both are needed — parallel
+  lines miss a distant point by very little, which is exactly how the generated
+  art would have passed. Proven by reinstating the bug: 208.16px and 0.00°.
+- **The icon IS the tile**, seen through a square window in scene coordinates
+  (Noah: *"Could the icon not just be a crop of the social review tile?"*). Not a
+  crop of the pixels — the horizon points are 662px apart and the tile is 630px
+  tall, so no square region of the raster holds both. Same camera, same numbers,
+  more sky. Two separately framed scenes had disagreed about the perspective,
+  which is what he spotted.
+- **Chosen 2026-07-30:** the shifted-right tile (nadir in frame at 556, horizon
+  points 431/1093, f=234px) and the WIDER icon window (both horizon points inside
+  the middle 80%, so a launcher's maskable crop keeps them). The maskable icon is
+  a third, wider window rather than a shrunk copy on a flat pad — which is also
+  the fix for the white corners the old icon had.
+- **Composition is tuned against printed measurements**, not impressions: the
+  tallest tower's top in screen pixels (flagged when it leaves the frame — caught
+  at -95px and again at 440px above the horizon), which lots paint outside a given
+  window and by how much, and a point-in-polygon test for whether a building is
+  hiding the third vanishing point (it was: lot -1,-2).
+- **Noah's standing note on it:** *"Extreme perspective is FINE! It's the
+  point!"* Do not soften the lens or push the city back to tame the foreground.
+  Buy composure with LAYOUT — empty lots, narrower footprints, height that runs
+  with distance — never by making the perspective milder.
+
+**Known flake (2026-07-30):** one `npm run a11y` run failed with "the app did not
+finish booting within 10s" on the export surface, and the immediately following
+run passed clean. Nothing in that commit touches boot. Most likely the 10s budget
+under a sandbox busy with several Chromium instances. Worth a look if it recurs —
+a gate that flakes is a gate that gets ignored.
 
 **Hub link:** lands only once the app is actually live (bootstrap step 5). The
 placeholder linking back to the hub is fine; the hub does not link out yet.

@@ -76,11 +76,27 @@ non-zero below 4.5:1 and prints the offending pixel's rgb and coordinates.
 4.5 is required although every line is large text (3:1 would pass): the tile is
 displayed at roughly a third of its size in a link card.
 
-Measured 2026-07-30, at the composition that shipped:
+Measured 2026-07-30, at the first composition:
 - wordmark `#F7EEDC` 72px — **9.97:1** (lightest backdrop pixel rgb(61,57,49))
 - tagline `#F4CE93` 31px — **8.44:1** (rgb(50,52,48) — the left vanishing
   point's glow, showing through the wash)
 - plain line `#CBD4EA` 24px — **5.10:1** (rgb(97,82,56))
+
+Re-measured 2026-07-30 against the computed three-point city (0.5.2), which is a
+darker backdrop on the left than the sunset it replaced:
+- wordmark `#F7EEDC` 72px — **13.71:1** (rgb(40,33,32))
+- tagline `#F4CE93` 31px — **11.15:1** (rgb(15,32,45))
+- plain line `#CBD4EA` 24px — **4.96:1** (rgb(41,92,110) — a road)
+
+The three vanishing points are drawn ON TOP of the wash, from coordinates the art
+generator writes to `art/og-base.json`. The wash has to be deep enough to carry
+72px type, and at that depth it took the LEFT vanishing point from 6.59:1 against
+its own sky down to **1.60:1** — erased. A tile whose subject is three vanishing
+points cannot lose one to its own caption, so the point (and a faint length of
+horizon, so it is not a dot floating in nothing) is composited over the wash, and
+the wordmark moved down 36px to clear it. That move was not a judgement call: the
+restored point put an rgb(242,166,90) pixel inside the wordmark's first line and
+the gate failed at 1.76:1 on the very next run.
 
 Alt text carries the words, not just the picture: an image containing text is
 inaccessible if its alt describes only the scene, so `og:image:alt` and

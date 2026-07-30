@@ -8,6 +8,24 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.5.2 — ITERATION · 2026-07-30
+
+**New icon and link preview, drawn in real three-point perspective.**
+
+- The app's icon and its link-preview picture are now a wireframe city seen from
+  up among the towers: two vanishing points on the horizon, a third below the
+  streets, and every edge in the drawing genuinely running to one of them. The
+  pictures they replace were generated, and the third point in those was
+  decoration — the vertical edges were drawn parallel, which is the one thing
+  three-point perspective is not.
+- The icon is the same picture as the preview, seen through a square window. They
+  used to be two separate drawings and the perspective did not match.
+- The icon on your home screen should also stop showing a hair of white at its
+  corners: it is drawn edge to edge now instead of being shrunk onto a flat pad.
+- Nothing about drawing changed in this release.
+
+---
+
 ## 0.5.1 — ITERATION · 2026-07-30
 
 **The link preview says what it is.**
