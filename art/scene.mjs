@@ -190,14 +190,25 @@ export const TIGHT_CLUSTER = [
  * Returns the boxes AND the kerb lines, because the streets are the same lines the
  * blocks are laid out on rather than decoration drawn on afterwards.
  */
-export function city({ module: m = 1.05, block = 0.67, i: iRange = [-1, 2], j: jRange = [-1, 1], heights = {}, pad = {} }) {
+export function city({ module: m = 1.05, block = 0.67, i: iRange = [-1, 2], j: jRange = [-1, 1], heights = {}, pad = {}, shrink = {} }) {
   const boxes = [], kerbs = [];
   const inset = (m - block) / 2;      // half a street each side, blocks centred
   for (let i = iRange[0]; i <= iRange[1]; i++) {
     for (let j = jRange[0]; j <= jRange[1]; j++) {
       const h = heights[`${i},${j}`] ?? 0;
       if (h <= 0) continue;
-      boxes.push({ id: `${i},${j}`, a: [i * m + inset, i * m + inset + block], b: [j * m + inset, j * m + inset + block], h });
+      // A lot may take a narrower footprint than its block, shrunk about the block's
+      // centre so it stays on its own plot and the streets keep their width. Used on
+      // the lots nearest the camera: at that distance a full-width block projects
+      // enormous, crowds the frame edge and reads as a tabletop rather than a tower.
+      const [sa, sb] = shrink[`${i},${j}`] ?? [1, 1];
+      const ca = i * m + inset + block / 2, cb = j * m + inset + block / 2;
+      boxes.push({
+        id: `${i},${j}`,
+        a: [ca - block * sa / 2, ca + block * sa / 2],
+        b: [cb - block * sb / 2, cb + block * sb / 2],
+        h,
+      });
     }
   }
   // The streets may run FURTHER than the blocks do — usually toward the camera.

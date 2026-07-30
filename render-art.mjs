@@ -41,13 +41,18 @@ const AMBER = "#F2A65A", AMBER_HI = "#F8D6A2", CYAN = "#58C6E0";
 const DOWNTOWN = city({
   module: 1.05, block: 0.67, i: [-2, 2], j: [-2, 1],
   pad: { aLo: -1.6, bLo: -1.7, aHi: 0.5, bHi: 0.5 },   // streets run on toward the camera
+  // The nearest lots take narrower footprints. Measured against the icon window:
+  // full-width, lot -2,0 painted out to x=1173 against an edge at 1182, so it read
+  // as sliced off. Narrower, and taller to match, they read as towers instead of
+  // tabletops. (Noah: "Get rid of the buildings on the right which go off the icon,
+  // or reshape them to fit narrower.")
+  shrink: { "-1,-1": [0.72, 0.72], "-1,0": [0.74, 0.70], "-1,1": [0.62, 0.58] },
   // Height runs with DISTANCE, and that is forced, not styled: a tower taller than
   // the camera crosses the horizon, and a NEAR one doing that leaves the top of the
   // frame entirely (measured at 440px above it). So the towers that break eye level
   // stand mid-distance, and the near lots are low — which is exactly the
   // arrangement in Noah's reference sketch.
-  heights: {
-                                  "-2,0": 0.40, "-2,1": 0.30,   // -2,-1 and -2,-2 empty: the nearest lot projects to y=4869, a stray slab across the icon window's bottom edge
+  heights: {   // -2,-1 and -2,-2 empty: the nearest lot projects to y=4869, a stray slab across the icon window's bottom edge
                    "-1,-1": 0.46, "-1,0": 0.52, "-1,1": 0.34,   // -1,-2 empty: it covered the nadir
                     "0,-1": 0.94,  "0,0": 1.34,  "0,1": 0.80,   // 0,-2 empty
      "1,-2": 0.52,  "1,-1": 1.14,                "1,1": 1.06,   // 1,0 empty lot
