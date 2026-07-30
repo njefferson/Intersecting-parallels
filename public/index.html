@@ -57,6 +57,13 @@
       <button class="btn" id="add-box" type="button">Add box</button>
     </div>
 
+    <!-- D37/D38: two ways of LOOKING at the drawing. Neither changes it. -->
+    <div class="bar-group" role="group" aria-label="How the drawing is shown">
+      <button class="btn" id="solid" type="button" aria-pressed="false">Solid</button>
+      <button class="btn" id="rays" type="button" aria-pressed="false">Rays</button>
+      <button class="btn" id="eye-level" type="button" aria-pressed="true">Eye level</button>
+    </div>
+
     <div class="bar-group" role="group" aria-label="Guides">
       <button class="btn" id="assist" type="button" aria-pressed="true">Assist</button>
       <label class="sr-only" for="force">Force this stroke onto</label>
@@ -121,7 +128,7 @@
         <div id="vp-list"></div>
         <h3 class="sr-only">Horizon</h3>
         <div class="vp-row">
-          <span class="vp-name">Horizon</span>
+          <span class="vp-name">Eye level</span>
           <span class="coord">
             <label for="horizon-y">y</label>
             <input type="number" id="horizon-y" step="1">

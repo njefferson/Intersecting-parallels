@@ -8,6 +8,8 @@
 // Draw order is the spec's: grid → horizon → construction → committed →
 // vertices → ghost ray → handles.
 
+import { horizonLine } from "./solver.mjs";
+
 export const HANDLE_HIT = 22;   // canvas-independent screen px; 44px diameter (§4)
 const HANDLE_DOT = 7;           // what is drawn — small dot, large hit area (D6)
 const VERTEX_DOT = 4;
@@ -67,9 +69,108 @@ export function themeColors(theme) {
   // Colour reinforces; weight and dash carry the meaning (D6).
   return theme === "light"
     ? { ink: "#171C2B", guide: "#586079", grid: "#8A8F98", paper: "#FFFFFF",
-        vp: "#4A54C8", vpLocked: "#586079", bad: "#B03270", sel: "#0E6E88", ghost: "#586079" }
+        vp: "#4A54C8", vpLocked: "#586079", bad: "#B03270", sel: "#0E6E88", ghost: "#586079",
+        // D37 — face fills. These are SURFACES, not marks: they are held to
+        // "every mark stays >= 3:1 ON them", not to 3:1 themselves. Lit from
+        // above, so top is lightest and the underside darkest.
+        faceTop: "#F3F3F4", faceRight: "#E5E6E7", faceLeft: "#D7D7D9", faceBottom: "#C6C7C9" }
     : { ink: "#EAECF5", guide: "#8B93AD", grid: "#636A80", paper: "#141A2E",
-        vp: "#8A97FF", vpLocked: "#8B93AD", bad: "#E0619E", sel: "#58C6E0", ghost: "#8B93AD" };
+        vp: "#8A97FF", vpLocked: "#8B93AD", bad: "#E0619E", sel: "#58C6E0", ghost: "#8B93AD",
+        faceTop: "#3B4051", faceRight: "#2E3445", faceLeft: "#22273A", faceBottom: "#0C0F1B" };
+}
+
+
+// ---- D37 solids -----------------------------------------------------------
+//
+// A "solid" is just the set of corners its faces name. Nothing new is stored to
+// make this work: the grouping is read back off the faces every frame, so it can
+// never disagree with them.
+function groupSolids(scene, byId) {
+  const faces = scene.faces ?? [];
+  if (!faces.length) return [];
+  const bySolid = new Map();
+  for (const f of faces) {
+    let g = bySolid.get(f.solid);
+    if (!g) { g = { id: f.solid, faces: [], verts: new Set() }; bySolid.set(f.solid, g); }
+    g.faces.push(f);
+    for (const id of f.loop) g.verts.add(id);
+  }
+  const out = [...bySolid.values()];
+  // Painter's order without a third dimension to sort by: the LOWEST point on
+  // the page is the nearest, because that is what a ground plane receding to a
+  // horizon means. Farthest first, so nearer solids paint over them.
+  for (const g of out) {
+    let maxY = -Infinity;
+    for (const id of g.verts) {
+      const v = byId.get(id);
+      if (v && Number.isFinite(v.y)) maxY = Math.max(maxY, v.y);
+    }
+    g.depth = maxY;
+  }
+  out.sort((a, b) => a.depth - b.depth);
+  return out;
+}
+
+// Which faces of a solid can actually be seen.
+//
+// The two front faces meet at the near vertical edge, which is the nearest part
+// of the box by construction, so they are always visible. Top and bottom are
+// decided by EYE LEVEL, and that is not a shortcut — it is the lesson: you see
+// the top of a box that sits below your eye and the underside of one that sits
+// above it, and a box straddling your eye level shows you neither.
+function visibleFaces(solid, scene, byId) {
+  const eye = scene.eyeLevel?.y;
+  const out = [];
+  for (const f of solid.faces) {
+    if (f.shade === "left" || f.shade === "right") { out.push(f); continue; }
+    if (!Number.isFinite(eye)) continue;
+    const ys = f.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.y)).map(v => v.y);
+    if (!ys.length) continue;
+    const mid = ys.reduce((a, b) => a + b, 0) / ys.length;
+    if (f.shade === "top" && mid > eye) out.push(f);
+    if (f.shade === "bottom" && mid < eye) out.push(f);
+  }
+  // Draw order inside a solid, and it is not arbitrary.
+  //
+  // The two walls go down first. The horizontal face goes LAST, because when it
+  // is visible it is the face NEAREST the eye: a box below you shows its top, a
+  // box above you shows its underside, and in both cases that face occludes the
+  // parts of the walls behind it. This matters for the underside specifically —
+  // the base parallelogram and the two walls share the near base edges and lie
+  // on the SAME side of them on screen, so painting the base first hid it
+  // completely. The top does not overlap the walls at all, so it is unaffected
+  // either way; one rule covers both.
+  const rank = { left: 0, right: 1, top: 2, bottom: 3 };
+  out.sort((a, b) => rank[a.shade] - rank[b.shade]);
+  return out;
+}
+
+const FACE_COLOUR = { top: "faceTop", right: "faceRight", left: "faceLeft", bottom: "faceBottom" };
+
+function fillFace(ctx, view, face, byId, c) {
+  const pts = face.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.x) && Number.isFinite(v.y));
+  if (pts.length < 3) return;              // an unsolved corner means no face, not a guess
+  ctx.beginPath();
+  const first = toScreen(view, pts[0]);
+  ctx.moveTo(first.x, first.y);
+  for (let i = 1; i < pts.length; i++) {
+    const p = toScreen(view, pts[i]);
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = c[FACE_COLOUR[face.shade]] ?? c.faceLeft;
+  ctx.fill();
+}
+
+// D38 — where the rays start. A selected corner if there is one, because that is
+// what the user is asking about; otherwise every anchor, which is every corner
+// they placed by hand. Never every vertex: a few boxes would bury the drawing.
+function raySources(scene, selection) {
+  if (selection && selection.type === "vertex") {
+    const v = scene.vertices.find(x => x.id === selection.id);
+    if (v && Number.isFinite(v.x) && Number.isFinite(v.y)) return [v];
+  }
+  return scene.vertices.filter(v => v.kind === "anchor" && Number.isFinite(v.x) && Number.isFinite(v.y));
 }
 
 export function draw(ctx, view, viewport, opts = {}) {
@@ -77,6 +178,7 @@ export function draw(ctx, view, viewport, opts = {}) {
     theme = "dark", dpr = 1, showGrid = true, showConstruction = true,
     ghost = null, selection = null, activeVpId = null, hoverId = null,
     extrudeHint = null,
+    showSolid = false, showRays = false, showEyeLevel = true,
   } = opts;
   const scene = view.scene;
   const c = themeColors(theme);
@@ -121,15 +223,76 @@ export function draw(ctx, view, viewport, opts = {}) {
     }
   }
 
-  // 2 — horizon: dashed, medium weight
-  const hy = toScreen(view, { x: 0, y: scene.horizon.y }).y;
-  ctx.strokeStyle = c.guide;
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([10, 6]);
-  ctx.beginPath();
-  ctx.moveTo(0, hy);
-  ctx.lineTo(viewport.width, hy);
-  ctx.stroke();
+  // 1b — D37: solid faces, under everything that is a line. Grouped by solid and
+  // drawn FARTHEST FIRST, each solid's fills immediately followed by its own
+  // edges further down, so a nearer box covers a farther one instead of the two
+  // becoming one wireframe blob.
+  // The fills themselves are painted down in section 4, interleaved with each
+  // solid's own edges. Grouping happens here because the eye-level and ray
+  // sections below want to know whether there are any solids at all.
+  const solids = showSolid ? groupSolids(scene, byId) : [];
+
+  // 2 — D36: eye level and the horizon, which are NOT the same line.
+  //
+  // Eye level is authored and always horizontal: where the observer's eye is.
+  // The horizon is the line through the vanishing points that sit on it, and if
+  // there are fewer than two there is NO horizon and nothing is drawn — the app
+  // does not get to invent one. When the points are level the two coincide,
+  // which is the ordinary case; when they are not, the gap between them is the
+  // thing being taught.
+  //
+  // They are told apart by DASH AND WEIGHT, not hue (§4): eye level is a long
+  // dash at 1.5px, the horizon a short dash at 2px.
+  if (showEyeLevel) {
+    const ey = toScreen(view, { x: 0, y: scene.eyeLevel.y }).y;
+    ctx.strokeStyle = c.guide;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([10, 6]);
+    ctx.beginPath();
+    ctx.moveTo(0, ey);
+    ctx.lineTo(viewport.width, ey);
+    ctx.stroke();
+  }
+  const horizon = horizonLine(scene);
+  if (horizon) {
+    const a = toScreen(view, horizon.a), b = toScreen(view, horizon.b);
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const reach = viewport.width + viewport.height;
+    ctx.strokeStyle = c.vp;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(a.x - dx / len * reach, a.y - dy / len * reach);
+    ctx.lineTo(b.x + dx / len * reach, b.y + dy / len * reach);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 2b — D38: rays out to every vanishing point, on request. From the selected
+  // corner if there is one, otherwise from every anchor — the corners the user
+  // actually placed — so the fan shows convergence without burying the drawing.
+  if (showRays) {
+    const from = raySources(scene, selection);
+    const reach = (viewport.width + viewport.height) * 2;
+    ctx.strokeStyle = c.guide;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 6]);
+    ctx.beginPath();
+    for (const v of from) {
+      for (const vp of scene.vanishingPoints) {
+        const dx = vp.x - v.x, dy = vp.y - v.y;
+        const len = Math.hypot(dx, dy);
+        if (!(len > 0)) continue;
+        const p = toScreen(view, v);
+        const q = toScreen(view, { x: v.x + dx / len * reach, y: v.y + dy / len * reach });
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(q.x, q.y);
+      }
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 
   // 3 — construction rays: thin, finely dashed
   if (showConstruction) {
@@ -155,30 +318,54 @@ export function draw(ctx, view, viewport, opts = {}) {
   // about, and almost every edge shares one style — so the common case becomes
   // a single stroke. Same pixels, drawn once.
   ctx.setLineDash([]);
-  const batches = new Map();
-  for (const edge of scene.edges) {
-    if (edge.role === "construction") continue;
-    const a = byId.get(edge.a), b = byId.get(edge.b);
-    if (!a || !b || !Number.isFinite(a.x) || !Number.isFinite(b.x)) continue;
-    const isSel = selection && selection.type === "edge" && selection.id === edge.id;
-    const colour = isSel ? c.sel : c.ink;
-    const width = (edge.style?.weight ?? 1) * 2 + (isSel ? 2 : 0);
-    const dash = edge.style?.dash ? String(edge.style.dash) : "";
-    const key = `${colour}|${width}|${dash}`;
-    let batch = batches.get(key);
-    if (!batch) {
-      batch = { colour, width, dash: dash ? dash.split(/[ ,]+/).map(Number) : [], path: new Path2D() };
-      batches.set(key, batch);
+  const strokeEdges = list => {
+    const batches = new Map();
+    for (const edge of list) {
+      const a = byId.get(edge.a), b = byId.get(edge.b);
+      if (!a || !b || !Number.isFinite(a.x) || !Number.isFinite(b.x)) continue;
+      const isSel = selection && selection.type === "edge" && selection.id === edge.id;
+      const colour = isSel ? c.sel : c.ink;
+      const width = (edge.style?.weight ?? 1) * 2 + (isSel ? 2 : 0);
+      const dash = edge.style?.dash ? String(edge.style.dash) : "";
+      const key = `${colour}|${width}|${dash}`;
+      let batch = batches.get(key);
+      if (!batch) {
+        batch = { colour, width, dash: dash ? dash.split(/[ ,]+/).map(Number) : [], path: new Path2D() };
+        batches.set(key, batch);
+      }
+      const pa = toScreen(view, a), pb = toScreen(view, b);
+      batch.path.moveTo(pa.x, pa.y);
+      batch.path.lineTo(pb.x, pb.y);
     }
-    const pa = toScreen(view, a), pb = toScreen(view, b);
-    batch.path.moveTo(pa.x, pa.y);
-    batch.path.lineTo(pb.x, pb.y);
-  }
-  for (const batch of batches.values()) {
-    ctx.strokeStyle = batch.colour;
-    ctx.lineWidth = batch.width;
-    ctx.setLineDash(batch.dash);
-    ctx.stroke(batch.path);
+    for (const batch of batches.values()) {
+      ctx.strokeStyle = batch.colour;
+      ctx.lineWidth = batch.width;
+      ctx.setLineDash(batch.dash);
+      ctx.stroke(batch.path);
+    }
+  };
+
+  const committed = scene.edges.filter(e => e.role !== "construction");
+  if (showSolid && solids.length) {
+    // D37 — one solid at a time, farthest first: fill, then ITS edges, so the
+    // next solid's fill covers both. Drawing every fill and then every edge
+    // would leave the far box's wireframe showing through the near box, which
+    // is the blob this exists to remove.
+    const owner = new Map();
+    for (const g of solids) for (const id of g.verts) owner.set(id, g.id);
+    const mine = new Map(solids.map(g => [g.id, []]));
+    const loose = [];
+    for (const e of committed) {
+      const oa = owner.get(e.a), ob = owner.get(e.b);
+      if (oa && oa === ob) mine.get(oa).push(e); else loose.push(e);
+    }
+    for (const g of solids) {
+      for (const face of visibleFaces(g, scene, byId)) fillFace(ctx, view, face, byId, c);
+      strokeEdges(mine.get(g.id));
+    }
+    strokeEdges(loose);
+  } else {
+    strokeEdges(committed);
   }
   ctx.setLineDash([]);
 

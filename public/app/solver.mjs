@@ -20,7 +20,7 @@
 // the app and under node --test. Mutations return {ok:true,...} or
 // {ok:false,reason} — a rejected operation always surfaces its reason (§2.3.3).
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const SNAP_RADIUS = 12;        // §2.4 — canvas px; the call site scales by zoom
 export const SNAP_THRESHOLD = 15;     // §12 — degrees; tunable once Noah has stylus time
 export const PARALLEL_EPS = 1e-9;     // D4 — on the cross product of unit vectors
@@ -76,10 +76,16 @@ export function createScene({ name = "untitled", width, height }) {
     createdAt: now,
     modifiedAt: now,
     canvas: { width, height },
-    horizon: { y: height / 2 },
+    // D36 — eye level and the horizon are DIFFERENT THINGS and only one of them
+    // is stored. Eye level is where the observer's eye is: a horizontal line,
+    // authored, always available. The horizon is wherever the vanishing points
+    // put it — it is DERIVED (see horizonLine), and a scene with fewer than two
+    // horizon points simply has no horizon to draw.
+    eyeLevel: { y: height / 2 },
     vanishingPoints: [],
     vertices: [],
     edges: [],
+    faces: [],
     nextId: 1,
   };
 }
@@ -93,7 +99,10 @@ export function addVp(scene, { label, x, y, axis = "z", locked = false, onHorizo
     id: newId(scene, "vp"),
     label: label ?? `VP${scene.vanishingPoints.length + 1}`,
     x,
-    y: onHorizon ? scene.horizon.y : y,
+    // D36: `onHorizon` no longer SLAVES y — it declares that this point is one
+    // of the ones the horizon runs through. A point being above or below eye
+    // level is the whole lesson, so the model must let it happen.
+    y,
     axis, locked, onHorizon,
   };
   scene.vanishingPoints.push(vp);
@@ -517,16 +526,45 @@ export function moveVp(scene, vpId, { x, y }) {
   if (!vp) return { ok: false, reason: `vanishing point "${vpId}" does not exist` };
   if (vp.locked) return { ok: false, reason: `"${vp.label}" is locked and rejects drags (§4)` };
   vp.x = x;
-  vp.y = vp.onHorizon ? scene.horizon.y : y; // onHorizon slaves y (§4)
+  vp.y = y;                       // D36: free in both axes; nothing slaves it
   solveScene(scene);
   return { ok: true, vp };
 }
 
-export function setHorizon(scene, y) {
-  scene.horizon.y = y;
-  for (const vp of scene.vanishingPoints) if (vp.onHorizon) vp.y = y;
-  solveScene(scene);
+// D36 — eye level is authored and moves nothing else. It used to drag every
+// on-horizon vanishing point with it, which made "the point is above eye level"
+// unrepresentable; that state is exactly what the tutorial has to show.
+export function setEyeLevel(scene, y) {
+  if (!Number.isFinite(y)) return { ok: false, reason: "eye level needs a number" };
+  scene.eyeLevel.y = y;
   return { ok: true };
+}
+
+// D36 — the horizon, derived. It is the line through the points that declare
+// themselves on it, and Noah's rule is flat: "There is no horizon without the
+// VPs." Fewer than two, and this returns null and NOTHING is drawn — an app that
+// draws a horizon anyway is asserting a fact it does not have.
+//
+// Two points at the same place cannot define a line either; that is null too,
+// rather than a direction picked out of the air.
+export function horizonLine(scene) {
+  const on = scene.vanishingPoints.filter(v => v.onHorizon);
+  if (on.length < 2) return null;
+  const [a, b] = on;                       // the first two, in the order they were added
+  if (!Number.isFinite(a.x) || !Number.isFinite(a.y) || !Number.isFinite(b.x) || !Number.isFinite(b.y)) return null;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len <= epsLen(scene)) return null;
+  return {
+    a: { x: a.x, y: a.y },
+    b: { x: b.x, y: b.y },
+    u: { x: dx / len, y: dy / len },
+    ids: [a.id, b.id],
+    // Signed, in canvas units: how far the horizon sits from eye level at the
+    // midpoint between the two points. Positive means the horizon is BELOW eye
+    // level. This is the number the lesson is about.
+    offsetFromEyeLevel: (a.y + b.y) / 2 - scene.eyeLevel.y,
+  };
 }
 
 // D17 — a vanishing point can always be deleted, and deleting it moves nothing.
@@ -598,6 +636,7 @@ export function clearDrawing(scene) {
   }
   scene.edges = [];
   scene.vertices = [];
+  scene.faces = [];
   solveScene(scene);
   return { ok: true, ...removed, keptPoints: scene.vanishingPoints.length };
 }
@@ -613,9 +652,24 @@ export function clearAll(scene) {
   }
   scene.edges = [];
   scene.vertices = [];
+  scene.faces = [];
   scene.vanishingPoints = [];
   solveScene(scene);
   return { ok: true, ...removed };
+}
+
+// D37 — a face is a way of SEEING the drawing, not a new kind of geometry. It
+// owns no positions: it is a loop of corner ids that already exist, so a face
+// can never disagree with the wireframe it shades. Delete a corner and the face
+// goes with it; move one and the fill follows for free.
+export function addFace(scene, { loop, solid, shade }) {
+  if (!Array.isArray(loop) || loop.length < 3) return { ok: false, reason: "a face needs at least three corners" };
+  const known = new Set(scene.vertices.map(v => v.id));
+  for (const id of loop) if (!known.has(id)) return { ok: false, reason: `face names a missing corner "${id}"` };
+  if (!scene.faces) scene.faces = [];
+  const face = { id: newId(scene, "f"), loop: [...loop], solid, shade };
+  scene.faces.push(face);
+  return { ok: true, face };
 }
 
 export function deleteVertex(scene, vertexId) {
@@ -638,6 +692,11 @@ export function deleteVertex(scene, vertexId) {
   scene.edges = scene.edges.filter(e => e.a !== vertexId && e.b !== vertexId);
   const removedEdges = before - scene.edges.length;
   scene.vertices = scene.vertices.filter(x => x.id !== vertexId);
+  // D37: a face with a missing corner is not a face. It goes, quietly — the
+  // shading is a way of LOOKING at the drawing, never part of it, so losing one
+  // is not a change to the user's content.
+  const facesBefore = scene.faces?.length ?? 0;
+  if (scene.faces) scene.faces = scene.faces.filter(f => !f.loop.includes(vertexId));
   solveScene(scene);
-  return { ok: true, removedEdges };
+  return { ok: true, removedEdges, removedFaces: facesBefore - (scene.faces?.length ?? 0) };
 }

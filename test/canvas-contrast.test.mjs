@@ -35,18 +35,55 @@ test("the contrast arithmetic itself is right", () => {
   assert.equal(contrast("#123456", "#123456"), 1);
 });
 
-// Every key in the palette except `paper`, which IS the background everything
-// else is measured against. Spelled out rather than derived from Object.keys so
-// that adding a colour to the palette without deciding what it must clear is a
-// deliberate act, not an omission that passes quietly.
+// The palette splits in two, and the split is about DRAW ORDER, not importance.
+//
+// MARKS are lines and dots. They must clear 3:1 against whatever is behind them.
+// SURFACES are fills that other things get drawn ON TOP OF; holding a surface to
+// 3:1 against paper would be meaningless — what matters is that everything drawn
+// over it stays legible.
+//
+// Both lists are spelled out rather than derived from Object.keys, so adding a
+// colour without deciding which kind it is fails the build instead of passing
+// quietly. The completeness test below is what enforces that.
 const MARKS = ["ink", "guide", "grid", "vp", "vpLocked", "bad", "sel", "ghost"];
+const SURFACES = ["faceTop", "faceRight", "faceLeft", "faceBottom"];
+
+// The grid is drawn UNDER the face fills (draw order: paper, grid, fills, then
+// every line), so it is the one mark that never lands on a surface and is not
+// held to 3:1 against one. Everything else can.
+const MARKS_OVER_SURFACES = MARKS.filter(m => m !== "grid");
 
 for (const theme of ["dark", "light"]) {
-  test(`${theme}: the palette has exactly the marks this file checks`, () => {
+  test(`${theme}: the palette has exactly the entries this file checks`, () => {
     const c = themeColors(theme);
     const found = Object.keys(c).filter(k => k !== "paper").sort();
-    assert.deepEqual(found, [...MARKS].sort(),
+    assert.deepEqual(found, [...MARKS, ...SURFACES].sort(),
       "a palette entry was added or renamed without a contrast decision");
+  });
+
+  for (const surface of SURFACES) {
+    test(`${theme}: every mark drawn on ${surface} clears 3:1 (SC 1.4.11)`, () => {
+      const c = themeColors(theme);
+      for (const mark of MARKS_OVER_SURFACES) {
+        const ratio = contrast(c[mark], c[surface]);
+        assert.ok(ratio >= 3, `${mark} ${c[mark]} on ${surface} ${c[surface]} is ${ratio.toFixed(2)}:1`);
+      }
+    });
+  }
+
+  test(`${theme}: the face shading is actually distinguishable`, () => {
+    // Shading that all reads the same is decoration pretending to be
+    // information. Each step in the ramp has to be visible, and each face has to
+    // be visible against bare paper, or "solid" has not been delivered.
+    const c = themeColors(theme);
+    const ramp = SURFACES.map(k => c[k]);
+    for (let i = 0; i < ramp.length - 1; i++) {
+      const step = contrast(ramp[i], ramp[i + 1]);
+      assert.ok(step >= 1.1, `${SURFACES[i]} -> ${SURFACES[i + 1]} is only ${step.toFixed(2)}:1`);
+    }
+    for (const k of SURFACES) {
+      assert.ok(contrast(c[k], c.paper) >= 1.05, `${k} is indistinguishable from paper`);
+    }
   });
 
   for (const mark of MARKS) {

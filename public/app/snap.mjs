@@ -13,7 +13,7 @@
 import {
   SNAP_RADIUS, EPS_LEN_FACTOR,
   projectPointOnLine, bindingDirection,
-  addAnchor, addRayVertex, addIntersectVertex, addEdge, solveScene,
+  addAnchor, addRayVertex, addIntersectVertex, addEdge, addFace, solveScene,
 } from "./solver.mjs";
 
 const DEG = 180 / Math.PI;
@@ -544,6 +544,24 @@ export function buildBox(scene, { at, height, depth, depthL, depthR }) {
   E(rightTop, backTop, L);
   E(backBottom, backTop, "vertical");
 
+  // D37 — the four faces worth shading, as loops of corners that already exist.
+  //
+  // The two FRONT faces are the ones meeting at the near vertical edge; that edge
+  // is the nearest part of the box by construction, so those two are always the
+  // ones you can see. The back two are never visible on a convex box and are not
+  // stored at all — storing faces that can never be drawn would be inviting a
+  // sorting problem that does not exist.
+  //
+  // Top and bottom are stored but their visibility is decided at draw time by
+  // eye level, because that IS the lesson: you see the top of a box whose top is
+  // below your eye, and the underside of one whose base is above it.
+  const solid = `box${scene.nextId}`;
+  const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
+  F([nearBottom, nearTop, leftTop, leftBottom], "left");
+  F([nearBottom, nearTop, rightTop, rightBottom], "right");
+  F([nearTop, leftTop, backTop, rightTop], "top");
+  F([nearBottom, leftBottom, backBottom, rightBottom], "bottom");
+
   solveScene(scene);
-  return { ok: true, ...made, corners: { nearBottom, nearTop, leftBottom, rightBottom, leftTop, rightTop, backBottom, backTop } };
+  return { ok: true, ...made, solid, corners: { nearBottom, nearTop, leftBottom, rightBottom, leftTop, rightTop, backBottom, backTop } };
 }

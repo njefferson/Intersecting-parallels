@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  createScene, addVp, addAnchor, addRayVertex, addIntersectVertex, addEdge, rebindVertex, moveVp, setHorizon, solveScene, wouldCycle, projectPointOnLine, intersectLines, epsLen,
+  createScene, addVp, addAnchor, addRayVertex, addIntersectVertex, addEdge, rebindVertex, moveVp, setEyeLevel, solveScene, wouldCycle, projectPointOnLine, intersectLines, epsLen,
 } from "../public/app/solver.mjs";
 
 // Deterministic PRNG so a fuzz failure is reproducible from its seed.
@@ -31,7 +31,7 @@ function boxScene() {
   const scene = createScene({ name: "box", width: 1200, height: 800 });
   const vp1 = addVp(scene, { label: "VP1", x: -600, y: 300, onHorizon: true }).vp;
   const vp2 = addVp(scene, { label: "VP2", x: 1600, y: 300, onHorizon: true }).vp;
-  setHorizon(scene, 300);
+  setEyeLevel(scene, 300);
   const a1 = addAnchor(scene, { x: 500, y: 560 }).vertex;                                  // front bottom
   const a2 = addRayVertex(scene, { origin: a1.id, binding: "vertical", t: -140 }).vertex;  // front top
   const b1 = addRayVertex(scene, { origin: a1.id, binding: { vpId: vp1.id }, t: 180 }).vertex; // left bottom
@@ -253,19 +253,22 @@ test("a dependency cycle in loaded data terminates, flags, and never hangs", () 
   assert.deepEqual({ x: r1.x, y: r1.y }, { x: 5, y: 5 }); // cached position kept
 });
 
-test("locked VPs reject drags with a reason; onHorizon VPs follow the horizon (§4)", () => {
+test("locked VPs reject drags with a reason; D36 leaves every unlocked point free in BOTH axes", () => {
   const scene = createScene({ name: "s", width: 1000, height: 800 });
   const locked = addVp(scene, { label: "VP1", x: 900, y: 400, locked: true }).vp;
   const onH = addVp(scene, { label: "VP2", x: -200, y: 999, onHorizon: true }).vp;
-  assert.equal(onH.y, scene.horizon.y); // slaved at creation
+  // Before D36 this y was overwritten with the horizon's. It is not any more:
+  // a point above or below eye level is the state the tutorial has to show, and
+  // slaving y made it unrepresentable.
+  assert.equal(onH.y, 999, "onHorizon no longer overwrites y at creation");
   const res = moveVp(scene, locked.id, { x: 0, y: 0 });
   assert.equal(res.ok, false);
   assert.match(res.reason, /locked/);
   assert.deepEqual({ x: locked.x, y: locked.y }, { x: 900, y: 400 });
-  setHorizon(scene, 250);
-  assert.equal(onH.y, 250);
-  moveVp(scene, onH.id, { x: 100, y: 999 });
-  assert.equal(onH.y, 250); // y stays slaved during a drag
+  setEyeLevel(scene, 250);
+  assert.equal(onH.y, 999, "moving eye level moves no vanishing point");
+  moveVp(scene, onH.id, { x: 100, y: 640 });
+  assert.equal(onH.y, 640, "a drag sets y for real");
 });
 
 test("EPS_LEN is relative to the canvas diagonal, so it survives any document size (D4)", () => {
@@ -283,7 +286,7 @@ test("EPS_LEN is relative to the canvas diagonal, so it survives any document si
 test("D17: a vanishing point can be deleted, and not one pixel of the drawing moves", async () => {
   const { deleteVp } = await import("../public/app/solver.mjs");
   const scene = createScene({ name: "d17", width: 1600, height: 1200 });
-  setHorizon(scene, 540);
+  setEyeLevel(scene, 540);
   const vp1 = addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true }).vp;
   const vp2 = addVp(scene, { label: "VP2", x: 2960, y: 540, onHorizon: true }).vp;
   const a = addAnchor(scene, { x: 700, y: 700 }).vertex;
@@ -325,7 +328,7 @@ test("D17: a vanishing point can be deleted, and not one pixel of the drawing mo
 test("D17: deleting a point takes its lines with it and freezes what was built from it", async () => {
   const { deleteVertex } = await import("../public/app/solver.mjs");
   const scene = createScene({ name: "d17b", width: 1600, height: 1200 });
-  setHorizon(scene, 540);
+  setEyeLevel(scene, 540);
   const vp = addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true }).vp;
   const a = addAnchor(scene, { x: 700, y: 700 }).vertex;
   const b = addRayVertex(scene, { origin: a.id, binding: { vpId: vp.id }, t: 300 }).vertex;

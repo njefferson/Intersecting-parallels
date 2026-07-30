@@ -61,9 +61,19 @@ drawing surface sits outside the registry above. `test/canvas-contrast.test.mjs`
 does that arithmetic instead, on `themeColors` from `render.mjs`, and runs with
 `npm test`. It covers **all eight** palette marks — ink, guide, grid, vp,
 vpLocked, bad, sel, ghost — against paper at a 3:1 floor (SC 1.4.11), in both
-themes. A ninth test asserts the palette contains exactly those eight, so adding a
-colour without deciding what it must clear fails the build rather than passing
-unnoticed. The selection colour, which carries the selected corner, the selected
+themes, and a completeness test asserts the palette contains exactly the entries
+this file checks, so adding a colour without deciding what it must clear fails the
+build rather than passing unnoticed.
+
+Since 1.5.0 the palette splits in two, and the split is about DRAW ORDER rather
+than importance. **Marks** are lines and dots, held to 3:1 against what is behind
+them. **Surfaces** are the four D37 face fills, which other things get drawn ON
+TOP OF; holding a surface to 3:1 against paper would be meaningless, so what is
+asserted instead is that every mark that can land on one stays at 3:1 there. The
+grid is the single exception, and only because it is drawn UNDER the fills and so
+never sits on one. A further test requires each step of the shading ramp to be
+visible — shading that all reads the same is decoration pretending to be
+information. The selection colour, which carries the selected corner, the selected
 edge and D33's extrude arrow, measures **8.68:1 dark / 5.83:1 light**.
 
 **Nothing is carved out.** The first version of this file exempted the grid
@@ -361,3 +371,22 @@ into a viewport-relative touch without adding the canvas offset, and had been
 passing only because the toolbar was short enough to stay inside a 44px radius.
 Both are instrument bugs found by changing something unrelated, which is the
 argument for a walk that measures rather than watches.
+
+**2026-07-30, D36/D37/D38 (1.5.0)** — planted three ways. Making `horizonLine`
+ignore the `onHorizon` flag reddened one unit test and the walk's "the horizon
+exists only when two points claim it". Making the top face always visible
+reddened two of the three eye-level checks. Stubbing the rays block took the
+switched-on pixel count from 692 to 0.
+
+The eye-level checks found a REAL defect before any of that, and the first
+instrument for them was wrong twice over. Version one sampled a single pixel at
+each face's centroid: it landed on a grid line once and on the box's own ink
+twice, so three checks failed against working code. Rewritten to count face
+colours as AREAS across the whole canvas — a face is an area, so the honest
+measurement is an area — it then showed the underside at 0 pixels at every eye
+level. That was not the instrument: the base parallelogram and the two walls
+share the near base edges and lie on the same side of them on screen, so painting
+the base first hid it completely. The visible horizontal face is painted last now.
+A third instrument problem was pure cost: shipping four million pixels across the
+Playwright bridge to diff two frames timed the walk out, so the diff is computed
+in the page and only the count crosses.

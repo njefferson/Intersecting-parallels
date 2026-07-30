@@ -2,14 +2,14 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createScene, addVp, addAnchor, addRayVertex, addEdge, setHorizon } from "../public/app/solver.mjs";
+import { createScene, addVp, addAnchor, addRayVertex, addEdge, setEyeLevel } from "../public/app/solver.mjs";
 import { buildSvg, clampExportSize } from "../public/app/export.mjs";
 import { createHistory, beginGesture, undo, redo, canUndo, parseProjectJson, UNDO_LIMIT } from "../public/app/state.mjs";
 
 function drawing() {
   const scene = createScene({ name: "box & <rig>", width: 1000, height: 800 });
   const vp = addVp(scene, { label: "VP1", x: -400, y: 300, axis: "x", onHorizon: true }).vp;
-  setHorizon(scene, 300);
+  setEyeLevel(scene, 300);
   const a = addAnchor(scene, { x: 600, y: 600 }).vertex;
   const b = addRayVertex(scene, { origin: a.id, binding: { vpId: vp.id }, t: 200 }).vertex;
   const c = addRayVertex(scene, { origin: a.id, binding: "vertical", t: -150 }).vertex;
@@ -38,12 +38,25 @@ test("§5.1: stroked never filled, viewBox is the canvas, groups carry id AND la
   assert.match(svg, /<g id="free" inkscape:label="free"/);
 });
 
-test("§5.1: construction is omitted unless opted in, and carries the horizon when included", () => {
+test("§5.1: construction is omitted unless opted in, and carries eye level when included", () => {
   const { scene } = drawing();
   assert.ok(!buildSvg(scene).includes('id="construction"'));
   const withIt = buildSvg(scene, { includeConstruction: true });
   assert.match(withIt, /<g id="construction" inkscape:label="construction"/);
+  assert.match(withIt, /<path id="eye-level"/);
+});
+
+test("D36: the exported horizon appears only when the points define one", () => {
+  const { scene } = drawing();
+  const none = buildSvg(scene, { includeConstruction: true });
+  assert.ok(!none.includes('id="horizon"'),
+    "no horizon may be exported when fewer than two points claim to be on it");
+  // One point on the horizon is still not a horizon — it takes two to make a line,
+  // and the scene above deliberately has only one.
+  addVp(scene, { label: "VP2", x: 1500, y: 320, axis: "y", onHorizon: true });
+  const withIt = buildSvg(scene, { includeConstruction: true });
   assert.match(withIt, /<path id="horizon"/);
+  assert.ok(!withIt.includes("NaN"));
 });
 
 test("hairline option emits non-scaling-stroke; weight is honoured", () => {

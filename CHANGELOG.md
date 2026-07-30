@@ -8,6 +8,30 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.5.0 — CAPABILITY · 2026-07-30
+
+**Eye level and the horizon are different things, and boxes can be solid.**
+
+- **The horizon now follows your vanishing points.** It is the line through the
+  two points that sit on it, so it tilts when they are not level, and if fewer
+  than two points claim to be on it there is no horizon drawn at all. There is no
+  horizon without the points.
+- **Eye level is its own line** — horizontal, yours to set, shown or hidden with
+  its own button. It is what the old "Horizon" number field always actually was,
+  under its right name. Moving it no longer drags your vanishing points with it,
+  which means a point can finally sit above or below your eye — the thing the
+  whole lesson turns on.
+- **Solid** shades a box so it reads as an object instead of a tangle of lines,
+  and **whether you see its top or its underside follows eye level**: a box below
+  your eye shows you its top, a box above it shows you underneath, and a box your
+  eye passes through shows you neither. Boxes in front cover boxes behind.
+- **Rays** runs lines out to every vanishing point — from the corner you have
+  selected, or from every corner you placed if nothing is selected.
+- Older saved drawings open unchanged; their horizon becomes eye level, with the
+  same number it always had.
+
+---
+
 ## 1.4.0 — CAPABILITY · 2026-07-30
 
 **You can draw without dragging, and the grid is finally visible.**

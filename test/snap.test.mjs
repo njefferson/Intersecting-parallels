@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createScene, addVp, addAnchor, setHorizon, solveScene, moveVp, addRayVertex, addEdge, bindingDirection } from "../public/app/solver.mjs";
+import { createScene, addVp, addAnchor, setEyeLevel, solveScene, moveVp, addRayVertex, addEdge, bindingDirection } from "../public/app/solver.mjs";
 import {
   scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge, resolveEndpoint, commitStroke, bindingSatisfied, effectiveBinding, SWITCH_MARGIN, sameBinding, resolveStrokeEnd, buildBox,
 } from "../public/app/snap.mjs";
@@ -11,7 +11,7 @@ function scene2pt() {
   const scene = createScene({ name: "s", width: 1200, height: 800 });
   const vp1 = addVp(scene, { label: "VP1", x: -600, y: 300, axis: "x", onHorizon: true }).vp;
   const vp2 = addVp(scene, { label: "VP2", x: 1800, y: 300, axis: "y", onHorizon: true }).vp;
-  setHorizon(scene, 300);
+  setEyeLevel(scene, 300);
   return { scene, vp1, vp2 };
 }
 
@@ -171,7 +171,7 @@ test("a free edge is never offered for intersection (D2 rule 2 needs a line)", (
 function farVpScene() {
   // The app's own defaults: VPs far outside the document, on the horizon.
   const scene = createScene({ name: "d11", width: 1600, height: 1200 });
-  setHorizon(scene, 540);
+  setEyeLevel(scene, 540);
   const vp1 = addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true }).vp;
   const vp2 = addVp(scene, { label: "VP2", x: 2960, y: 540, onHorizon: true }).vp;
   return { scene, vp1, vp2 };
@@ -230,7 +230,7 @@ test("D11: an axis still wins when it is clearly the better fit", () => {
   // The margin is a near-tie rule, not a VP override. A VP well off horizontal
   // must not capture a stroke the user drew flat.
   const scene = createScene({ name: "d11b", width: 1600, height: 1200 });
-  setHorizon(scene, 540);
+  setEyeLevel(scene, 540);
   addVp(scene, { label: "VP1", x: -600, y: 100, onHorizon: false });   // ~8° off horizontal at the origin below
   const chosen = chooseBinding(scene, { x: 900, y: 640 }, { x: -1, y: 0 }, {});
   assert.equal(chosen.binding, "horizontal");
@@ -453,7 +453,7 @@ test("D19: hysteresis — a tremor does NOT flap the line between two guides", (
   // and horizontal, 45° from each, where nothing else breaks the tie: without
   // hysteresis the guide flips with every wobble.
   const scene = createScene({ name: "d19", width: 1600, height: 1200 });
-  setHorizon(scene, 540);                       // no vanishing points at all
+  setEyeLevel(scene, 540);                       // no vanishing points at all
   const from = { x: 800, y: 600 };
   const base = 45 * Math.PI / 180;
   let held = chooseBinding(scene, from, { x: Math.cos(base), y: Math.sin(base) }, {}).binding;
@@ -494,7 +494,7 @@ test("D19: the margin is a margin, not a lock — past it the switch happens", (
 
 function boxFixture() {
   const scene = createScene({ name: "d21", width: 1600, height: 1200 });
-  setHorizon(scene, 540);
+  setEyeLevel(scene, 540);
   const vp1 = addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true }).vp;
   const vp2 = addVp(scene, { label: "VP2", x: 2960, y: 540, onHorizon: true }).vp;
   const res = buildBox(scene, { at: { x: 800, y: 800 }, height: 260, depth: 200 });
@@ -549,7 +549,7 @@ test("D21: the box survives its vanishing points being dragged anywhere", () => 
 
 test("D21: a box needs two points, and says so plainly when it has one", () => {
   const scene = createScene({ name: "d21b", width: 1600, height: 1200 });
-  setHorizon(scene, 540);
+  setEyeLevel(scene, 540);
   addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true });
   const res = buildBox(scene, { at: { x: 800, y: 800 }, height: 200, depth: 200 });
   assert.equal(res.ok, false);

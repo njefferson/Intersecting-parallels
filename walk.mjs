@@ -129,7 +129,7 @@ try {
   await page.evaluate(() => {
     // Bring VP1 on-screen so it has a canvas handle to grab.
     const vp = window.__ip.scene.vanishingPoints[0];
-    window.__ip.moveVp(vp.id, { x: 200, y: window.__ip.scene.horizon.y });
+    window.__ip.moveVp(vp.id, { x: 200, y: window.__ip.scene.eyeLevel.y });
   });
   await page.waitForTimeout(60);
   const handle = await page.evaluate(() => {
@@ -677,7 +677,7 @@ try {
   await cStroke(420, 520, 640, 560);
   const drawn = await cPage.evaluate(() => {
     const s = window.__ip.scene;
-    return { edges: s.edges.length, points: s.vanishingPoints.length, horizon: Math.round(s.horizon.y) };
+    return { edges: s.edges.length, points: s.vanishingPoints.length, eyeLevel: Math.round(s.eyeLevel.y) };
   });
   check('two strokes are on the sheet before clearing', drawn.edges === 2,
     `${drawn.edges} lines, ${drawn.points} points`);
@@ -785,7 +785,7 @@ try {
     const s = window.__ip.scene;
     return {
       edges: s.edges.length, verts: s.vertices.length,
-      points: s.vanishingPoints.length, horizon: Math.round(s.horizon.y),
+      points: s.vanishingPoints.length, eyeLevel: Math.round(s.eyeLevel.y),
       canvas: s.canvas.width,
     };
   });
@@ -820,7 +820,7 @@ try {
   await cPage.waitForTimeout(80);
   const wiped = await cPage.evaluate(() => {
     const s = window.__ip.scene;
-    return { edges: s.edges.length, points: s.vanishingPoints.length, horizon: Math.round(s.horizon.y) };
+    return { edges: s.edges.length, points: s.vanishingPoints.length, eyeLevel: Math.round(s.eyeLevel.y) };
   });
   check('clear everything removes the points too, keeping the horizon (D24)',
     wiped.edges === 0 && wiped.points === 0 && wiped.horizon === drawn.horizon,
@@ -1165,6 +1165,168 @@ try {
   const pointerdowns = await nodragPage.evaluate(() => window.__pointerdowns);
   check('none of that touched the canvas with a pointer (F-04 closed)',
     pointerdowns === 0, `${pointerdowns} pointerdown events on the canvas`);
+  // D36/D37/D38 — eye level vs the horizon, solid shading, and rays. Measured in
+  // PIXELS off the real canvas, because every one of these is a claim about what
+  // is on screen and the scene graph cannot answer that.
+  //
+  // Counting a colour across the WHOLE canvas rather than sampling one point: the
+  // first version of this block sampled face centroids and failed three times
+  // over, once on a grid line and twice on the box's own ink. A face is an area,
+  // so the honest measurement is an area.
+  const FACE = { top: [59, 64, 81], right: [46, 52, 69], left: [34, 39, 58], bottom: [12, 15, 27] };
+  const faceCounts = () => nodragPage.evaluate(want => {
+    const canvas = document.getElementById('canvas');
+    const d = new Uint32Array(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+    // One integer key per colour, so this is a single pass with a map lookup
+    // rather than four comparisons per pixel — the naive version timed out.
+    const key = c => (255 << 24 | c[2] << 16 | c[1] << 8 | c[0]) >>> 0;
+    const lookup = new Map(Object.entries(want).map(([k, c]) => [key(c), k]));
+    const out = {};
+    for (const k of Object.keys(want)) out[k] = 0;
+    for (let i = 0; i < d.length; i++) {
+      const k = lookup.get(d[i]);
+      if (k !== undefined) out[k]++;
+    }
+    return out;
+  }, FACE);
+
+  // Clear, then build ONE box with both depths real, by the two drags D31
+  // describes. The keyboard-drawn box above deliberately leaves its second depth
+  // at the floor, which makes its top and bottom zero-area slivers — measuring
+  // face areas on that box measures nothing, which is exactly how the first
+  // version of this block failed.
+  await nodragPage.click('#clear-drawing');
+  await nodragPage.click('#clear-drawing');
+  await nodragPage.waitForTimeout(150);
+  await nodragPage.click('#mode-box');
+  await nodragPage.mouse.move(600, 660);
+  await nodragPage.mouse.down();
+  for (let i = 1; i <= 14; i++) await nodragPage.mouse.move(600 + i * 7, 660 - i * 9);
+  await nodragPage.mouse.up();
+  await nodragPage.waitForTimeout(150);
+  await nodragPage.mouse.move(430, 500);
+  await nodragPage.mouse.down();
+  for (let i = 1; i <= 10; i++) await nodragPage.mouse.move(430 - i * 9, 500 - i * 5);
+  await nodragPage.mouse.up();
+  await nodragPage.waitForTimeout(150);
+  const built = await nodragPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    return {
+      edges: s.edges.length, faces: s.faces.length,
+      depths: s.vertices.filter(v => v.kind === 'ray' && v.origin === a.id && typeof v.binding === 'object')
+        .map(v => Math.round(Math.abs(v.t))).sort((x, y) => x - y),
+    };
+  });
+  check('one box, both depths real, four faces (D37 setup)',
+    built.edges === 12 && built.faces === 4 && built.depths[0] > 60,
+    JSON.stringify(built));
+
+  const wireframe = await faceCounts();
+  check('a wireframe has no face fills at all (D37)',
+    Object.values(wireframe).every(n => n < 20), JSON.stringify(wireframe));
+
+  await nodragPage.click('#solid');
+  await nodragPage.waitForTimeout(180);
+  const filled = await faceCounts();
+  check('Solid fills the box — the two front faces are always the ones you see (D37)',
+    filled.left > 200 && filled.right > 200,
+    `left ${filled.left}px, right ${filled.right}px`);
+
+  // The lesson, on screen: whether you see the top or the underside follows eye
+  // level, and a box straddling your eye shows you neither.
+  const faceMid = shade => nodragPage.evaluate(sh => {
+    const s = window.__ip.scene;
+    const f = [...s.faces].reverse().find(x => x.shade === sh);
+    if (!f) return null;
+    const pts = f.loop.map(id => s.vertices.find(v => v.id === id));
+    return { y: pts.reduce((a, v) => a + v.y, 0) / pts.length };
+  }, shade);
+  const topMid = await faceMid('top');
+  const bottomMid = await faceMid('bottom');
+  const setEye = async y => {
+    await nodragPage.evaluate(v => {
+      const f = document.getElementById('horizon-y');
+      f.value = String(v);
+      f.dispatchEvent(new Event('change'));
+    }, y);
+    await nodragPage.waitForTimeout(160);
+  };
+
+  await setEye(Math.round(topMid.y - 150));
+  const above = await faceCounts();
+  check('eye level ABOVE the box shows its top and never its underside (D37)',
+    above.top > 200 && above.bottom === 0, JSON.stringify(above));
+
+  await setEye(Math.round(bottomMid.y + 150));
+  const below = await faceCounts();
+  check('eye level BELOW the box shows its underside and never its top',
+    below.bottom > 200 && below.top < 20, JSON.stringify(below));
+
+  await setEye(Math.round((topMid.y + bottomMid.y) / 2));
+  const straddle = await faceCounts();
+  check('eye level THROUGH the box shows neither — the middle case in the lesson',
+    straddle.top < 20 && straddle.bottom < 20 && straddle.left > 200,
+    JSON.stringify(straddle));
+
+  // D36 — there is no horizon without the points.
+  const horizonState = await nodragPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const before = !!window.__ip.horizon();
+    const flagged = s.vanishingPoints.filter(v => v.onHorizon);
+    flagged[0].onHorizon = false;
+    const afterOne = !!window.__ip.horizon();
+    flagged[0].onHorizon = true;
+    const level = window.__ip.horizon().u.y;
+    flagged[1].y -= 160;
+    const tilted = window.__ip.horizon().u.y;
+    flagged[1].y += 160;
+    return { before, afterOne, level, tilted };
+  });
+  check('the horizon exists only when two points claim it (D36)',
+    horizonState.before === true && horizonState.afterOne === false,
+    `two points: ${horizonState.before}, one point: ${horizonState.afterOne}`);
+  check('and it tilts with the points rather than staying level',
+    Math.abs(horizonState.level) < 1e-9 && Math.abs(horizonState.tilted) > 0.01,
+    `slope ${horizonState.level} -> ${horizonState.tilted}`);
+
+  // D38 — rays out to every vanishing point, on a toggle. Counted as pixels that
+  // CHANGED when the toggle flipped, which is the claim itself and needs no
+  // guess about how a 1px dashed line antialiases.
+  // Counted IN THE PAGE: shipping four million pixels across the bridge three
+  // times timed the walk out. Only the count crosses.
+  const stashPixels = () => nodragPage.evaluate(() => {
+    const canvas = document.getElementById('canvas');
+    window.__snap = new Uint32Array(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data.buffer).slice();
+  });
+  const diffPixels = () => nodragPage.evaluate(() => {
+    const canvas = document.getElementById('canvas');
+    const now = new Uint32Array(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+    let n = 0;
+    for (let i = 0; i < now.length; i++) if (now[i] !== window.__snap[i]) n++;
+    return n;
+  });
+
+  await stashPixels();
+  await nodragPage.click('#rays');
+  await nodragPage.waitForTimeout(200);
+  const changed = await diffPixels();
+  check('Rays draws lines out to the vanishing points, and the toggle is what does it (D38)',
+    changed > 200, `${changed} pixels changed when Rays was turned on`);
+
+  await nodragPage.click('#rays');
+  await nodragPage.waitForTimeout(200);
+  const residue = await diffPixels();
+  check('and turning it off puts the canvas back exactly as it was',
+    residue === 0, `${residue} pixels still different after turning Rays off`);
+
+  const untouched = await nodragPage.evaluate(() => ({
+    edges: window.__ip.scene.edges.length,
+    verts: window.__ip.scene.vertices.length,
+  }));
+  check('none of Solid, Rays or eye level changed the drawing itself',
+    untouched.edges === built.edges && untouched.verts > 0,
+    `${untouched.edges} edges, ${untouched.verts} corners`);
   await nodragCtx.close();
 
   // D29 — the four corners that did nothing. This is the defect class Noah
@@ -1307,7 +1469,7 @@ try {
   const marker = await oPage.evaluate(() => {
     const s = window.__ip.scene;
     const vp = s.vanishingPoints[0];
-    window.__ip.moveVp(vp.id, { x: -3000, y: s.horizon.y });      // well off screen
+    window.__ip.moveVp(vp.id, { x: -3000, y: s.eyeLevel.y });      // well off screen
     return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => {
       const n = document.querySelector('.vp-marker');
       if (!n) return r({ found: false });

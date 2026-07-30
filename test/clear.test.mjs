@@ -4,14 +4,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  createScene, addVp, addAnchor, addRayVertex, addEdge, solveScene, setHorizon,
+  createScene, addVp, addAnchor, addRayVertex, addEdge, solveScene, setEyeLevel,
   clearDrawing, clearAll,
 } from "../public/app/solver.mjs";
 import { createHistory, beginGesture, undo } from "../public/app/state.mjs";
 
 function drawnScene() {
   const scene = createScene({ name: "t", width: 1600, height: 1200 });
-  setHorizon(scene, 540);
+  setEyeLevel(scene, 540);
   const l = addVp(scene, { label: "VP1", x: 100, y: 540, onHorizon: true }).vp;
   const r = addVp(scene, { label: "VP2", x: 1500, y: 540, onHorizon: true }).vp;
   const a = addAnchor(scene, { x: 600, y: 800 }).vertex;
@@ -35,10 +35,10 @@ test("clearDrawing removes the drawing and keeps the vanishing points", () => {
   assert.equal(res.keptPoints, 2);
 });
 
-test("clearDrawing leaves the horizon and the canvas alone", () => {
+test("clearDrawing leaves eye level and the canvas alone", () => {
   const { scene } = drawnScene();
   clearDrawing(scene);
-  assert.equal(scene.horizon.y, 540);
+  assert.equal(scene.eyeLevel.y, 540);
   assert.equal(scene.canvas.width, 1600);
   assert.equal(scene.canvas.height, 1200);
   assert.equal(scene.name, "t", "clearing is not renaming");
@@ -51,7 +51,7 @@ test("clearAll removes the points too, and still keeps the sheet", () => {
   assert.equal(res.points, 2);
   assert.equal(scene.vanishingPoints.length, 0);
   assert.equal(scene.edges.length, 0);
-  assert.equal(scene.horizon.y, 540, "the horizon is the paper, not the drawing");
+  assert.equal(scene.eyeLevel.y, 540, "eye level is the paper, not the drawing");
   assert.equal(scene.canvas.width, 1600);
 });
 

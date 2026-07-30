@@ -54,6 +54,14 @@ exist in the built page, and every alternative must be reachable by keyboard.
     switching tools all end the step, always KEEPING the box.
     Nothing about it is timed (§4), and it never commits anything by itself.
 
+## Not gestures at all — three ways of LOOKING (1.5.0)
+
+**Solid**, **Rays** and **Eye level** are toolbar toggles, keyboard reachable like
+every other button, and none of them touches the drawing: no history step, no
+edge or corner added or removed. They are listed here because they are the answer
+to "how do I see what is going on" that does not involve moving a finger over the
+canvas at all.
+
 ## Multi-point gestures
 
 - **Pinch to zoom** → the zoom controls in the toolbar (`−`, `+`, `Fit`), each a

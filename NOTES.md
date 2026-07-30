@@ -630,6 +630,76 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D36/D37/D38 — eye level, solids, rays (SHIPPED 1.5.0, staging)
+
+**Noah, 2026-07-30, with three screenshots:** *"The horizon should follow two of
+the VPs. There is no horizon without the VPs. What you CAN show is 'observer eye
+level' ... When the VPs are below/at/above the observer's eye level, it changes
+what you see — whether the top or bottom is visible at all, according to the
+height of the object being where it is in relation, etc. I want a way to make the
+boxes 'solid' with some shading so they are not a blob. I want a way to turn on
+rays that extend to each VP."*
+
+**D36 — two lines, not one.** Up to 1.4.0 the app stored a horizontal line called
+`horizon` and SLAVED every on-horizon point's y to it. That made the state the
+lesson is about — a vanishing point above or below the observer's eye —
+literally unrepresentable.
+
+- `scene.eyeLevel` is stored and authored: horizontal, always available, its own
+  toolbar toggle. It is what the old field always was, under its true name.
+- The horizon is DERIVED, never stored: `horizonLine(scene)` returns the line
+  through the two points flagged `onHorizon`, or **null** — fewer than two
+  points, or two in the same place, and nothing is drawn. An app that draws a
+  horizon regardless is asserting a fact it does not have.
+- `onHorizon` therefore changed meaning: it no longer slaves y, it declares
+  membership. `moveVp` sets both coordinates freely now.
+- They are told apart by DASH AND WEIGHT, not hue (§4): eye level is a long dash
+  at 1.5px, the horizon a short dash at 2px. When the points are level the two
+  coincide, which is the ordinary case; when they are not, the gap is the lesson.
+- Schema 2. Version 1 files still open — `horizon` migrates to `eyeLevel` with
+  the same number. A drawing tool that cannot open its own older files has
+  destroyed the user's work as surely as deleting it.
+
+**D37 — solids.** `scene.faces` are loops of corner ids that already exist. A
+face owns no positions, so it can never disagree with the wireframe it shades:
+move a corner and the fill follows, delete one and the face goes with it.
+`buildBox` emits four — the two walls meeting at the near vertical edge, plus top
+and bottom. The two back walls are never stored because they can never be seen.
+
+- **Top and bottom visibility is decided by eye level at draw time**, which is not
+  a shortcut — it IS the amendment: top visible when its middle is below eye
+  level, bottom when its middle is above, and a box straddling your eye shows
+  neither.
+- Solids paint FARTHEST FIRST — lowest point on the page is nearest, which is
+  what a ground plane receding to a horizon means — and each solid's own edges
+  are stroked immediately after its fills, so a nearer box covers a farther one.
+  Filling everything and then stroking everything would leave the far box's
+  wireframe showing through the near one, which is the blob this removes.
+- Inside a solid the horizontal face is painted LAST. Found by measurement: the
+  base parallelogram and the two walls share the near base edges and lie on the
+  SAME side of them on screen, so painting the base first hid it completely and
+  "eye level below the box" showed nothing. When a horizontal face is visible it
+  is the face nearest the eye, so it belongs on top. The top face does not
+  overlap the walls at all, so one rule covers both.
+- The face fills are SURFACES, not marks. They are held to "every mark stays
+  >= 3:1 ON them" rather than to 3:1 themselves, and `canvas-contrast.test.mjs`
+  now splits the palette on exactly that line.
+
+**D38 — rays.** A toggle. Lines run from the selected corner to every vanishing
+point, or from every anchor when nothing is selected — never from every vertex,
+which would bury the drawing under a few boxes' worth of fan.
+
+**None of the three touches the drawing.** Solid, Rays and Eye level are view
+state: no history step, saved with the other preferences. The walk asserts the
+edge and corner counts are unchanged after using all of them, and that turning
+Rays off returns the canvas to **0 differing pixels**.
+
+**Gated in the walk by pixels, because every one of these is a claim about what
+is on screen:** face-colour areas counted across the whole canvas at three eye
+levels (top 263px / underside 2222px / neither), the horizon present with two
+points and absent with one, its slope going 0 → -0.037 when a point is lifted,
+and 692 pixels changing when Rays is switched on. Each was planted-failed first.
+
 ### D34/D35 — drawing without a drag, and no protected colours (SHIPPED 1.4.0, staging)
 
 **Noah, 2026-07-30:** *"Fix those things. There is NO reason that any color be

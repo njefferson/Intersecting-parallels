@@ -47,11 +47,27 @@ export function parseProjectJson(text) {
   try { raw = JSON.parse(text); }
   catch { return { ok: false, reason: "not valid JSON" }; }
   if (typeof raw !== "object" || raw === null) return { ok: false, reason: "not a project object" };
-  if (raw.schemaVersion !== 1) return { ok: false, reason: `unknown schemaVersion ${raw.schemaVersion} — this build reads version 1` };
+  // D36 raised the schema to 2 (eye level split from the horizon, faces added).
+  // Version 1 files still load — they are MIGRATED below, not refused. A drawing
+  // tool that cannot open its own older files has destroyed the user's work as
+  // surely as deleting it.
+  if (raw.schemaVersion !== 1 && raw.schemaVersion !== 2) {
+    return { ok: false, reason: `unknown schemaVersion ${raw.schemaVersion} — this build reads versions 1 and 2` };
+  }
   if (!raw.canvas || !Number.isFinite(raw.canvas.width) || !Number.isFinite(raw.canvas.height) || raw.canvas.width <= 0 || raw.canvas.height <= 0) {
     return { ok: false, reason: "canvas dimensions missing or not positive numbers" };
   }
-  if (!raw.horizon || !Number.isFinite(raw.horizon.y)) return { ok: false, reason: "horizon missing" };
+  if (raw.schemaVersion === 1) {
+    // v1 stored one line called `horizon` and slaved points to it. That line was
+    // always the OBSERVER'S EYE LEVEL — the horizon proper is wherever the points
+    // put it — so it migrates to eyeLevel under its true name, unchanged in value.
+    if (!raw.horizon || !Number.isFinite(raw.horizon.y)) return { ok: false, reason: "horizon missing" };
+    raw.eyeLevel = { y: raw.horizon.y };
+    delete raw.horizon;
+    raw.schemaVersion = 2;
+  }
+  if (!raw.eyeLevel || !Number.isFinite(raw.eyeLevel.y)) return { ok: false, reason: "eye level missing" };
+  if (!Array.isArray(raw.faces)) raw.faces = [];
   for (const key of ["vanishingPoints", "vertices", "edges"]) {
     if (!Array.isArray(raw[key])) return { ok: false, reason: `${key} is not a list` };
   }
@@ -83,6 +99,9 @@ export function parseProjectJson(text) {
       return { ok: false, reason: `vertex "${v.id}" has unknown kind "${v.kind}"` };
     }
   }
+  // A face naming a corner that is not there is dropped rather than refused: the
+  // shading is a view of the drawing, and losing it must never cost the drawing.
+  raw.faces = raw.faces.filter(f => Array.isArray(f?.loop) && f.loop.length >= 3 && f.loop.every(id => vertexIds.has(id)));
   for (const e of raw.edges) {
     if (!vertexIds.has(e.a) || !vertexIds.has(e.b)) return { ok: false, reason: `edge "${e.id}" names a missing vertex` };
     const eb = e.binding === "free" || bindingOk(e.binding);

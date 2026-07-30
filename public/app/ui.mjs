@@ -10,7 +10,7 @@
 // announced by a standing indicator with an obvious exit (Doctrine §3).
 
 import {
-  createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS, bindingDirection,
+  createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
   clearDrawing, clearAll, manipulate, ancestorParams,
 } from "./solver.mjs";
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -47,7 +47,7 @@ const ctx = el.canvas.getContext("2d");
 let scene = createScene({ name: "untitled", width: 1600, height: 1200 });
 let view = createView(scene);
 let history = createHistory();
-let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true, snap45: false, weld: true };
+let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true, snap45: false, weld: true, solid: false, rays: false, eyeLevel: true };
 let selection = null;
 let ghost = null;
 let activeVpId = null;
@@ -106,6 +106,7 @@ function render() {
       theme: theme(),
       dpr: Math.min(window.devicePixelRatio || 1, 3),
       showConstruction: prefs.showConstruction,
+      showSolid: prefs.solid, showRays: prefs.rays, showEyeLevel: prefs.eyeLevel,
       ghost, selection, activeVpId,
       extrudeHint: extrudeArrow(),
     });
@@ -188,7 +189,7 @@ function positionMarkers(vp) {
 let renderedVpIds = "";
 
 function syncPanelValues() {
-  el.horizonY.value = String(Math.round(scene.horizon.y));
+  el.horizonY.value = String(Math.round(scene.eyeLevel.y));
   for (const point of scene.vanishingPoints) {
     const row = document.getElementById(`vp-${point.id}-row`);
     if (!row) return false;
@@ -227,7 +228,7 @@ function renderPanel({ structural = true } = {}) {
     return;
   }
   renderedVpIds = ids;
-  el.horizonY.value = String(Math.round(scene.horizon.y));
+  el.horizonY.value = String(Math.round(scene.eyeLevel.y));
 
   el.vpList.textContent = "";
   if (!scene.vanishingPoints.length) {
@@ -294,7 +295,6 @@ function renderPanel({ structural = true } = {}) {
     row.appendChild(toggleButton("On horizon", point.onHorizon, `vp-${point.id}-horizon`, () => {
       beginGesture(history, scene);
       point.onHorizon = !point.onHorizon;
-      if (point.onHorizon) point.y = scene.horizon.y;
       solveScene(scene);
       afterEdit(`${point.label} ${point.onHorizon ? "slaved to the horizon" : "freed from the horizon"}`);
     }, `Keep ${point.label} on the horizon line`));
@@ -1027,10 +1027,10 @@ function adoptScene(next, { keepView = false } = {}) {
 
 function newScene({ width, height, points }) {
   const s = createScene({ name: "untitled", width, height });
-  setHorizon(s, Math.round(height * 0.45));
+  setEyeLevel(s, Math.round(height * 0.45));
   const spread = width * 1.35;
-  if (points >= 1) addVp(s, { label: "VP1", x: Math.round(width / 2 - spread), y: s.horizon.y, axis: "x", onHorizon: true });
-  if (points >= 2) addVp(s, { label: "VP2", x: Math.round(width / 2 + spread), y: s.horizon.y, axis: "y", onHorizon: true });
+  if (points >= 1) addVp(s, { label: "VP1", x: Math.round(width / 2 - spread), y: s.eyeLevel.y, axis: "x", onHorizon: true });
+  if (points >= 2) addVp(s, { label: "VP2", x: Math.round(width / 2 + spread), y: s.eyeLevel.y, axis: "y", onHorizon: true });
   if (points >= 3) addVp(s, { label: "VP3", x: Math.round(width / 2), y: Math.round(height * 2.2), axis: "z", onHorizon: false });
   return s;
 }
@@ -1265,6 +1265,31 @@ function addBoxWithoutDragging() {
   beginExtrude(res);
 }
 
+// D37/D38 — three ways of LOOKING at the drawing. None of them changes it, so
+// none of them opens a history step; they are view state, saved with the other
+// preferences so a reload comes back the way it was left.
+function viewToggle(id, key, onText, offText) {
+  const b = $(id);
+  if (!b) return;
+  b.setAttribute("aria-pressed", String(!!prefs[key]));
+  b.addEventListener("click", () => {
+    prefs[key] = !prefs[key];
+    b.setAttribute("aria-pressed", String(prefs[key]));
+    say(prefs[key] ? onText : offText);
+    render();
+    autosaver.poke();
+  });
+}
+viewToggle("solid", "solid",
+  "Solid on — boxes are shaded, and whether you see a top or an underside follows eye level",
+  "Solid off — wireframe");
+viewToggle("rays", "rays",
+  "Rays on — lines run out to every vanishing point from the selected corner, or from every corner you placed",
+  "Rays off");
+viewToggle("eye-level", "eyeLevel",
+  "Eye level shown",
+  "Eye level hidden — the horizon, where the points define one, is still drawn");
+
 $("add-line")?.addEventListener("click", addLineWithoutDragging);
 $("add-box")?.addEventListener("click", addBoxWithoutDragging);
 
@@ -1364,10 +1389,10 @@ $("panel-close").addEventListener("click", () => { prefs.panel = false; renderPa
 
 el.horizonY.addEventListener("change", () => {
   const n = Number(el.horizonY.value);
-  if (!Number.isFinite(n)) { el.horizonY.value = String(Math.round(scene.horizon.y)); return; }
+  if (!Number.isFinite(n)) { el.horizonY.value = String(Math.round(scene.eyeLevel.y)); return; }
   beginGesture(history, scene);
-  setHorizon(scene, n);
-  afterEdit(`Horizon at ${Math.round(scene.horizon.y)}`);
+  setEyeLevel(scene, n);
+  afterEdit(`Eye level at ${Math.round(scene.eyeLevel.y)}`);
 });
 
 // D5's toggle, with the standing indicator and its obvious exit.
@@ -1719,6 +1744,9 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     // D29 — the walk drives the real manipulate path rather than a copy of it.
     manipulate: (id, target) => { const r = manipulate(scene, id, target); renderPanel({ structural: false }); render(); return r; },
     ancestors: id => ancestorParams(scene, id),
+    // D36 — the walk has to be able to ask whether there IS a horizon, which is
+    // a question about the points, not about a stored line.
+    horizon: () => horizonLine(scene),
     // D33 — the hint the renderer is given, so the walk can check the arrow
     // points along the guide instead of trusting that it does.
     extrudeArrow: () => extrudeArrow(),

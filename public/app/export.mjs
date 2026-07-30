@@ -10,6 +10,7 @@
 // the PNG path needs a DOM.
 
 import { effectiveBinding } from "./snap.mjs";
+import { horizonLine } from "./solver.mjs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const INKSCAPE_NS = "http://www.inkscape.org/namespaces/inkscape";
@@ -81,7 +82,17 @@ export function buildSvg(scene, {
 
   if (includeConstruction) {
     lines.push(`  <g id="construction" inkscape:label="construction" inkscape:groupmode="layer" ${strokeAttrs} stroke-dasharray="4 4">`);
-    lines.push(`    <path id="horizon" d="M 0 ${scene.horizon.y.toFixed(3)} L ${width} ${scene.horizon.y.toFixed(3)}"/>`);
+    lines.push(`    <path id="eye-level" d="M 0 ${scene.eyeLevel.y.toFixed(3)} L ${width} ${scene.eyeLevel.y.toFixed(3)}"/>`);
+    // D36: the horizon is exported only when the points actually define one.
+    const hz = horizonLine(scene);
+    if (hz) {
+      const dx = hz.b.x - hz.a.x, dy = hz.b.y - hz.a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const reach = width + scene.canvas.height;
+      const x1 = (hz.a.x - dx / len * reach).toFixed(3), y1 = (hz.a.y - dy / len * reach).toFixed(3);
+      const x2 = (hz.b.x + dx / len * reach).toFixed(3), y2 = (hz.b.y + dy / len * reach).toFixed(3);
+      lines.push(`    <path id="horizon" d="M ${x1} ${y1} L ${x2} ${y2}"/>`);
+    }
     for (const item of construction) lines.push(pathFor(item));
     lines.push(`  </g>`);
   }
@@ -142,8 +153,8 @@ export function renderPng(scene, { width, height, strokeWeight = 1, includeConst
     ctx.save();
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.moveTo(0, scene.horizon.y);
-    ctx.lineTo(scene.canvas.width, scene.horizon.y);
+    ctx.moveTo(0, scene.eyeLevel.y);
+    ctx.lineTo(scene.canvas.width, scene.eyeLevel.y);
     for (const { a, b } of all.filter(x => x.edge.role === "construction")) {
       ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
     }
