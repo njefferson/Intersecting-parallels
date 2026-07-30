@@ -8,6 +8,24 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.6.1 — ITERATION · 2026-07-30
+
+**A way to clear the screen.**
+
+- Two of them, in **Project**, because "clear" means two different things when
+  you have set up vanishing points: **Clear the drawing, keep the points** wipes
+  what you have drawn and leaves your setup standing, and **Clear everything,
+  points too** takes the points as well.
+- Neither touches the horizon or the drawing size — those are the sheet of paper,
+  not the drawing on it — and neither invents a default to replace what it
+  removed. Your saved projects and project files are untouched.
+- **One undo puts it back**, in a single step, both of them.
+- The button tells you what it is about to remove, counted from your actual
+  drawing — "clear 2 lines and keep 2 points" — and the first tap only arms it.
+  Tapping the other clear button, or anything else in the panel, cancels.
+
+---
+
 ## 0.6.0 — CAPABILITY · 2026-07-30
 
 **Welding is yours to switch, and a box no longer has to be square.**

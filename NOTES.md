@@ -551,6 +551,32 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D24. Clearing the screen, as two named actions
+
+**Noah, 2026-07-30:** *"Create a way to clear the screen."* Two actions rather
+than one, because in a perspective tool "clear" means two different things and
+guessing would be wrong half the time: **clear the drawing and keep the points**
+(the setup survives) or **clear everything**. Both live in the Project panel, and
+neither is a reset — the horizon and the canvas size stay, because those are the
+sheet of paper rather than the drawing on it, and nothing is re-added to replace
+what was removed.
+
+`clearDrawing` and `clearAll` in the solver, both returning what they removed.
+Each is one `beginGesture`, so **one undo restores the whole thing** (D7) — which
+is also why this does not use Quietkeep's typed-word guard: that guard exists for
+the irreversible, and a two-tap arm is proportionate to something undo covers.
+
+Three properties the guard has to have, all asserted through the real dialog in
+the walk:
+- **The count is read from the scene**, not written into a sentence. The button
+  says "clear 2 lines and keep 2 points" because it counted them.
+- **It is computed before the confirm goes live**, so there is never a frame where
+  an armed button sits above a stale number (hub LESSONS).
+- **Arming one cannot arm the other.** Two guarded actions sharing a satisfied
+  confirmation is how a safe tap ends up authorising a different target, so
+  touching the other button — or anything else in the panel, or closing it —
+  disarms.
+
 ### D22. Welding is a toggle, not a verdict
 
 **Noah, 2026-07-30:** *"Add those two things"* — the two items this file listed as

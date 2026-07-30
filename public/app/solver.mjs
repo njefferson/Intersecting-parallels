@@ -385,6 +385,43 @@ export function deleteVp(scene, vpId) {
 
 // D17 — deleting a point takes the lines that end on it with it, because a line
 // with one end is not a line. The count comes back so the user is told.
+// D24 — clear the screen. Two actions, because "clear" means two different
+// things in a perspective tool and guessing which would be wrong half the time:
+// wipe what you have DRAWN and keep the vanishing points you set up, or start
+// from nothing. Both report what they removed, counted from the scene rather
+// than described, and both leave the horizon and the canvas size alone — those
+// are the sheet of paper, not the drawing on it.
+//
+// Neither is a "reset": no defaults are invented, nothing is re-added. And
+// neither touches history, so the caller's one beginGesture makes the whole
+// thing a single undo step (D7).
+export function clearDrawing(scene) {
+  const removed = { edges: scene.edges.length, vertices: scene.vertices.length };
+  if (!removed.edges && !removed.vertices) {
+    return { ok: false, reason: "there is nothing drawn yet", ...removed };
+  }
+  scene.edges = [];
+  scene.vertices = [];
+  solveScene(scene);
+  return { ok: true, ...removed, keptPoints: scene.vanishingPoints.length };
+}
+
+export function clearAll(scene) {
+  const removed = {
+    edges: scene.edges.length,
+    vertices: scene.vertices.length,
+    points: scene.vanishingPoints.length,
+  };
+  if (!removed.edges && !removed.vertices && !removed.points) {
+    return { ok: false, reason: "the sheet is already empty", ...removed };
+  }
+  scene.edges = [];
+  scene.vertices = [];
+  scene.vanishingPoints = [];
+  solveScene(scene);
+  return { ok: true, ...removed };
+}
+
 export function deleteVertex(scene, vertexId) {
   const v = scene.vertices.find(x => x.id === vertexId);
   if (!v) return { ok: false, reason: `point "${vertexId}" does not exist` };

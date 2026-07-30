@@ -636,6 +636,114 @@ try {
     bare.bound, `binding ${bare.bound ? 'kept' : 'lost'}`);
   await wCtx.close();
 
+  // D24 — clearing the screen, through the real dialog. The interesting checks
+  // are the ones that assert what did NOT happen: the first tap must not clear,
+  // and arming one button must not leave the other armed.
+  const cCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  const cPage = await cCtx.newPage();
+  cPage.on('pageerror', e => pageErrors.push(`clear page: ${e}`));
+  await cPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await cPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 10000 });
+  await cPage.click('#mode-draw');
+  const cStroke = async (x0, y0, x1, y1) => {
+    await cPage.mouse.move(x0, y0);
+    await cPage.mouse.down();
+    for (let i = 1; i <= 8; i++) await cPage.mouse.move(x0 + (x1 - x0) * i / 8, y0 + (y1 - y0) * i / 8);
+    await cPage.mouse.up();
+    await cPage.waitForTimeout(50);
+  };
+  await cStroke(420, 420, 620, 470);
+  await cStroke(420, 520, 640, 560);
+  const drawn = await cPage.evaluate(() => {
+    const s = window.__ip.scene;
+    return { edges: s.edges.length, points: s.vanishingPoints.length, horizon: Math.round(s.horizon.y) };
+  });
+  check('two strokes are on the sheet before clearing', drawn.edges === 2,
+    `${drawn.edges} lines, ${drawn.points} points`);
+
+  await cPage.click('#open-project');
+  await cPage.waitForTimeout(80);
+  await cPage.click('#pr-clear-drawing');
+  const armed = await cPage.evaluate(() => {
+    const b = document.getElementById('pr-clear-drawing');
+    const other = document.getElementById('pr-clear-all');
+    return {
+      label: b.textContent, armed: b.dataset.armed,
+      otherArmed: other.dataset.armed, otherLabel: other.textContent,
+      edges: window.__ip.scene.edges.length,
+    };
+  });
+  check('the first tap ARMS and clears nothing (D24)',
+    armed.edges === 2 && armed.armed === 'true' && /Tap again/.test(armed.label),
+    `${armed.edges} lines still there, button says "${armed.label}"`);
+  check('and it states the count it read from the drawing, not a fixed sentence',
+    /2 lines/.test(armed.label), `button says "${armed.label}"`);
+  check('arming one clear does not arm the other (D24)',
+    armed.otherArmed !== 'true' && !/Tap again/.test(armed.otherLabel),
+    `the other button says "${armed.otherLabel}"`);
+
+  await cPage.click('#pr-clear-drawing');
+  await cPage.waitForTimeout(80);
+  const cleared = await cPage.evaluate(() => {
+    const s = window.__ip.scene;
+    return {
+      edges: s.edges.length, verts: s.vertices.length,
+      points: s.vanishingPoints.length, horizon: Math.round(s.horizon.y),
+      canvas: s.canvas.width,
+    };
+  });
+  check('the second tap clears the drawing and keeps the points (D24)',
+    cleared.edges === 0 && cleared.verts === 0 && cleared.points === drawn.points,
+    `${cleared.edges} lines, ${cleared.verts} corners, ${cleared.points} points kept`);
+  check('and the horizon and drawing size are untouched',
+    cleared.horizon === drawn.horizon && cleared.canvas === 1600,
+    `horizon ${cleared.horizon} (was ${drawn.horizon}), canvas ${cleared.canvas}`);
+
+  // The Project dialog is modal, so the toolbar under it is inert — close it
+  // before reaching for Undo. (The first version of this check clicked #undo with
+  // the dialog still open and timed out against a perfectly good app.)
+  await cPage.click('#dlg-project [value="close"]');
+  await cPage.waitForTimeout(60);
+  await cPage.click('#undo');
+  await cPage.waitForTimeout(80);
+  const restored = await cPage.evaluate(() => {
+    const s = window.__ip.scene;
+    return { edges: s.edges.length, verts: s.vertices.length, points: s.vanishingPoints.length };
+  });
+  check('ONE undo puts the whole drawing back (D7)',
+    restored.edges === 2 && restored.points === drawn.points,
+    `${restored.edges} lines and ${restored.verts} corners back in one step`);
+
+  // Clear everything, and check the app is still usable afterwards — a cleared
+  // sheet that cannot be drawn on is not cleared, it is broken.
+  await cPage.click('#open-project');
+  await cPage.waitForTimeout(80);
+  await cPage.click('#pr-clear-all');
+  await cPage.click('#pr-clear-all');
+  await cPage.waitForTimeout(80);
+  const wiped = await cPage.evaluate(() => {
+    const s = window.__ip.scene;
+    return { edges: s.edges.length, points: s.vanishingPoints.length, horizon: Math.round(s.horizon.y) };
+  });
+  check('clear everything removes the points too, keeping the horizon (D24)',
+    wiped.edges === 0 && wiped.points === 0 && wiped.horizon === drawn.horizon,
+    `${wiped.points} points, horizon still ${wiped.horizon}`);
+  await cPage.click('#dlg-project [value="close"]');
+  await cPage.waitForTimeout(60);
+  // Add VP is how a point is created (Place mode drags the ones that exist) — the
+  // first version of this check tapped the canvas and reported a failure against a
+  // working app, which is the instrument being wrong, not the app.
+  await cPage.click('#add-vp');
+  await cPage.waitForTimeout(80);
+  const afterWipe = await cPage.evaluate(() => {
+    const s = window.__ip.scene;
+    return { points: s.vanishingPoints.length, label: s.vanishingPoints[0]?.label };
+  });
+  check('the cleared sheet is still usable — a point can be added and it numbers from 1',
+    afterWipe.points === 1 && afterWipe.label === 'VP1',
+    `${afterWipe.points} point, labelled ${afterWipe.label}`);
+  await cCtx.close();
+
   check('no page errors during the whole walk', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 } catch (err) {
   check('the walk ran to completion', false, String(err && err.stack ? err.stack.split('\n')[0] : err));

@@ -12,6 +12,7 @@
 import {
   createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS, bindingDirection,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
+  clearDrawing, clearAll,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -25,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "0.6.0";
+const VERSION = "0.6.1";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1076,6 +1077,93 @@ $("pr-new").addEventListener("click", async () => {
   dlgProject.close();
   toast(`New ${points}-point drawing, ${width}×${height}.`);
 });
+
+// D24 — clearing the screen, guarded proportionately.
+//
+// It is one undo step, so this does not need Quietkeep's typed-word guard (that
+// is for the irreversible). It does need three things:
+//   · the COUNT comes from the scene, not from a sentence someone wrote. The copy
+//     on screen is written by the same code that would be wrong (hub LESSONS).
+//   · the count is computed and written BEFORE the button becomes a confirm, so
+//     there is never a moment where the confirm is live above a stale number.
+//   · arming one of the two cannot arm the other. Two guarded actions sharing a
+//     satisfied confirmation is how a safe click ends up authorising a different
+//     target, so touching either button disarms the other.
+let armedClear = null;
+const clearButtons = () => [
+  ["pr-clear-drawing", "Clear the drawing, keep the points"],
+  ["pr-clear-all", "Clear everything, points too"],
+];
+function disarmClears(except = null) {
+  for (const [id, label] of clearButtons()) {
+    if (id === except) continue;
+    const b = $(id);
+    if (b) { b.textContent = label; b.dataset.armed = "false"; }
+  }
+  if (armedClear !== except) armedClear = except;
+}
+
+function wireClear(id, describe, run) {
+  $(id)?.addEventListener("click", () => {
+    const b = $(id);
+    if (armedClear !== id) {
+      const what = describe();                      // counted from the scene, now
+      if (!what.ok) { disarmClears(); toast(what.reason, "info"); return; }
+      disarmClears(id);                             // the other one goes back to its label
+      b.textContent = `Tap again to ${what.action}`;
+      b.dataset.armed = "true";
+      say(`${what.action}. Tap the same button again to confirm, or anything else to cancel.`);
+      return;
+    }
+    disarmClears();
+    beginGesture(history, scene);                   // D7: one gesture, one undo
+    const res = run();
+    if (!res.ok) { toast(res.reason, "info"); return; }
+    selection = null;
+    ghost = null;
+    afterEdit(res.said);
+  });
+}
+
+wireClear("pr-clear-drawing",
+  () => {
+    const edges = scene.edges.length, points = scene.vanishingPoints.length;
+    if (!edges && !scene.vertices.length) return { ok: false, reason: "there is nothing drawn yet" };
+    return {
+      ok: true,
+      action: `clear ${edges} line${edges === 1 ? "" : "s"} and keep ${points} point${points === 1 ? "" : "s"}`,
+    };
+  },
+  () => {
+    const r = clearDrawing(scene);
+    return r.ok
+      ? { ok: true, said: `Drawing cleared — ${r.edges} line${r.edges === 1 ? "" : "s"} gone, ${r.keptPoints} vanishing point${r.keptPoints === 1 ? "" : "s"} kept. Undo puts it back.` }
+      : r;
+  });
+
+wireClear("pr-clear-all",
+  () => {
+    const edges = scene.edges.length, points = scene.vanishingPoints.length;
+    if (!edges && !scene.vertices.length && !points) return { ok: false, reason: "the sheet is already empty" };
+    return {
+      ok: true,
+      action: `clear ${edges} line${edges === 1 ? "" : "s"} and ${points} vanishing point${points === 1 ? "" : "s"}`,
+    };
+  },
+  () => {
+    const r = clearAll(scene);
+    return r.ok
+      ? { ok: true, said: `Everything cleared — ${r.edges} line${r.edges === 1 ? "" : "s"} and ${r.points} point${r.points === 1 ? "" : "s"} gone. The horizon and the drawing size are unchanged. Undo puts it back.` }
+      : r;
+  });
+
+// Leaving the dialog, or doing anything else in it, cancels a pending confirm:
+// an armed destructive button must never be found still armed later.
+dlgProject.addEventListener("close", () => disarmClears());
+for (const id of ["pr-new", "pr-save", "pr-load", "pr-name", "pr-w", "pr-h", "pr-points"]) {
+  $(id)?.addEventListener("click", () => disarmClears());
+  $(id)?.addEventListener("input", () => disarmClears());
+}
 
 $("pr-save").addEventListener("click", async () => {
   const blob = new Blob([JSON.stringify(scene, null, 2)], { type: "application/json" });
