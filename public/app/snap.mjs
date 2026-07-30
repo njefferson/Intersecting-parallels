@@ -13,7 +13,7 @@
 import {
   SNAP_RADIUS, EPS_LEN_FACTOR,
   projectPointOnLine, bindingDirection,
-  addAnchor, addRayVertex, addIntersectVertex, addEdge,
+  addAnchor, addRayVertex, addIntersectVertex, addEdge, solveScene,
 } from "./solver.mjs";
 
 const DEG = 180 / Math.PI;
@@ -319,7 +319,7 @@ function materializeStart(scene, desc, _binding) {
 // anchor for a free stroke.
 function materializeEnd(scene, desc, binding, startVertexId, startPos) {
   if (desc.type === "merge") return { ok: true, vertexId: desc.vertexId };
-  if (desc.type === "onEdge" && binding !== "free") {
+  if ((desc.type === "onEdge" || desc.type === "cross") && binding !== "free") {
     const host = desc.edge;
     const i = addIntersectVertex(scene, {
       defs: [
@@ -354,4 +354,146 @@ export function effectiveBinding(scene, edge) {
   const b = scene.vertices.find(v => v.id === edge.b);
   if (!a || !b || !Number.isFinite(a.x) || !Number.isFinite(b.x)) return edge.binding;
   return bindingSatisfied(scene, a, b, edge.binding) ? edge.binding : "free";
+}
+
+// D20 — line ends JOIN again, but joining may only move an end ALONG its guide.
+//
+// Noah, 2026-07-29, with two screenshots of a cube coming apart under a VP
+// drag: *"Being unable to connect line ends means everything breaks when you do
+// adjustments."* He is right, and this is the consequence I flagged when D16
+// took joining out wholesale.
+//
+// D16 and this are not in conflict once the two things it conflated are pulled
+// apart:
+//   · a guide decides a line's DIRECTION — only a vanishing point, vertical,
+//     horizontal, or the optional 45° pair, exactly as D16 says;
+//   · joining decides only WHERE ALONG that direction the line ends.
+// The old behaviour broke that rule: it merged an end into any nearby point
+// even when the point was nowhere near the guide, which dragged the line off
+// its direction and produced the non-converging fan of D11/D12. So:
+//
+//   1. MERGE into an existing end only if that end lies on this stroke's guide
+//      (within the snap radius, perpendicular). A shared corner, and the line
+//      keeps its direction.
+//   2. Otherwise, if a bound line CROSSES this stroke's guide near the finger,
+//      end at the crossing — a true two-constraint corner, which is what makes
+//      a box hold its shape when a vanishing point moves.
+//   3. Otherwise end on the guide where the finger left it.
+// A stroke's START may always merge, because the guide is computed THROUGH the
+// start point: joining there cannot change any direction.
+export function resolveStrokeEnd(scene, startPos, binding, u, p, r = SNAP_RADIUS) {
+  if (binding === "free" || !u) {
+    const v = nearestVertex(scene, p, r);
+    return v ? { type: "merge", vertexId: v.id, at: { x: v.x, y: v.y } }
+             : { type: "plain", at: { x: p.x, y: p.y } };
+  }
+  const onGuide = q => Math.abs((q.x - startPos.x) * u.y - (q.y - startPos.y) * u.x);
+
+  // 1 — an existing end that is ON this guide.
+  let best = null, bestD = r;
+  for (const v of scene.vertices) {
+    if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) continue;
+    if (Math.hypot(v.x - p.x, v.y - p.y) > r) continue;
+    if (onGuide(v) > r) continue;                       // near the finger but off the guide
+    const d = Math.hypot(v.x - p.x, v.y - p.y);
+    if (d <= bestD) { best = v; bestD = d; }
+  }
+  if (best) return { type: "merge", vertexId: best.id, at: { x: best.x, y: best.y } };
+
+  // 2 — a bound line crossing this guide near the finger.
+  let cross = null, crossD = r;
+  for (const e of scene.edges) {
+    if (e.binding === "free") continue;
+    const a = scene.vertices.find(v => v.id === e.a);
+    const b = scene.vertices.find(v => v.id === e.b);
+    if (!a || !b || !Number.isFinite(a.x) || !Number.isFinite(b.x)) continue;
+    const ex = b.x - a.x, ey = b.y - a.y;
+    const den = u.x * ey - u.y * ex;
+    if (Math.abs(den) < 1e-9) continue;                 // parallel to this guide
+    // parameter along the EDGE, so only a crossing of the drawn segment counts
+    const s = ((a.x - startPos.x) * u.y - (a.y - startPos.y) * u.x) / den;
+    if (s < -0.001 || s > 1.001) continue;
+    const q = { x: a.x + ex * s, y: a.y + ey * s };
+    const d = Math.hypot(q.x - p.x, q.y - p.y);
+    if (d <= crossD) { cross = { edge: e, at: q }; crossD = d; }
+  }
+  if (cross) return { type: "cross", edge: cross.edge, at: cross.at };
+
+  return { type: "plain", at: { x: p.x, y: p.y } };
+}
+
+// D21 — a box, drawn in one gesture, every corner constrained.
+//
+// Noah, 2026-07-29: *"Add drawing boxes/rectangles."* He had just built a cube
+// out of nine separate strokes, and it came apart when he moved a point.
+//
+// This emits the twelve edges of a box in two-point perspective where EVERY
+// vertex is defined by constraints rather than by coordinates: the near edge is
+// vertical, the receding edges are bound to the vanishing points, and all six
+// remaining corners are intersections of two of those. So a vanishing point
+// drag — or a corner drag — moves the whole box and it stays a box. That is the
+// property his hand-drawn cube could not have.
+//
+// One drag: it starts at the near bottom corner, its vertical extent is the
+// height, and its horizontal extent is the depth along each vanishing point.
+// A square plan is the default because a single drag cannot say two depths;
+// the corners are draggable afterwards precisely because they are constrained.
+export function buildBox(scene, { at, height, depth }) {
+  const vps = scene.vanishingPoints.filter(v => !v.locked);
+  if (vps.length < 2) return { ok: false, reason: "a box needs two vanishing points — add one, or unlock one" };
+  const [vpL, vpR] = vps;
+  const h = Math.abs(height) < 1 ? 1 : height;
+  const d = Math.abs(depth) < 1 ? 1 : Math.abs(depth);
+
+  const made = { vertices: [], edges: [] };
+  const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
+  const E = (a, b, binding) => {
+    const r = addEdge(scene, { a: a.id, b: b.id, binding });
+    if (r.ok) made.edges.push(r.edge.id);
+  };
+
+  const nearBottom = V(addAnchor(scene, { x: at.x, y: at.y }));
+  const nearTop = V(addRayVertex(scene, { origin: nearBottom.id, binding: "vertical", t: -h }));
+  if (!nearTop) return { ok: false, reason: "could not raise the near edge" };
+  const leftBottom = V(addRayVertex(scene, { origin: nearBottom.id, binding: { vpId: vpL.id }, t: d }));
+  const rightBottom = V(addRayVertex(scene, { origin: nearBottom.id, binding: { vpId: vpR.id }, t: d }));
+  if (!leftBottom || !rightBottom) return { ok: false, reason: "could not run the base edges to the vanishing points" };
+
+  // Every corner above or behind is where two guides meet.
+  const leftTop = V(addIntersectVertex(scene, { defs: [
+    { origin: nearTop.id, binding: { vpId: vpL.id } },
+    { origin: leftBottom.id, binding: "vertical" },
+  ] }));
+  const rightTop = V(addIntersectVertex(scene, { defs: [
+    { origin: nearTop.id, binding: { vpId: vpR.id } },
+    { origin: rightBottom.id, binding: "vertical" },
+  ] }));
+  const backBottom = V(addIntersectVertex(scene, { defs: [
+    { origin: leftBottom.id, binding: { vpId: vpR.id } },
+    { origin: rightBottom.id, binding: { vpId: vpL.id } },
+  ] }));
+  const backTop = V(addIntersectVertex(scene, { defs: [
+    { origin: leftTop.id, binding: { vpId: vpR.id } },
+    { origin: backBottom.id, binding: "vertical" },
+  ] }));
+  if (!leftTop || !rightTop || !backBottom || !backTop) {
+    return { ok: false, reason: "the vanishing points are too close together to make a box here" };
+  }
+
+  const L = { vpId: vpL.id }, R = { vpId: vpR.id };
+  E(nearBottom, nearTop, "vertical");
+  E(nearBottom, leftBottom, L);
+  E(nearBottom, rightBottom, R);
+  E(nearTop, leftTop, L);
+  E(nearTop, rightTop, R);
+  E(leftBottom, leftTop, "vertical");
+  E(rightBottom, rightTop, "vertical");
+  E(leftBottom, backBottom, R);
+  E(rightBottom, backBottom, L);
+  E(leftTop, backTop, R);
+  E(rightTop, backTop, L);
+  E(backBottom, backTop, "vertical");
+
+  solveScene(scene);
+  return { ok: true, ...made, corners: { nearBottom, nearTop, leftBottom, rightBottom, leftTop, rightTop, backBottom, backTop } };
 }

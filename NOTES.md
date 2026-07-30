@@ -49,7 +49,7 @@ and on `staging`, awaiting Noah's single aggregate pass. What each step became:
 
 **Gates, all three green, all three run by CI on the same entry points a
 session runs locally:**
-- `npm test` — 57 tests (solver, snapping, D11 guide ranking, D12 binding
+- `npm test` — 61 tests (solver, snapping, D11 guide ranking, D12 binding
   honesty, D16 the closed guide set and no endpoint anchoring, export, project
   validation, undo). Every new block was made to fail against the unfixed code
   before it was trusted.
@@ -57,7 +57,7 @@ session runs locally:**
   themes, two viewports. It now SERVES `public/` over HTTP, because ES modules
   cannot load from `file://` and the old file:// scan would have measured a
   blank page.
-- `npm run walk` — 40 checks driving the real app: draw, drag, undo, keyboard
+- `npm run walk` — 43 checks driving the real app: draw, drag, undo, keyboard
   nudge, export, reload, offline cold launch, 2,000 edges under drag, an
   assertion that no request ever leaves the origin, and — since 0.1.1 — that a
   finger aimed at a vanishing point produces lines that MEASURABLY converge on
@@ -404,6 +404,52 @@ VPs legible.
 - PNG: probe the real canvas ceiling on Noah's iPad before offering dimensions,
   and clamp with an honest message rather than emitting the blank image iOS
   produces past the limit (Doctrine §5).
+
+### D20. Line ends join again — along the guide, never off it
+
+**Noah, 2026-07-29, with two screenshots of a cube coming apart under a VP
+drag:** *"Being unable to connect line ends means everything breaks when you do
+adjustments."* He is right, and it is the consequence flagged when D16 took
+joining out wholesale.
+
+D16 and this only look contradictory until the two things it conflated are
+separated:
+- a **guide** decides a line's **DIRECTION** — still only a vanishing point,
+  vertical, horizontal or the optional 45° pair, exactly as D16 says;
+- **joining** decides only **WHERE ALONG** that direction the line ends.
+
+The old behaviour broke that: it merged an end into any nearby point even when
+the point was nowhere near the guide, which dragged the line off its direction —
+the non-converging fan of D11/D12. The rule now, in `resolveStrokeEnd`:
+1. merge into an existing end only if that end lies ON this stroke's guide;
+2. otherwise stop where a guide-bound line CROSSES this guide — a true
+   two-constraint corner, which is what makes a shape hold under a VP drag;
+3. otherwise end on the guide where the finger left it.
+A stroke's START may always merge, because the guide is computed THROUGH the
+start point, so joining there cannot change any direction.
+
+`u` is recomputed at commit rather than read from the gesture: a stroke short
+enough to be decided only at release has no cached direction, and without one
+the end would fall back to merging with ANY nearby point — the exact off-guide
+join this exists to prevent.
+
+### D21. A box in one gesture, constrained so it stays a box
+
+**Noah, 2026-07-29:** *"Add drawing boxes/rectangles."* — after building a cube
+from nine strokes and watching it come apart.
+
+`buildBox` emits the twelve edges of a two-point box where every vertex but one
+is defined by CONSTRAINTS, not coordinates: one anchor at the near bottom
+corner, the near edge vertical, the base edges bound to the two points, and all
+six remaining corners intersections of two guides. So a VP drag moves the whole
+box and it stays a box — asserted over five different VP positions in the unit
+tests and once more through the real UI in the walk.
+
+One drag: start at the near bottom corner, vertical extent is the height,
+horizontal extent is the depth along each point. A square plan is the default
+because one drag cannot state two depths; the corners are adjustable afterwards
+precisely because they are constrained. It refuses with a plain reason when
+fewer than two points are available, and leaves nothing half-built.
 
 ### D18. There is no plain line
 

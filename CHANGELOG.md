@@ -8,6 +8,27 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.5.0 — CAPABILITY · 2026-07-29
+
+**Boxes in one drag, and line ends connect again so adjustments hold.**
+
+- **Box mode.** One drag from the near bottom corner — up for height, sideways
+  for depth — draws the whole box: twelve lines, eight corners. Every corner is
+  held by two guides rather than by coordinates, so moving a vanishing point
+  moves the box and it stays a box. That is the part your hand-drawn cube could
+  not do.
+- **Line ends connect again.** They stopped in 0.2.0 because you asked for
+  nothing but guides to touch your lines, and you were right that it broke
+  adjustments. The rule now separates the two things: a **guide** decides a
+  line's **direction** — still only a vanishing point, vertical, horizontal or
+  45° — and **joining** only decides **where along that direction** the line
+  ends. So a line can share a corner without ever being bent off its guide.
+- An end joins an existing corner when that corner is on the line's guide, and
+  otherwise stops where a guide-bound line crosses it — a real two-constraint
+  corner. Starting a new line on an existing corner always joins.
+
+---
+
 ## 0.4.0 — CAPABILITY · 2026-07-29
 
 **No more plain lines, and you can change your mind mid-stroke.**

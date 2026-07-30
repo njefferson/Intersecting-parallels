@@ -231,6 +231,30 @@ export function draw(ctx, view, viewport, opts = {}) {
     ctx.restore();
   }
 
+  // 5c — the box being dragged (D21): its near edge and the two receding base
+  // edges, enough to see the size and depth before letting go.
+  if (ghost && ghost.box) {
+    const { at, height, depth } = ghost.box;
+    const pts = [{ x: at.x, y: at.y - height }];
+    for (const vp of scene.vanishingPoints.filter(v => !v.locked).slice(0, 2)) {
+      const dx = vp.x - at.x, dy = vp.y - at.y, L = Math.hypot(dx, dy) || 1;
+      pts.push({ x: at.x + dx / L * depth, y: at.y + dy / L * depth });
+    }
+    ctx.save();
+    ctx.strokeStyle = c.ink;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 5]);
+    const o = toScreen(view, at);
+    ctx.beginPath();
+    for (const q of pts) {
+      const t = toScreen(view, q);
+      ctx.moveTo(o.x, o.y);
+      ctx.lineTo(t.x, t.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // 6 — the active ghost ray: full length, faint, long-dashed (§3.2)
   if (ghost && ghost.origin && ghost.u) {
     const far = Math.max(viewport.width, viewport.height) * 4 / view.scale;

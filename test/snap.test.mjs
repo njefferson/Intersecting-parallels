@@ -2,9 +2,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createScene, addVp, addAnchor, setHorizon, solveScene, moveVp, addRayVertex } from "../public/app/solver.mjs";
+import { createScene, addVp, addAnchor, setHorizon, solveScene, moveVp, addRayVertex, addEdge, bindingDirection } from "../public/app/solver.mjs";
 import {
-  scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge, resolveEndpoint, commitStroke, bindingSatisfied, effectiveBinding, SWITCH_MARGIN, sameBinding,
+  scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge, resolveEndpoint, commitStroke, bindingSatisfied, effectiveBinding, SWITCH_MARGIN, sameBinding, resolveStrokeEnd, buildBox,
 } from "../public/app/snap.mjs";
 
 function scene2pt() {
@@ -372,41 +372,56 @@ test("D16: the 45° pair appears ONLY when it is switched on", () => {
   assert.equal(chooseBinding(scene, { x: 800, y: 600 }, dir, { diagonals: true }).binding, "diag45");
 });
 
-test("D16: an endpoint lands where it was put — no merging, no snapping to a line", () => {
+test("D20: an end joins another end ONLY when that end is on this stroke's guide", () => {
+  // Rewritten from D16's "nothing ever joins". Noah, after a cube fell apart
+  // under a VP drag: "Being unable to connect line ends means everything breaks
+  // when you do adjustments." Joining is back — but it may only move an end
+  // ALONG its guide, never off it.
   const { scene, vp1 } = farVpScene();
-  const p = addAnchor(scene, { x: 900, y: 400 }).vertex;      // something already drawn
-  const dx = vp1.x - 900, dy = vp1.y - 400, L = Math.hypot(dx, dy);
-  addRayVertex(scene, { origin: p.id, binding: { vpId: vp1.id }, t: 300 });
-  const before = scene.vertices.length;
+  const a = addAnchor(scene, { x: 900, y: 400 }).vertex;
+  const onGuide = addRayVertex(scene, { origin: a.id, binding: { vpId: vp1.id }, t: 300 }).vertex;
+  const offGuide = addAnchor(scene, { x: 900, y: 700 }).vertex;   // nowhere near that line
+  const u = bindingDirection(scene, a, { vpId: vp1.id });
 
-  // A stroke starting 3px from that existing point — well inside the old 12px
-  // snap radius — must NOT be captured by it.
-  const start = { x: 903, y: 402 };
-  const desc = resolveEndpoint(scene, start, 12, { join: false });
-  assert.equal(desc.type, "plain");
-  assert.deepEqual(desc.at, start, "the point stays exactly where it was put");
+  // A stroke from `a` along VP1 whose finger stops 4px from the existing end
+  // that IS on the guide → it merges, so the corner is shared.
+  const near = { x: onGuide.x + 3, y: onGuide.y + 2 };
+  const joined = resolveStrokeEnd(scene, a, { vpId: vp1.id }, u, near, 12);
+  assert.equal(joined.type, "merge");
+  assert.equal(joined.vertexId, onGuide.id);
 
-  const dir = { x: dx / L, y: dy / L };
-  const end = { x: start.x + dir.x * 250, y: start.y + dir.y * 250 };
-  const res = commitStroke(scene, desc,
-    resolveEndpoint(scene, end, 12, { join: false }), { vpId: vp1.id });
-  assert.equal(res.ok, true, res.reason);
-  assert.notEqual(res.a, p.id, "the stroke did not get welded to the existing point");
-  assert.equal(scene.vertices.length, before + 2, "it made its own two endpoints");
-  // And it still honours the guide it was drawn along.
-  const a = scene.vertices.find(v => v.id === res.a), b = scene.vertices.find(v => v.id === res.b);
-  const ex = b.x - a.x, ey = b.y - a.y, eL = Math.hypot(ex, ey);
-  const missed = Math.abs(ex * (a.y - vp1.y) - ey * (a.x - vp1.x)) / eL;
-  assert.ok(missed < 1e-6, `the line still converges on VP1 (off by ${missed})`);
-  assert.deepEqual(res.edge.binding, { vpId: vp1.id });
+  // A stroke along VERTICAL from `a`, whose finger stops near the off-guide
+  // point — that point is not on the vertical, so it must NOT capture the end.
+  const vu = bindingDirection(scene, a, "vertical");
+  const nearOff = { x: offGuide.x + 40, y: offGuide.y + 2 };      // 40px off the vertical
+  const notJoined = resolveStrokeEnd(scene, a, "vertical", vu, nearOff, 12);
+  assert.notEqual(notJoined.type, "merge");
 });
 
-// ---- D19: the guide can be switched mid-stroke -----------------------------
-//
-// Noah, 2026-07-29: "Allow switching targets mid line?" Yes. The guide is
-// re-picked on every pointer move, with hysteresis so a tremor cannot flap the
-// line between two guides while a deliberate swing switches at once.
+test("D20: an end stops at a bound line crossing its guide — the corner a box needs", () => {
+  const { scene, vp1 } = farVpScene();
+  // An existing vertical line, and a stroke toward VP1 that crosses it.
+  const p = addAnchor(scene, { x: 1100, y: 300 }).vertex;
+  const q = addRayVertex(scene, { origin: p.id, binding: "vertical", t: 400 }).vertex;
+  assert.equal(addEdge(scene, { a: p.id, b: q.id, binding: "vertical" }).ok, true);
 
+  const a = addAnchor(scene, { x: 700, y: 520 }).vertex;
+  const u = bindingDirection(scene, a, { vpId: vp1.id });
+  // Where our guide crosses that vertical:
+  const t = (1100 - a.x) / u.x;
+  const at = { x: a.x + u.x * t, y: a.y + u.y * t };
+  const desc = resolveStrokeEnd(scene, a, { vpId: vp1.id }, u, { x: at.x + 3, y: at.y + 3 }, 12);
+  assert.equal(desc.type, "cross", `got ${desc.type}`);
+  // Committing it makes a two-constraint corner, which is what survives a drag.
+  const res = commitStroke(scene, { type: "plain", at: { x: a.x, y: a.y } }, desc, { vpId: vp1.id });
+  assert.equal(res.ok, true, res.reason);
+  const corner = scene.vertices.find(v => v.id === res.b);
+  assert.equal(corner.kind, "intersect");
+  const was = { x: corner.x, y: corner.y };
+  moveVp(scene, vp1.id, { x: -700, y: 800 });
+  assert.ok(Math.hypot(corner.x - was.x, corner.y - was.y) > 1, "it re-solved with the point");
+  assert.ok(Number.isFinite(corner.x) && Number.isFinite(corner.y));
+});
 test("D19: swinging the stroke onto another guide switches it mid-line", () => {
   const { scene, vp1, vp2 } = farVpScene();
   // Well BELOW the horizon, so the two points are genuinely different
@@ -470,4 +485,74 @@ test("D19: the margin is a margin, not a lock — past it the switch happens", (
   assert.ok(switchedAt !== null, "it never let go — that is a lock, not hysteresis");
   assert.ok(switchedAt > SWITCH_MARGIN - 1,
     `let go after only ${switchedAt}°, inside the ${SWITCH_MARGIN}° margin`);
+});
+
+// ---- D21: a box, from one gesture, that stays a box ------------------------
+//
+// Noah, 2026-07-29: "Add drawing boxes/rectangles." — after building a cube out
+// of nine strokes and watching it come apart when he moved a point.
+
+function boxFixture() {
+  const scene = createScene({ name: "d21", width: 1600, height: 1200 });
+  setHorizon(scene, 540);
+  const vp1 = addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true }).vp;
+  const vp2 = addVp(scene, { label: "VP2", x: 2960, y: 540, onHorizon: true }).vp;
+  const res = buildBox(scene, { at: { x: 800, y: 800 }, height: 260, depth: 200 });
+  return { scene, vp1, vp2, res };
+}
+
+// Every bound edge lies on its guide, and every corner is shared by >1 edge.
+function boxIsSound(scene) {
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  const uses = new Map();
+  let worst = 0;
+  for (const e of scene.edges) {
+    for (const id of [e.a, e.b]) uses.set(id, (uses.get(id) || 0) + 1);
+    const a = byId.get(e.a), b = byId.get(e.b);
+    if (!a || !b) return { ok: false, why: "an edge lost an endpoint" };
+    if (!Number.isFinite(a.x) || !Number.isFinite(b.x)) return { ok: false, why: "a corner went non-finite" };
+    if (typeof e.binding === "string") continue;
+    const vp = scene.vanishingPoints.find(v => v.id === e.binding.vpId);
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+    worst = Math.max(worst, Math.abs(dx * (a.y - vp.y) - dy * (a.x - vp.x)) / L);
+  }
+  const orphans = [...uses.values()].filter(n => n < 2).length;
+  return { ok: worst < 1e-6 && orphans === 0, worst, orphans };
+}
+
+test("D21: one gesture builds twelve edges and eight shared corners", () => {
+  const { scene, res } = boxFixture();
+  assert.equal(res.ok, true, res.reason);
+  assert.equal(res.edges.length, 12, "a box has twelve edges");
+  assert.equal(scene.vertices.length, 8, "and eight corners");
+  // Only ONE anchor: everything else is held by constraints, which is the whole
+  // point — a box of eight anchors would come apart exactly like the hand-drawn
+  // cube did.
+  assert.equal(scene.vertices.filter(v => v.kind === "anchor").length, 1);
+  const sound = boxIsSound(scene);
+  assert.equal(sound.ok, true, JSON.stringify(sound));
+});
+
+test("D21: the box survives its vanishing points being dragged anywhere", () => {
+  const { scene, vp1, vp2 } = boxFixture();
+  for (const [vp, x, y] of [
+    [vp1, -400, 250], [vp2, 2000, 900], [vp1, 200, 540],
+    [vp2, 1000, 100], [vp1, -3000, 540],
+  ]) {
+    moveVp(scene, vp.id, { x, y });
+    const sound = boxIsSound(scene);
+    assert.equal(sound.ok, true, `after VP to ${x},${y}: ${JSON.stringify(sound)}`);
+    assert.equal(scene.edges.length, 12, "no edge was lost");
+    assert.equal(scene.vertices.length, 8, "no corner was lost");
+  }
+});
+
+test("D21: a box needs two points, and says so plainly when it has one", () => {
+  const scene = createScene({ name: "d21b", width: 1600, height: 1200 });
+  setHorizon(scene, 540);
+  addVp(scene, { label: "VP1", x: -1360, y: 540, onHorizon: true });
+  const res = buildBox(scene, { at: { x: 800, y: 800 }, height: 200, depth: 200 });
+  assert.equal(res.ok, false);
+  assert.match(res.reason, /two vanishing points/);
+  assert.equal(scene.edges.length, 0, "and it left nothing half-built behind");
 });

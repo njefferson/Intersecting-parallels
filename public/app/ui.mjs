@@ -13,7 +13,7 @@ import {
   createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS, bindingDirection,
   deleteVp as deleteVpFromScene, deleteVertex,
 } from "./solver.mjs";
-import { chooseBinding, resolveEndpoint, commitStroke, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
+import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
   createView, fitView, toCanvas, toScreen, zoomAt, draw, vpAt, offscreenMarker, HANDLE_HIT,
 } from "./render.mjs";
@@ -25,7 +25,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -528,12 +528,23 @@ el.canvas.addEventListener("pointerdown", ev => {
     return;
   }
 
+  if (prefs.mode === "box") {
+    // D21: one drag builds the whole box. Its start is the near bottom corner,
+    // which may join an existing end like any other start (D20).
+    const c0 = toCanvas(view, p);
+    const startDesc = resolveEndpoint(scene, c0, SNAP_RADIUS / view.scale, { join: true });
+    gesture = { kind: "box", at: startDesc.at, height: 0, depth: 0, last: c0 };
+    render();
+    return;
+  }
+
   // draw / place
   const c = toCanvas(view, p);
-  // D16: join OFF. An endpoint lands exactly where it was put — no merging
-  // into a nearby point, no snapping onto an existing line. Only a GUIDE may
-  // influence a stroke (Noah, 2026-07-29).
-  const startDesc = resolveEndpoint(scene, c, SNAP_RADIUS / view.scale, { join: false });
+  // D20: a stroke's START may join an existing end. Joining there cannot change
+  // any direction, because the guide is computed THROUGH the start point — and
+  // starting a new line exactly on an existing corner is most of what "connect
+  // line ends" means.
+  const startDesc = resolveEndpoint(scene, c, SNAP_RADIUS / view.scale, { join: true });
   gesture = {
     kind: "draw",
     startDesc,
@@ -588,6 +599,16 @@ el.canvas.addEventListener("pointermove", ev => {
     // solving per event does the work twice and shows half of it. The latest
     // position wins; intermediate ones were never going to be drawn.
     pendingVpMove = { vpId: gesture.vpId, at: toCanvas(view, p) };
+    render();
+    return;
+  }
+
+  if (gesture.kind === "box") {
+    const c = toCanvas(view, p);
+    gesture.last = c;
+    gesture.height = Math.abs(c.y - gesture.at.y);
+    gesture.depth = Math.abs(c.x - gesture.at.x) || gesture.height;
+    ghost = { origin: gesture.at, u: null, box: { at: gesture.at, height: gesture.height, depth: gesture.depth } };
     render();
     return;
   }
@@ -661,6 +682,16 @@ function endPointer(ev) {
   }
   if (wasGesture.kind === "pan") return;
 
+  if (wasGesture.kind === "box") {
+    ghost = null;
+    if (wasGesture.height < 4) { render(); return; }        // a tap, not a box
+    beginGesture(history, scene);                            // D7: one gesture, one undo
+    const res = buildBox(scene, { at: wasGesture.at, height: wasGesture.height, depth: wasGesture.depth });
+    if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+    afterEdit(`Box drawn — ${res.edges.length} lines, every corner held by two guides`);
+    return;
+  }
+
   if (wasGesture.kind === "draw") {
     ghost = null;
     const end = wasGesture.last;
@@ -677,7 +708,18 @@ function endPointer(ev) {
       }).binding;
     }
     beginGesture(history, scene);                          // D7: the whole stroke is one step
-    const endDesc = resolveEndpoint(scene, end, SNAP_RADIUS / view.scale, { join: false });
+    // D20: the end may merge into an existing end that lies ON this guide, or
+    // stop at a bound line crossing it — otherwise it stays on the guide where
+    // the finger left it. Joining never changes the direction.
+    //
+    // `u` is recomputed rather than taken from the gesture: a stroke short
+    // enough to be decided only at release has no direction cached, and without
+    // one resolveStrokeEnd would fall back to merging with ANY nearby point —
+    // the exact off-guide join this amendment exists to prevent.
+    const endU = wasGesture.u
+      ?? (binding === "free" ? null : bindingDirection(scene, wasGesture.startCanvas, binding));
+    const endDesc = resolveStrokeEnd(scene, wasGesture.startCanvas, binding, endU,
+      end, SNAP_RADIUS / view.scale);
     const res = commitStroke(scene, wasGesture.startDesc, endDesc, binding);
     if (!res.ok) {
       undoHistoryInPlace();
@@ -768,14 +810,17 @@ function newScene({ width, height, points }) {
 
 function setMode(mode) {
   prefs.mode = mode;
-  for (const [id, m] of [["mode-place", "place"], ["mode-draw", "draw"], ["mode-select", "select"]]) {
-    $(id).setAttribute("aria-pressed", String(prefs.mode === m));
+  for (const [id, m] of [["mode-place", "place"], ["mode-draw", "draw"], ["mode-box", "box"], ["mode-select", "select"]]) {
+    $(id)?.setAttribute("aria-pressed", String(prefs.mode === m));
   }
-  say(`${mode === "place" ? "Place" : mode === "draw" ? "Draw" : "Select"} mode`);
+  const names = { place: "Place", draw: "Draw", box: "Box", select: "Select" };
+  say(`${names[mode] ?? mode} mode`);
+  if (mode === "box") toast("Box mode — drag from the near bottom corner: up for height, sideways for depth");
   autosaver.poke();
 }
 $("mode-place").addEventListener("click", () => setMode("place"));
 $("mode-draw").addEventListener("click", () => setMode("draw"));
+$("mode-box")?.addEventListener("click", () => setMode("box"));
 $("mode-select").addEventListener("click", () => setMode("select"));
 
 $("assist").addEventListener("click", () => {

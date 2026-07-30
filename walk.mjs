@@ -103,14 +103,16 @@ try {
   check('every stroke lands on a guide — none come back plain (D18)',
     bindings.length > 0 && bindings.every(b => b !== 'free'), `bindings: ${bindings.join(', ')}`);
 
-  // D16 replaces §2.4's mandatory merging. Noah's rule: nothing but a GUIDE may
-  // influence a stroke — an endpoint lands where it was put and is never welded
-  // to earlier geometry. Three strokes from the same spot therefore keep three
-  // separate start vertices. This check used to assert the OPPOSITE; it is
-  // inverted deliberately, not relaxed.
+  // This check has been inverted twice, and the history is the point rather
+  // than an embarrassment: §2.4 required merging, D16 removed it because Noah
+  // objected to anything but a guide influencing his lines, and D20 brought it
+  // back for ENDS ONLY after he found that without it "everything breaks when
+  // you do adjustments". The settled rule: joining may move an end ALONG its
+  // guide, never off it, so three strokes from one point SHARE that corner —
+  // which is what holds a drawing together under a vanishing-point drag.
   const corner = s.scene.edges.map(e => e.a);
-  check('an endpoint is never welded to earlier geometry (D16)',
-    new Set(corner).size === s.scene.edges.length,
+  check('strokes from the same point share one corner (D20)',
+    new Set(corner).size === 1,
     `${new Set(corner).size} distinct start vertices for ${s.scene.edges.length} lines`);
   if (SHOTS) await page.screenshot({ path: `${SHOT_DIR}/2-drawn.png` });
 
@@ -443,6 +445,71 @@ try {
     `${movedCount} of ${vBefore.length} vertices moved`);
   if (SHOTS) await dPage.screenshot({ path: `${SHOT_DIR}/10-deleted.png` });
   await delCtx.close();
+
+  // ---- 11. a box, from one gesture, that survives a drag (D21 + D20) -------
+  //
+  // Noah drew a cube out of nine strokes and it came apart when he moved a
+  // point: "Being unable to connect line ends means everything breaks when you
+  // do adjustments." A box built here must still be a box afterwards.
+  const boxCtx = await browser.newContext({
+    viewport: { width: 1194, height: 834 }, colorScheme: 'dark', hasTouch: true,
+  });
+  const bPage = await boxCtx.newPage();
+  bPage.on('pageerror', e => pageErrors.push(`box page: ${e}`));
+  await bPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await bPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 10000 });
+  await bPage.click('#mode-box');
+  await bPage.click('#touch-draws');
+
+  const bCdp = await boxCtx.newCDPSession(bPage);
+  const bpt = (x, y) => [{ x, y, id: 1 }];
+  await bCdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: bpt(600, 640) });
+  for (let i = 1; i <= 16; i++) {
+    await bCdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: bpt(600 + i * 6, 640 - i * 9) });
+  }
+  await bCdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await bCdp.detach();
+  await bPage.waitForTimeout(120);
+
+  // Every bound edge on its guide, every corner shared by more than one edge.
+  const soundness = () => bPage.evaluate(() => {
+    const s = window.__ip.scene, byId = new Map(s.vertices.map(v => [v.id, v]));
+    const uses = new Map();
+    let worst = 0;
+    for (const e of s.edges) {
+      for (const id of [e.a, e.b]) uses.set(id, (uses.get(id) || 0) + 1);
+      const a = byId.get(e.a), b = byId.get(e.b);
+      if (typeof e.binding === 'string') continue;
+      const vp = s.vanishingPoints.find(v => v.id === e.binding.vpId);
+      const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+      worst = Math.max(worst, Math.abs(dx * (a.y - vp.y) - dy * (a.x - vp.x)) / L);
+    }
+    return {
+      edges: s.edges.length, verts: s.vertices.length,
+      orphans: [...uses.values()].filter(n => n < 2).length,
+      worst: +worst.toFixed(4),
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+    };
+  });
+  const boxBefore = await soundness();
+  check('one drag in Box mode builds a whole box (D21)',
+    boxBefore.edges === 12 && boxBefore.verts === 8,
+    `${boxBefore.edges} edges, ${boxBefore.verts} corners`);
+  check('every corner of it is SHARED, not a loose line end (D20)',
+    boxBefore.orphans === 0, `${boxBefore.orphans} loose ends`);
+
+  await bPage.evaluate(() => {
+    const s = window.__ip.scene;
+    window.__ip.moveVp(s.vanishingPoints[0].id, { x: -400, y: 250 });
+  });
+  await bPage.waitForTimeout(120);
+  const boxAfter = await soundness();
+  check('and it is still a box after a vanishing point is dragged',
+    boxAfter.edges === 12 && boxAfter.verts === 8 && boxAfter.orphans === 0
+      && boxAfter.worst < 0.001 && boxAfter.finite,
+    JSON.stringify(boxAfter));
+  if (SHOTS) await bPage.screenshot({ path: `${SHOT_DIR}/11-box.png` });
+  await boxCtx.close();
 
   check('no page errors during the whole walk', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 } catch (err) {
