@@ -106,7 +106,20 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
-**PROMOTED TO PRODUCTION 2026-07-29 — 0.3.0.** Noah tested the aggregate on his
+**PROMOTED TO PRODUCTION 2026-07-29 — 0.5.0.** Second promote of the day. Noah
+drew a cube on 0.3.0, watched it come apart under a VP drag, and asked for two
+things: boxes as a tool, and line ends that connect. Both landed as 0.5.0 (with
+0.4.0's no-plain-lines and mid-stroke guide switching in between), all four
+workflows green on `0328e85` before the merge, and he said **"Promote"**.
+`main` fast-forwarded — no merge commit, the identical tree he tested.
+
+**Shipped since 0.3.0:**
+- 0.4.0 — no stroke ever comes back unguided (D18); the guide can be switched
+  mid-stroke with hysteresis instead of a lock (D19).
+- 0.5.0 — line ends join again, along the guide and never off it (D20); Box
+  mode builds a fully constrained twelve-edge box from one drag (D21).
+
+**The earlier 0.3.0 promote, kept for the record:** Noah tested the aggregate on his
 iPad, reported two defects (D11's non-converging lines, then D16's unasked-for
 anchoring, then D17's undeletable lines and points), each was fixed and
 re-staged, and he said **"Promote"**. `main` fast-forwarded to `staging` at
