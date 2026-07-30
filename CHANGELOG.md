@@ -8,6 +8,29 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.0.0 — VERSION · 2026-07-30
+
+**Version 1. Noah's call.**
+
+Everything below this line was built and tested in two days, and this is the build
+he decided is the thing itself rather than the way there. Nothing was added to earn
+the number — the release is 0.6.1 plus the one change he asked for on reading it:
+
+- **Clear is in the toolbar now**, next to Points, not buried in Project. It clears
+  the drawing and keeps your vanishing points, which is the one you reach for. The
+  first tap arms it and says what it will remove; the second does it; anything else
+  you touch cancels; and an arm left alone expires by itself after six seconds.
+  Wiping the points too is still in Project, one level down, because it should be.
+- It is deliberately NOT beside Undo. A destructive tap does not belong next to the
+  control you reach for after a mistake.
+
+What the app is, as of 1.0.0: place vanishing points, draw lines that stay locked
+to them, build a box in one drag with both depths, weld corners or not, set any
+corner exactly, undo everything one step at a time, clear the screen, export SVG or
+PNG, and work with no account and no network at all.
+
+---
+
 ## 0.6.1 — ITERATION · 2026-07-30
 
 **A way to clear the screen.**

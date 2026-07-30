@@ -67,6 +67,11 @@
     <div class="bar-group">
       <button class="btn" id="add-vp" type="button">Add VP</button>
       <button class="btn" id="show-panel" type="button" aria-pressed="true" aria-controls="panel">Points</button>
+      <!-- Clear is here rather than beside Undo on purpose: a destructive tap does
+           not belong next to the control people reach for after a mistake. It
+           clears the DRAWING and keeps the vanishing points; wiping the points too
+           stays one level down, in Project. -->
+      <button class="btn danger" id="clear-drawing" type="button" data-armed="false">Clear</button>
       <button class="btn" id="open-export" type="button">Export</button>
       <button class="btn" id="open-project" type="button">Project</button>
       <button class="btn" id="open-about" type="button">About</button>

@@ -106,6 +106,13 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**V1 DECLARED BY NOAH, 2026-07-30.** *"This is now version 1."* The first slot of
+the triplet is his to set (Doctrine §7) and he set it: this build is
+**1.0.0**, and it is 0.6.1 plus D25 — nothing was added to earn the number. What
+the app is at 1.0.0: vanishing points, lines that stay locked to them, a box in one
+drag with both depths, welding as a choice, any corner settable exactly, undo per
+gesture, clear the screen, SVG and PNG export, no account and no network.
+
 **PROMOTED TO PRODUCTION 2026-07-30 — 0.6.1.** Fourth promote, carrying two
 releases: 0.6.0 (the Weld toggle D22, two depths from one box drag and editable
 corners D23) and 0.6.1 (clearing the screen, D24). Noah said **"Promote"** and
@@ -565,6 +572,33 @@ used to end this amendment — "the corners are adjustable afterwards precisely
 because they are constrained" — was true of the data model and false of the app:
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
+
+### D25. Clear belongs in the toolbar
+
+**Noah, 2026-07-30, having read D24:** *"Where is clear"* — then *"Add to toolbar
+then promote"*. The verdict on D24's placement is his, and it is the honest one: a
+thing called "clear the screen" is not findable one level down inside a panel about
+files. It scrolled below the fold on a narrower iPad too.
+
+`Clear` sits in the toolbar's right-hand group, next to Points, and it is the
+keep-the-points action — the one that gets reached for. Wiping the vanishing points
+as well stays in Project, because that one should cost a level.
+
+Deliberately NOT beside Undo: a destructive tap does not belong next to the control
+someone reaches for after a mistake.
+
+Two differences from the dialog buttons, both forced by a toolbar rather than
+chosen:
+- **The label does not change when armed.** A toolbar that reflows on arming moves
+  every neighbouring control under the finger. The count goes to the toast and to
+  the button's accessible name instead, and it is still read from the drawing.
+- **An arm expires after six seconds.** In a panel an armed button is in front of
+  you; in a toolbar it can sit there while attention moves on, and an armed
+  destructive control that outlives your attention is a trap. Any other toolbar tap
+  also cancels it.
+
+Both of those are asserted in the walk, and both were proven by deleting them: the
+cross-disarm and the expiry each red their own check.
 
 ### D24. Clearing the screen, as two named actions
 

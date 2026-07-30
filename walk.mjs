@@ -661,6 +661,56 @@ try {
   check('two strokes are on the sheet before clearing', drawn.edges === 2,
     `${drawn.edges} lines, ${drawn.points} points`);
 
+  // The TOOLBAR Clear first: same action, same guard, one tap away.
+  await cPage.click('#clear-drawing');
+  await cPage.waitForTimeout(60);
+  const tbArmed = await cPage.evaluate(() => {
+    const b = document.getElementById('clear-drawing');
+    return {
+      armed: b.dataset.armed, label: b.textContent.trim(),
+      aria: b.getAttribute('aria-label') || '',
+      edges: window.__ip.scene.edges.length,
+    };
+  });
+  check('the toolbar Clear arms without clearing, and does not reflow the toolbar',
+    tbArmed.edges === 2 && tbArmed.armed === 'true' && tbArmed.label === 'Clear',
+    `${tbArmed.edges} lines still there, label still "${tbArmed.label}"`);
+  check('its accessible name carries the count it read',
+    /2 lines/.test(tbArmed.aria), `aria-label "${tbArmed.aria}"`);
+
+  // Touching something else disarms it — an armed destructive button must never be
+  // found still armed later.
+  await cPage.click('#mode-select');
+  const tbDisarmed = await cPage.evaluate(() => document.getElementById('clear-drawing').dataset.armed);
+  check('and another toolbar tap cancels the arm', tbDisarmed === 'false', `armed=${tbDisarmed}`);
+  await cPage.click('#mode-draw');
+
+  await cPage.click('#clear-drawing');
+  await cPage.click('#clear-drawing');
+  await cPage.waitForTimeout(80);
+  const tbCleared = await cPage.evaluate(() => {
+    const s = window.__ip.scene;
+    return { edges: s.edges.length, points: s.vanishingPoints.length };
+  });
+  check('two taps on the toolbar Clear wipe the drawing and keep the points',
+    tbCleared.edges === 0 && tbCleared.points === drawn.points,
+    `${tbCleared.edges} lines, ${tbCleared.points} points kept`);
+  await cPage.click('#undo');
+  await cPage.waitForTimeout(80);
+  const tbBack = await cPage.evaluate(() => window.__ip.scene.edges.length);
+  check('one undo restores it', tbBack === 2, `${tbBack} lines back`);
+
+  // An arm left alone expires rather than waiting to be tapped later.
+  await cPage.click('#clear-drawing');
+  await cPage.waitForTimeout(6600);
+  const expired = await cPage.evaluate(() => ({
+    armed: document.getElementById('clear-drawing').dataset.armed,
+    edges: window.__ip.scene.edges.length,
+  }));
+  check('an arm left untouched expires by itself',
+    expired.armed === 'false' && expired.edges === 2,
+    `armed=${expired.armed}, ${expired.edges} lines untouched`);
+
   await cPage.click('#open-project');
   await cPage.waitForTimeout(80);
   await cPage.click('#pr-clear-drawing');

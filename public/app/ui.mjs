@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "0.6.1";
+const VERSION = "1.0.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1090,16 +1090,27 @@ $("pr-new").addEventListener("click", async () => {
 //     satisfied confirmation is how a safe click ends up authorising a different
 //     target, so touching either button disarms the other.
 let armedClear = null;
+let armedTimer = null;
+// An armed destructive control must not stay armed while attention is elsewhere.
+const ARM_EXPIRY = 6000;
 const clearButtons = () => [
   ["pr-clear-drawing", "Clear the drawing, keep the points"],
   ["pr-clear-all", "Clear everything, points too"],
+  ["clear-drawing", "Clear"],                 // the toolbar one: label stays put
 ];
 function disarmClears(except = null) {
   for (const [id, label] of clearButtons()) {
     if (id === except) continue;
     const b = $(id);
-    if (b) { b.textContent = label; b.dataset.armed = "false"; }
+    if (b) {
+      // The toolbar button keeps its short label — a toolbar that reflows when you
+      // arm a button moves every control next to it under the finger.
+      if (id !== "clear-drawing") b.textContent = label;
+      b.dataset.armed = "false";
+      b.removeAttribute("aria-label");
+    }
   }
+  if (armedTimer) { clearTimeout(armedTimer); armedTimer = null; }
   if (armedClear !== except) armedClear = except;
 }
 
@@ -1109,10 +1120,21 @@ function wireClear(id, describe, run) {
     if (armedClear !== id) {
       const what = describe();                      // counted from the scene, now
       if (!what.ok) { disarmClears(); toast(what.reason, "info"); return; }
-      disarmClears(id);                             // the other one goes back to its label
-      b.textContent = `Tap again to ${what.action}`;
+      disarmClears(id);                             // the others go back to their labels
       b.dataset.armed = "true";
-      say(`${what.action}. Tap the same button again to confirm, or anything else to cancel.`);
+      if (id === "clear-drawing") {
+        // No room to grow a label in the toolbar, so the COUNT goes to the toast
+        // and to the button's accessible name — the number is still read from the
+        // drawing either way, which is the part that matters.
+        b.setAttribute("aria-label", `Clear. Armed: tap again to ${what.action}.`);
+        toast(`Tap Clear again to ${what.action}.`);
+      } else {
+        b.textContent = `Tap again to ${what.action}`;
+        say(`${what.action}. Tap the same button again to confirm, or anything else to cancel.`);
+      }
+      armedTimer = setTimeout(() => {
+        if (armedClear === id) { disarmClears(); say("Clear cancelled — it was left armed too long."); }
+      }, ARM_EXPIRY);
       return;
     }
     disarmClears();
@@ -1125,21 +1147,25 @@ function wireClear(id, describe, run) {
   });
 }
 
-wireClear("pr-clear-drawing",
-  () => {
-    const edges = scene.edges.length, points = scene.vanishingPoints.length;
-    if (!edges && !scene.vertices.length) return { ok: false, reason: "there is nothing drawn yet" };
-    return {
-      ok: true,
-      action: `clear ${edges} line${edges === 1 ? "" : "s"} and keep ${points} point${points === 1 ? "" : "s"}`,
-    };
-  },
-  () => {
-    const r = clearDrawing(scene);
-    return r.ok
-      ? { ok: true, said: `Drawing cleared — ${r.edges} line${r.edges === 1 ? "" : "s"} gone, ${r.keptPoints} vanishing point${r.keptPoints === 1 ? "" : "s"} kept. Undo puts it back.` }
-      : r;
-  });
+wireClear("pr-clear-drawing", () => describeDrawingClear(), () => runDrawingClear());
+
+// The toolbar Clear is the SAME action as the dialog's first button, wired through
+// the same guard rather than reimplemented beside it.
+const describeDrawingClear = () => {
+  const edges = scene.edges.length, points = scene.vanishingPoints.length;
+  if (!edges && !scene.vertices.length) return { ok: false, reason: "there is nothing drawn yet" };
+  return {
+    ok: true,
+    action: `clear ${edges} line${edges === 1 ? "" : "s"} and keep ${points} point${points === 1 ? "" : "s"}`,
+  };
+};
+const runDrawingClear = () => {
+  const r = clearDrawing(scene);
+  return r.ok
+    ? { ok: true, said: `Drawing cleared — ${r.edges} line${r.edges === 1 ? "" : "s"} gone, ${r.keptPoints} vanishing point${r.keptPoints === 1 ? "" : "s"} kept. Undo puts it back.` }
+    : r;
+};
+wireClear("clear-drawing", describeDrawingClear, runDrawingClear);
 
 wireClear("pr-clear-all",
   () => {
@@ -1160,6 +1186,10 @@ wireClear("pr-clear-all",
 // Leaving the dialog, or doing anything else in it, cancels a pending confirm:
 // an armed destructive button must never be found still armed later.
 dlgProject.addEventListener("close", () => disarmClears());
+for (const id of ["undo", "redo", "add-vp", "mode-place", "mode-draw", "mode-box", "mode-select",
+                  "open-export", "open-project", "open-about", "weld", "snap45"]) {
+  $(id)?.addEventListener("click", () => { if (armedClear === "clear-drawing") disarmClears(); });
+}
 for (const id of ["pr-new", "pr-save", "pr-load", "pr-name", "pr-w", "pr-h", "pr-points"]) {
   $(id)?.addEventListener("click", () => disarmClears());
   $(id)?.addEventListener("input", () => disarmClears());
