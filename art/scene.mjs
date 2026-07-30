@@ -146,29 +146,41 @@ export function angleOf(p, q) {
 // Footprints are [a0,a1] x [b0,b1]; `h` is height, upward being -eC (because
 // +eC points at the nadir, i.e. down-and-away from the camera).
 
-// `h` is a FRACTION of the camera's own height above the ground plane, not a
-// world length. A box taller than the camera is above eye level, so its top face
-// is correctly invisible and it reads as chopped off by the horizon — which is
-// what the first render did. Expressing height as a fraction makes "stays below
-// eye level" a property of the data instead of a number to re-tune every time
-// the camera moves.
+// `h` is a FRACTION of the camera's own height above the ground plane, and it is
+// ALLOWED TO EXCEED 1. Capping it below 1 cost a whole round: it was capped so no
+// top face could ever be hidden, which produced squat slabs in a frame full of
+// dead space. Noah: "Make them look long like skyscrapers as the example ... You
+// aren't considering WHAT you are perspectiving."
+//
+// The geometry agrees with him. A point at exactly camera height projects ON the
+// horizon; higher than that projects above it, and its top face turns away. So a
+// tower taller than the camera SHOULD cross the horizon and show no roof — that is
+// not a rendering fault, it is what a city looks like from up among the towers.
+// The reference sketch has exactly this: one slab crossing the horizon with no
+// roof, shorter blocks around it showing theirs.
+//
+// Footprints are small and heights large, because slenderness is what reads as
+// "skyscraper": 0.52 units square at 1.38x a camera height of ~1.7 units puts the
+// tall one near 4.5 times its own width.
 export const CLUSTER = [
-  { a: [-0.10, 1.00], b: [-0.05, 1.00], h: 0.62 },   // the tall one, centre
-  { a: [-1.15, -0.15], b: [0.10, 1.05], h: 0.24 },
-  { a: [-0.05, 1.05], b: [-1.15, -0.10], h: 0.20 },
-  { a: [1.05, 2.00], b: [0.05, 1.10], h: 0.30 },
-  { a: [-1.05, -0.10], b: [-1.05, 0.05], h: 0.14 },
-  { a: [1.10, 1.85], b: [-0.95, -0.05], h: 0.17 },
+  { a: [0.00, 0.52], b: [0.00, 0.52], h: 1.38 },     // crosses the horizon, no roof
+  { a: [-0.62, -0.08], b: [0.10, 0.66], h: 1.06 },   // tops out about at eye level
+  { a: [0.62, 1.16], b: [-0.10, 0.44], h: 0.82 },
+  { a: [0.06, 0.60], b: [-0.66, -0.10], h: 0.60 },
+  { a: [-0.70, -0.14], b: [-0.60, -0.02], h: 0.34 },
+  { a: [0.70, 1.22], b: [0.54, 1.10], h: 0.46 },
+  { a: [-0.56, 0.06], b: [0.76, 1.30], h: 0.22 },
+  { a: [1.28, 1.80], b: [-0.62, 0.02], h: 0.28 },
 ];
 
 // A simpler silhouette for the icon. Below about 80px the rays and the grid are
 // gone whatever their weight, so what survives is the outline of the group — and
 // six boxes at that size is mush. Four, with one clearly tallest, still reads.
 export const TIGHT_CLUSTER = [
-  { a: [-0.10, 1.00], b: [-0.05, 1.00], h: 0.60 },
-  { a: [-1.20, -0.15], b: [0.05, 1.05], h: 0.26 },
-  { a: [-0.05, 1.05], b: [-1.20, -0.10], h: 0.22 },
-  { a: [1.05, 2.05], b: [0.00, 1.10], h: 0.34 },
+  { a: [0.00, 0.54], b: [0.00, 0.54], h: 1.42 },
+  { a: [-0.66, -0.06], b: [0.08, 0.70], h: 1.02 },
+  { a: [0.64, 1.20], b: [-0.12, 0.46], h: 0.78 },
+  { a: [0.04, 0.60], b: [-0.70, -0.08], h: 0.52 },
 ];
 
 const FACES = [
@@ -194,7 +206,8 @@ export function buildScene(cam, O, opts = {}) {
   const zMin = (opts.nearFrac ?? 0.3) * O.z;
   // How far the camera sits above the ground plane, in world units.
   const camHeight = dot3(O, cam.eC);
-  const cluster = (opts.cluster ?? CLUSTER).map(b => ({ ...b, h: b.h * camHeight }));
+  const hScale = opts.hScale ?? 1;
+  const cluster = (opts.cluster ?? CLUSTER).map(b => ({ ...b, h: b.h * hScale * camHeight }));
 
   const lines = [];   // {kind, vp, vpName, p, q, ...}
   const faces = [];   // {depth, pts, kind}
@@ -238,13 +251,18 @@ export function buildScene(cam, O, opts = {}) {
   // back toward the camera — dot(normal, any point on the face) < 0.
   const axis = { a: cam.eA, b: cam.eB, c: cam.eC };
   for (const box of cluster) {
+    // Nearest corner of the whole box orders it against the other boxes.
+    let boxNear = Infinity;
+    for (const aa of box.a) for (const bb of box.b) for (const cc of [0, -box.h]) {
+      boxNear = Math.min(boxNear, at(cam, O, aa, bb, cc).z);
+    }
     for (const [ax, sign, corners] of FACES) {
       const n = axis[ax], s = sign;
       const pts3 = corners(box).map(([a, b, c]) => at(cam, O, a, b, c));
       const mid = pts3.reduce((m, q) => ({ x: m.x + q.x / 4, y: m.y + q.y / 4, z: m.z + q.z / 4 }), { x: 0, y: 0, z: 0 });
       if (s * dot3(n, mid) >= 0) continue;                 // facing away
       faces.push({
-        depth: mid.z,
+        depth: boxNear,
         pts: pts3.map(q => project(cam, q)),
         edges: pts3.map((q, i) => [q, pts3[(i + 1) % 4]]),
       });
@@ -263,7 +281,14 @@ export function buildScene(cam, O, opts = {}) {
   }
 
   faces.sort((u, v) => v.depth - u.depth);                 // far first
-  return { lines, faces, camHeight, zMin };
+
+  // Where the tallest tower's top actually lands. Composition is tuned against
+  // this number, not against an impression: above the horizon by a little reads
+  // as "taller than the camera"; off the top of the frame reads as a mistake.
+  const tallest = cluster.reduce((m, b) => (b.h > m.h ? b : m), cluster[0]);
+  const topY = Math.min(...tallest.a.flatMap(aa => tallest.b.map(bb => p(aa, bb, -tallest.h).y)));
+  const baseY = Math.max(...tallest.a.flatMap(aa => tallest.b.map(bb => p(aa, bb, 0).y)));
+  return { lines, faces, camHeight, zMin, topY, baseY };
 }
 
 /**

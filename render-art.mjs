@@ -36,34 +36,34 @@ const VARIANTS = [
   {
     name: "icon", out: "art/icon-asdrawn.svg", w: 1024, h: 1024,
     vps: { A: { x: 68, y: 168 }, B: { x: 950, y: 168 }, C: { x: 512, y: 940 } },
-    cluster: { x: 512, y: 372 }, unitPx: 118, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5, raster: "art/icon-asdrawn.png",
+    cluster: { x: 512, y: 452 }, unitPx: 118, hScale: 0.80, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5, raster: "art/icon-asdrawn.png",
     note: "Noah's icon layout, unchanged — it is already a valid camera",
   },
   {
     name: "icon-tight", out: "art/icon-tight.svg", w: 1024, h: 1024,
     vps: { A: { x: 68, y: 168 }, B: { x: 950, y: 168 }, C: { x: 512, y: 940 } },
-    cluster: { x: 512, y: 432 }, unitPx: 152, grid: [[-2, 3], [-2, 3]], step: 0.5,
+    cluster: { x: 512, y: 520 }, unitPx: 152, hScale: 0.76, grid: [[-2, 3], [-2, 3]], step: 0.5,
     strokeWidth: 3.8, dotR: 9, boxes: TIGHT_CLUSTER, raster: "art/icon-tight.png",
     note: "same layout and same camera, cluster framed to fill the square so it survives 48px",
   },
   {
     name: "wide-in", out: "art/og-wide-in.svg", w: 1200, h: 630,
     vps: { A: { x: 242, y: 90 }, B: { x: 958, y: 90 }, C: { x: 600, y: 596 } },
-    cluster: { x: 600, y: 300 }, unitPx: 92, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5,
+    cluster: { x: 600, y: 368 }, unitPx: 92, hScale: 0.78, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5,
     overshoot: 1.14,
     note: "third point in frame, centred; horizon points at 242/958 — s = d/sqrt2, which maximises the focal length this frame can have",
   },
   {
     name: "wide-shift", out: "art/og-wide-shift.svg", w: 1200, h: 630,
     vps: { A: { x: 404, y: 88 }, B: { x: 1120, y: 88 }, C: { x: 762, y: 594 } },
-    cluster: { x: 762, y: 296 }, unitPx: 92, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5,
+    cluster: { x: 762, y: 366 }, unitPx: 92, hScale: 0.78, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5,
     overshoot: 1.14,
     note: "the same, shifted right so the left third stays clear for the wordmark",
   },
   {
     name: "wide-out", out: "art/og-wide-out.svg", w: 1200, h: 630,
     vps: { A: { x: 78, y: 92 }, B: { x: 1122, y: 92 }, C: { x: 690, y: 980 } },
-    cluster: { x: 742, y: 296 }, unitPx: 100, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5,
+    cluster: { x: 742, y: 360 }, unitPx: 100, hScale: 0.80, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5,
     overshoot: 1.14,
     note: "horizon points kept near the edges; third point below the frame, cluster right of centre to leave the left for the wordmark",
   },
@@ -75,7 +75,7 @@ const line = (l, attrs) => `<line x1="${fmt(l.p.x)}" y1="${fmt(l.p.y)}" x2="${fm
 function svgFor(v) {
   const cam = cameraFrom(v.vps.A, v.vps.B, v.vps.C);
   const O = originAt(cam, v.cluster, v.unitPx);
-  const scene = buildScene(cam, O, { vps: v.vps, gridA: v.grid[0], gridB: v.grid[1], step: v.step, cluster: v.boxes, overshoot: v.overshoot });
+  const scene = buildScene(cam, O, { vps: v.vps, gridA: v.grid[0], gridB: v.grid[1], step: v.step, cluster: v.boxes, overshoot: v.overshoot, hScale: v.hScale });
   const checks = verify(scene);
 
   const { A, B, C } = v.vps;
@@ -136,8 +136,13 @@ for (const v of VARIANTS) {
   console.log(`  ${v.note}`);
   console.log(`  camera: principal point ${P.x.toFixed(0)},${P.y.toFixed(0)}  f=${f.toFixed(0)}px  ` +
               `basis orthogonality err ${built.cam.orthogonality.toExponential(1)}`);
-  console.log(`  camera sits ${built.scene.camHeight.toFixed(2)} units above the ground plane; ` +
-              `the tall box is ${(0.62 * 100).toFixed(0)}% of that, so every top face stays visible`);
+  const sc = built.scene;
+  const over = v.vps.A.y - sc.topY;
+  console.log(`  camera sits ${sc.camHeight.toFixed(2)} units above the ground plane`);
+  console.log(`  tallest tower: base y=${sc.baseY.toFixed(0)}, top y=${sc.topY.toFixed(0)} — ` +
+              `${over > 0 ? `${over.toFixed(0)}px ABOVE the horizon (y=${v.vps.A.y}), so no roof, as intended`
+                          : `${(-over).toFixed(0)}px below the horizon`}` +
+              `${sc.topY < 0 ? "  <-- OFF THE TOP OF THE FRAME" : ""}`);
   for (const [name, c] of Object.entries(built.checks)) {
     const pt = v.vps[name];
     // A family that converges has a spread; a family that is merely parallel has
