@@ -48,6 +48,15 @@
       <button class="btn" id="mode-select" type="button" aria-pressed="false">Select</button>
     </div>
 
+    <!-- D34 / §4 (SC 2.5.1, 2.5.7): drawing without a drag. Each button puts the
+         shape on the paper at the middle of the view and hands it straight to
+         the keyboard — a line's far end is selected, a box goes into its second
+         step — so no pointer travel is ever required to draw. -->
+    <div class="bar-group" role="group" aria-label="Draw without dragging">
+      <button class="btn" id="add-line" type="button">Add line</button>
+      <button class="btn" id="add-box" type="button">Add box</button>
+    </div>
+
     <div class="bar-group" role="group" aria-label="Guides">
       <button class="btn" id="assist" type="button" aria-pressed="true">Assist</button>
       <label class="sr-only" for="force">Force this stroke onto</label>

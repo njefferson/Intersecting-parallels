@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.3.2";
+const VERSION = "1.4.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1190,6 +1190,84 @@ $("extrude-done")?.addEventListener("click", () => endExtrude());
 
 // ---- toolbar wiring ------------------------------------------------------
 
+// ---- D34 — drawing without a drag (closes F-04) --------------------------
+//
+// Every other interaction in this app had a non-drag path; the one that did not
+// was the primary creative act. The interactions gate has been reporting it as a
+// GAP on every run since it was built, which is better than silence and is still
+// not a fix.
+//
+// The path is deliberately NOT a new way to specify geometry — no coordinate
+// entry dialog, no wizard. It puts the object on the paper at a sane default and
+// then hands it to the controls that already exist: the far end of a line is
+// SELECTED, so the arrow keys slide it along its guide and the inspector carries
+// its distance as a number; a box goes straight into D31's second step, whose
+// keyboard path was already built and gated. Same shapes, same solver, same
+// undo — the only thing removed is the requirement to drag.
+const KEY_LINE_LENGTH = 200;   // canvas units — visible at fit zoom, then adjusted
+const KEY_BOX_HEIGHT = 200;
+const KEY_BOX_DEPTH = 200;
+
+// Where a keyboard-drawn object goes: the middle of what you are looking at,
+// clamped into the paper so it can never land outside the document.
+function viewCentre() {
+  const vp = viewport();
+  const p = toCanvas(view, { x: vp.width / 2, y: vp.height / 2 });
+  return {
+    x: Math.max(0, Math.min(scene.canvas.width, p.x)),
+    y: Math.max(0, Math.min(scene.canvas.height, p.y)),
+  };
+}
+
+// A drag picks its guide from the direction of travel. With no travel, the
+// honest answer is the one the toolbar is already showing: the forced guide if
+// the user set one, otherwise the first usable vanishing point, otherwise
+// horizontal — which is what a scene with no points can support.
+function keyboardBinding() {
+  const forced = forcedBinding();
+  if (forced) return forced;
+  const vp = scene.vanishingPoints.find(v => !v.locked);
+  return vp ? { vpId: vp.id } : "horizontal";
+}
+
+function addLineWithoutDragging() {
+  endExtrude(false);
+  const at = viewCentre();
+  const binding = keyboardBinding();
+  // "free" has no guide to follow, so it gets the one direction that needs no
+  // scene to be meaningful. Everything else asks the solver, and a guide that
+  // cannot give a direction from here says so rather than drawing nothing.
+  const u = binding === "free" ? { x: 1, y: 0 } : bindingDirection(scene, at, binding);
+  if (!u) {
+    toast("That guide has no direction from the middle of the view — move the point, or pick another guide", "error");
+    return;
+  }
+  const end = { x: at.x + u.x * KEY_LINE_LENGTH, y: at.y + u.y * KEY_LINE_LENGTH };
+  beginGesture(history, scene);                            // D7: one button, one undo
+  const startDesc = resolveEndpoint(scene, at, SNAP_RADIUS / view.scale, { join: prefs.weld });
+  const endDesc = resolveStrokeEnd(scene, at, binding, u, end, SNAP_RADIUS / view.scale, { weld: prefs.weld });
+  const res = commitStroke(scene, startDesc, endDesc, binding);
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  selection = { type: "vertex", id: res.b };
+  el.canvas.focus({ preventScroll: true });
+  afterEdit(`Line drawn along ${bindingName(scene, binding)}. Its far end is selected — the arrow keys move it, or type its distance in Points.`);
+}
+
+function addBoxWithoutDragging() {
+  endExtrude(false);
+  const at = viewCentre();
+  beginGesture(history, scene);
+  // One depth set, the other left at its floor — exactly the state the first
+  // drag leaves behind, so the second step that follows is the same step.
+  const res = buildBox(scene, { at, height: KEY_BOX_HEIGHT, depthL: KEY_BOX_DEPTH, depthR: 1 });
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  afterEdit(`Box drawn — ${res.edges.length} lines, every corner held by two guides.`);
+  beginExtrude(res);
+}
+
+$("add-line")?.addEventListener("click", addLineWithoutDragging);
+$("add-box")?.addEventListener("click", addBoxWithoutDragging);
+
 function setMode(mode) {
   endExtrude(false);          // switching tools ends the pending step, keeping the box
   prefs.mode = mode;
@@ -1635,6 +1713,9 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     // to select a corner the way a tap does — same path, same refresh, so what it
     // measures is the real control and not a rebuilt copy of it.
     select: sel => { selection = sel; renderInspector(); render(); return selection; },
+    // D34 — the walk has to be able to ask what a keyboard path left selected,
+    // because "and now the arrow keys work on it" is the whole claim.
+    get selection() { return selection; },
     // D29 — the walk drives the real manipulate path rather than a copy of it.
     manipulate: (id, target) => { const r = manipulate(scene, id, target); renderPanel({ structural: false }); render(); return r; },
     ancestors: id => ancestorParams(scene, id),

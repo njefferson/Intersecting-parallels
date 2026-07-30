@@ -630,6 +630,51 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D34/D35 — drawing without a drag, and no protected colours (SHIPPED 1.4.0, staging)
+
+**Noah, 2026-07-30:** *"Fix those things. There is NO reason that any color be
+protected right now. That was the WRONG call."*
+
+**D34 — the keyboard can draw (closes F-04).** Two toolbar buttons, **Add line**
+and **Add box**, in their own group labelled "Draw without dragging". Until 1.4.0
+every manipulation in this app had a non-drag path except the primary creative
+act; the interactions gate had been printing that as a GAP on every run since it
+was built, which is better than silence and is still not a fix.
+
+The design rule is that neither button is a new way to SPECIFY geometry — no
+coordinate dialog, no wizard, nothing to learn:
+- **Add line** resolves its guide the way the toolbar already reads: the forced
+  guide if one is set, else the first unlocked vanishing point, else horizontal.
+  It runs 200 canvas units from the middle of the view through the SAME
+  `resolveEndpoint` → `resolveStrokeEnd` → `commitStroke` a drag uses, then
+  SELECTS the far end and focuses the canvas. From there the arrow keys and the
+  inspector's distance field — both already built — finish it.
+- **Add box** calls the same `buildBox` with one depth set and the other at its
+  floor, which is exactly the state the first drag leaves, then calls
+  `beginExtrude`. So it lands in D31's second step and D33's arrow is on the
+  corner pointing the way. The keyboard path for that step already existed and
+  was already gated; this just reaches it without a drag.
+- Both are one `beginGesture` — one undo, like every other edit — and both place
+  the shape at the middle of the current view, clamped into the paper.
+
+**Gated by a walk block that never touches the mouse**: buttons activated with
+Enter after `focus()`, lengths and depths set with arrow keys, and a counter on
+the canvas's own `pointerdown` asserting **0** at the end. Planting a failure in
+both functions reddens five checks.
+
+**D35 — no colour is protected.** The grid measured 1.33:1 (dark) and 1.38:1
+(light) against paper. Both are now **#636A80 / 3.21:1** and **#8A8F98 /
+3.25:1**, raised multiplicatively so each keeps its own r:g:b ratio — the same
+hue, only louder. `canvas-contrast.test.mjs` now asserts ALL EIGHT palette marks
+at 3:1 in both themes, plus a test that the palette contains exactly those eight
+so a new colour cannot be added without a contrast decision, plus a hierarchy
+test (grid < guides < ink) because raising the quietest mark on the paper could
+have inverted an ordering that weight and dash also carry.
+
+The general rule, worth keeping: when a gate fails on a real value, there are
+three moves — exempt the value, lower the threshold, or fix the value. The first
+two both end with a gate that cannot fail. Only the third is a fix.
+
 ### D33 — the second step says WHICH WAY (SHIPPED 1.3.2, staging)
 
 **Noah, 2026-07-30:** *"When the box drawing switches to the third axis on
@@ -668,10 +713,14 @@ while the presence check stays green). Plus: Done ends the step and keeps the bo
 **And the colour is now measured, not eyeballed.** `themeColors` is exported and
 `test/canvas-contrast.test.mjs` does the SC 1.4.11 arithmetic the a11y gate
 cannot: a canvas is one opaque element to a DOM walker, so every mark drawn on
-the drawing surface was ungated. Selection on paper is 8.68:1 dark / 5.83:1
-light; ink and VP marks are asserted too. The grid is deliberately NOT asserted —
-it measures 1.38:1 and stays an open finding rather than a threshold lowered to
-fit it.
+the drawing surface was ungated. Selection on paper is 8.68:1 dark / 5.83:1 light.
+
+**The carve-out written here at 1.3.2 was wrong and was reversed at 1.4.0.** This
+amendment originally exempted the grid from that gate, on the reasoning that it
+was decorative and that asserting a threshold it failed would be a test written to
+pass. Noah: *"There is NO reason that any color be protected right now. That was
+the WRONG call."* He is right — the third option, the one not taken, was to fix
+the colour. See D35.
 
 ### D30/D31 — three shapes, and the box's second step (SHIPPED 1.3.0, staging)
 

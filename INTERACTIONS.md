@@ -34,13 +34,19 @@ exist in the built page, and every alternative must be reachable by keyboard.
     code paths and had already drifted apart once — a corner that could not be
     dragged also could not be nudged, and neither gap could see the other
     (ACCESSIBILITY F-05, then F-06).
-- **Draw a line** (drag on the canvas)
-  → not yet keyboard-drawable. **Declared gap, stated rather than hidden:** the
-    guide system means a line is fully described by an origin, a guide and a
-    length, so a keyboard path is possible and is the next accessibility item.
-    Recorded in ACCESSIBILITY.md as an open finding, not as a pass.
+- **Draw a line** (drag on the canvas) — keyboard path added 1.4.0 (D34)
+  → **Add line** puts one at the middle of the current view, along the guide the
+    toolbar is already showing (the forced guide if one is set, otherwise the
+    first usable vanishing point, otherwise horizontal). It arrives with its far
+    end SELECTED and the canvas focused, so the arrow keys set the length and the
+    inspector carries that distance as a number.
+    This is not a second way to specify geometry — it is the same `commitStroke`
+    the drag uses, handed to controls that already existed. Was F-04.
 - **Draw a box** — FIRST drag (height, and depth toward the point you drag toward)
-  → same gap as drawing a line, same entry (F-04).
+  → **Add box** builds one at the middle of the view with one depth set and the
+    other at its floor — precisely the state the first drag leaves behind — and
+    then opens the second step below, whose keyboard path was already built.
+    So a whole box, from nothing, without a pointer ever touching the canvas.
 - **Finish a box** — SECOND step, D31. The remaining depth is live the moment the
   first drag releases: drag anywhere, with no handle to find and no mode to pick.
   → the corner is pre-selected, so the arrow keys set that depth with no drag;

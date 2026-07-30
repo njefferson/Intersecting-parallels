@@ -52,18 +52,24 @@ export const INTERACTIONS = [
     id: "draw-stroke",
     kind: "drag",
     what: "Drag on the canvas to draw a line",
-    // An honest gap, declared as a gap. The gate treats a `gap` as a FAILURE
-    // unless it is registered in ACCESSIBILITY.md, so it cannot be forgotten —
-    // it is a finding with a number, not a silence.
-    gap: "F-04",
-    alternatives: [],
+    // Was declared `gap: "F-04"` from the day this file existed until 1.4.0.
+    // The gate reported it on every run rather than letting it pass quietly,
+    // which is why it was still on the list to fix instead of forgotten.
+    alternatives: [
+      { how: "Add line puts one at the middle of the view, along the guide the toolbar is showing (D34)", selector: "#add-line", keyboard: true },
+      { how: "Its far end is selected on arrival, so the arrow keys set the length with no drag", selector: "canvas[tabindex]", keyboard: true },
+      { how: "Or type that distance as a number", selector: "#inspector", keyboard: true },
+    ],
   },
   {
     id: "draw-box",
     kind: "drag",
     what: "First drag builds the box: height, and depth toward the point you drag toward",
-    gap: "F-04",
-    alternatives: [],
+    alternatives: [
+      { how: "Add box builds one at the middle of the view with one depth set and the other at its floor — the same state the first drag leaves (D34)", selector: "#add-box", keyboard: true },
+      { how: "It goes straight into the second step, so the arrow keys finish it", selector: "canvas[tabindex]", keyboard: true },
+      { how: "Or type the remaining depth as a number", selector: "#inspector", keyboard: true },
+    ],
   },
   {
     id: "extrude-box",

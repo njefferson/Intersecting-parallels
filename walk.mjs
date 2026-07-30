@@ -416,10 +416,18 @@ try {
 
   // Tap the MIDDLE of a line with a finger and delete it.
   await dPage.click('#mode-select');
+  // toScreen is CANVAS-relative and a dispatched touch takes VIEWPORT
+  // coordinates, so the canvas's own offset has to be added — the same
+  // instrument bug the weld block documents above. This check passed for as
+  // long as it did only because the toolbar happened to be short enough that
+  // the tap still landed inside D17's 44px radius; adding one toolbar row in
+  // 1.4.0 pushed the canvas down and the check went red against a working app.
   const midPt = await dPage.evaluate(() => {
     const sc = window.__ip.scene, e = sc.edges[1];
     const a = sc.vertices.find(v => v.id === e.a), b = sc.vertices.find(v => v.id === e.b);
-    return window.__ip.toScreen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const p = window.__ip.toScreen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const r = document.getElementById('canvas').getBoundingClientRect();
+    return { x: p.x + r.left, y: p.y + r.top };
   });
   const tapCdp = await delCtx.newCDPSession(dPage);
   await tapCdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: midPt.x, y: midPt.y, id: 1 }] });
@@ -1026,6 +1034,138 @@ try {
     afterDone.edges === 24 && afterDone.flag === 'false' && afterDone.finite,
     JSON.stringify(afterDone));
   await eCtx.close();
+
+  // D34 / F-04 — drawing without a drag. This whole block touches the mouse
+  // exactly never: buttons are focused and activated with Enter, lengths and
+  // depths are set with arrow keys. A counter on the canvas's own pointerdown
+  // proves it rather than the absence of mouse calls in the source implying it.
+  const nodragCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(nodragCtx);
+  const nodragPage = await nodragCtx.newPage();
+  nodragPage.on('pageerror', e => pageErrors.push(`keyboard-draw page: ${e}`));
+  await nodragPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await nodragPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 20000 });
+  await nodragPage.evaluate(() => {
+    window.__pointerdowns = 0;
+    document.getElementById('canvas').addEventListener('pointerdown', () => { window.__pointerdowns++; });
+  });
+
+  const edges0 = await nodragPage.evaluate(() => window.__ip.scene.edges.length);
+  await nodragPage.focus('#add-line');
+  await nodragPage.keyboard.press('Enter');
+  await nodragPage.waitForTimeout(150);
+  const line = await nodragPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const e = s.edges[s.edges.length - 1];
+    const sel = window.__ip.selection;
+    const v = sel && sel.type === 'vertex' ? s.vertices.find(x => x.id === sel.id) : null;
+    return {
+      edges: s.edges.length,
+      bound: e ? e.binding !== 'free' : false,
+      selectedFarEnd: !!v && (v.id === e.b),
+      kind: v ? v.kind : null,
+      focus: document.activeElement?.tagName?.toLowerCase(),
+      t: v && typeof v.t === 'number' ? +v.t.toFixed(1) : null,
+      finite: s.vertices.every(x => Number.isFinite(x.x) && Number.isFinite(x.y)),
+    };
+  });
+  check('Add line draws a real line from the keyboard, bound to a guide (D34)',
+    line.edges === edges0 + 1 && line.bound && line.finite,
+    `${edges0} -> ${line.edges} edges, bound ${line.bound}`);
+  check('and it hands the far end straight to the keyboard, focus and all',
+    line.selectedFarEnd && line.kind === 'ray' && line.focus === 'canvas',
+    `selected the far end: ${line.selectedFarEnd} (${line.kind}), focus on ${line.focus}`);
+
+  // The claim is that the arrow keys now finish the job. Test it, do not assume —
+  // and press the key that LENGTHENS it, which depends on which side of the view
+  // the guide's vanishing point is on. An earlier version of this check pressed
+  // ArrowRight blindly, drove the distance from 200 down to its floor of 1, and
+  // passed anyway because it only asserted that the number had changed.
+  const growKey = await nodragPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const sel = window.__ip.selection;
+    // Defensive: if the button drew nothing there is nothing selected, and the
+    // checks below should REPORT that rather than crash the whole walk on it.
+    if (!sel || sel.type !== 'vertex') return null;
+    const v = s.vertices.find(x => x.id === sel.id);
+    if (!v || typeof v.binding !== 'object') return null;
+    const o = s.vertices.find(x => x.id === v.origin);
+    const vp = s.vanishingPoints.find(p => p.id === v.binding.vpId);
+    return (vp.x - o.x) >= 0 ? 'Shift+ArrowRight' : 'Shift+ArrowLeft';
+  });
+  for (let i = 0; growKey && i < 12; i++) await nodragPage.keyboard.press(growKey);
+  await nodragPage.waitForTimeout(120);
+  const lengthened = await nodragPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const sel = window.__ip.selection;
+    const v = sel && sel.type === 'vertex' ? s.vertices.find(x => x.id === sel.id) : null;
+    return { t: v ? +Math.abs(v.t).toFixed(1) : -1, degenerate: s.vertices.filter(x => x.degenerate).length };
+  });
+  check('the arrow keys then LENGTHEN it, with no drag anywhere (SC 2.5.7)',
+    lengthened.t > Math.abs(line.t) + 20 && lengthened.degenerate === 0,
+    `distance ${Math.abs(line.t)} -> ${lengthened.t} using ${growKey}`);
+
+  // A box, the same way — and it must arrive in D31's second step, because that
+  // step is where its third dimension comes from.
+  await nodragPage.focus('#add-box');
+  await nodragPage.keyboard.press('Enter');
+  await nodragPage.waitForTimeout(150);
+  const kbBox = await nodragPage.evaluate(() => {
+    const s = window.__ip.scene;
+    return {
+      edges: s.edges.length,
+      flag: document.getElementById('extrude-flag')?.dataset.on,
+      arrow: !!window.__ip.extrudeArrow(),
+      depths: s.vertices.filter(v => v.kind === 'ray' && typeof v.binding === 'object')
+        .map(v => +Math.abs(v.t).toFixed(1)).sort((a, b) => a - b),
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+      degenerate: s.vertices.filter(v => v.degenerate).length,
+    };
+  });
+  check('Add box builds a whole box from the keyboard and opens the second step (D34)',
+    kbBox.edges === line.edges + 12 && kbBox.flag === 'true' && kbBox.arrow && kbBox.finite && kbBox.degenerate === 0,
+    `${line.edges} -> ${kbBox.edges} edges, step ${kbBox.flag}, arrow ${kbBox.arrow}`);
+
+  // Same again: the depth is AT its floor, so pressing the shrinking direction
+  // would be a no-op and would tell us nothing. The arrow the step draws already
+  // knows which way this corner travels — use it.
+  const deepenKey = await nodragPage.evaluate(() => {
+    const a = window.__ip.extrudeArrow();
+    if (!a) return null;
+    const at = window.__ip.toScreen({ x: a.x, y: a.y });
+    const far = window.__ip.toScreen({ x: a.x + a.u.x * 100, y: a.y + a.u.y * 100 });
+    return (far.x - at.x) >= 0 ? 'Shift+ArrowRight' : 'Shift+ArrowLeft';
+  });
+  for (let i = 0; deepenKey && i < 12; i++) await nodragPage.keyboard.press(deepenKey);
+  await nodragPage.waitForTimeout(120);
+  const deepened = await nodragPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const sel = window.__ip.selection;
+    const v = sel && sel.type === 'vertex' ? s.vertices.find(x => x.id === sel.id) : { t: -1 };
+    return {
+      t: +Math.abs(v.t).toFixed(1),
+      edges: s.edges.length,
+      finite: s.vertices.every(x => Number.isFinite(x.x) && Number.isFinite(x.y)),
+      degenerate: s.vertices.filter(x => x.degenerate).length,
+    };
+  });
+  check('and the arrow keys set the remaining depth — a whole box, never once dragged',
+    deepened.t > 40 && deepened.edges === kbBox.edges && deepened.finite && deepened.degenerate === 0,
+    `remaining depth ${kbBox.depths[0]} -> ${deepened.t} using ${deepenKey}`);
+
+  // Each button is one undo, like every other edit (D7).
+  const undoneKeyboard = await nodragPage.evaluate(async () => {
+    document.getElementById('undo').click();
+    await new Promise(r => requestAnimationFrame(r));
+    return window.__ip.scene.edges.length;
+  });
+  check('a keyboard-drawn box is one undo, same as a dragged one',
+    undoneKeyboard === deepened.edges, `${deepened.edges} -> ${undoneKeyboard} edges after one undo`);
+
+  const pointerdowns = await nodragPage.evaluate(() => window.__pointerdowns);
+  check('none of that touched the canvas with a pointer (F-04 closed)',
+    pointerdowns === 0, `${pointerdowns} pointerdown events on the canvas`);
+  await nodragCtx.close();
 
   // D29 — the four corners that did nothing. This is the defect class Noah
   // reported and NO gate could see it: before this block the walk never dragged a

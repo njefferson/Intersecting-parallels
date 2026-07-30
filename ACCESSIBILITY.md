@@ -59,15 +59,26 @@ About dialog: `.dlg-head h2` `.dlg-body` `.dlg-body a` `.dlg-body li`
 A canvas is one opaque element to a DOM walker, so every mark drawn on the
 drawing surface sits outside the registry above. `test/canvas-contrast.test.mjs`
 does that arithmetic instead, on `themeColors` from `render.mjs`, and runs with
-`npm test`. It covers the marks that ARE controls: the selection colour — which
-carries the selected corner, the selected edge, and D33's extrude arrow — at
-**8.68:1 dark / 5.83:1 light** on paper, plus committed ink and the vanishing
-point marks, all against a 3:1 floor (SC 1.4.11).
+`npm test`. It covers **all eight** palette marks — ink, guide, grid, vp,
+vpLocked, bad, sel, ghost — against paper at a 3:1 floor (SC 1.4.11), in both
+themes. A ninth test asserts the palette contains exactly those eight, so adding a
+colour without deciding what it must clear fails the build rather than passing
+unnoticed. The selection colour, which carries the selected corner, the selected
+edge and D33's extrude arrow, measures **8.68:1 dark / 5.83:1 light**.
 
-The grid rule is **deliberately not asserted**: it measures **1.38:1** and would
-fail. It is decorative rather than a control, and it stays an open finding below
-rather than a threshold lowered until the current value fits — a test written to
-pass is not a gate.
+**Nothing is carved out.** The first version of this file exempted the grid
+because it measured 1.38:1 and could be called decorative. Noah's ruling on
+2026-07-30 — *"There is NO reason that any color be protected right now. That was
+the WRONG call."* — was correct, and the exemption is gone. A drawing app's grid
+is not decoration: it is how scale and position are read off the paper. Exempting
+the single thing that failed is how a gate becomes a formality.
+
+The grid was raised instead: **#26304F → #636A80** (1.33:1 → 3.21:1) dark, and
+**#D5DCEA → #8A8F98** (1.38:1 → 3.25:1) light, each keeping its own r:g:b ratio
+so it is the same hue, only louder. A further test asserts the hierarchy survived
+— grid quieter than guides, guides quieter than committed ink — because raising
+the quietest thing on the paper could have inverted the ordering that weight and
+dash also carry.
 
 `.empty` is deliberately NOT registered: whether the saved-projects list is
 empty depends on whether autosave has fired, and a selector that matches only
@@ -196,7 +207,19 @@ is ever removed from this register while the gap remains.
 described by an origin, a guide and a length — all three of which already have
 numeric controls elsewhere in the app — so a keyboard path is buildable, not
 theoretical.
-**Status:** OPEN. Next accessibility item.
+**Fix (1.4.0, D34):** two toolbar buttons, **Add line** and **Add box**. Neither
+invents a way to specify geometry: the line goes through the same `commitStroke` a
+drag uses and arrives with its far end selected and the canvas focused; the box
+goes through the same `buildBox` and lands in D31's second step, whose keyboard
+path already existed. Both put the shape at the middle of the current view,
+clamped into the paper, and each is one undo like any other edit.
+**Gated:** a walk block that never touches the mouse — buttons activated with
+Enter, lengths and depths set with arrow keys — and which counts `pointerdown`
+events on the canvas and asserts **0**. It presses the arrow key that LENGTHENS
+rather than a fixed direction, after an earlier version of the check drove the
+distance from 200 down to its floor of 1 and passed anyway because it only
+asserted that the number had changed.
+**Status:** CLOSED 2026-07-30, in 1.4.0.
 
 ### F-05 · A selected corner answered no keys, and could not be dragged
 **Found:** 2026-07-30 · by Noah, on the shipped 1.0.0
@@ -317,3 +340,24 @@ reddened the alignment-to-guide check alone (cross 0 → 0.179). Drawing the arr
 check (176/176 → 0/172) while the presence check stayed green — which is the
 point of having both. And dimming the dark theme's selection colour to `#1A2036`
 took `npm test` from 109 pass to 108 pass / 1 fail, naming the dark theme only.
+
+**2026-07-30, D34 and the grid (1.4.0)** — the keyboard drawing path was planted
+against by returning early from both `addLineWithoutDragging` and
+`addBoxWithoutDragging`: **five** checks went red (line drawn, far end selected,
+length set by keys, box built and step opened, depth set by keys) and the walk
+still ran to completion, because the first version of that block CRASHED on the
+planted failure instead of reporting it — a gate that dies cannot tell you how
+much is broken. Reverting the two grid colours to their shipped values reddened
+exactly the two grid assertions and nothing else.
+
+Two REAL defects came out of that same run, neither planted. The arrow-key check
+first pressed `Shift+ArrowRight` blindly, which drove the line's distance from 200
+down to its floor of **1** — and passed, because it only asserted the number had
+moved by more than 20. It now derives the lengthening direction from which side
+the vanishing point is on and asserts the distance GREW. And adding one toolbar
+row pushed the canvas down far enough that D17's touch-to-select check missed the
+line it was aiming at: that check had been converting canvas-relative coordinates
+into a viewport-relative touch without adding the canvas offset, and had been
+passing only because the toolbar was short enough to stay inside a 44px radius.
+Both are instrument bugs found by changing something unrelated, which is the
+argument for a walk that measures rather than watches.

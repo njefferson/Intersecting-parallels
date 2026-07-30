@@ -8,6 +8,27 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.4.0 — CAPABILITY · 2026-07-30
+
+**You can draw without dragging, and the grid is finally visible.**
+
+- **Add line** and **Add box** are new buttons on the toolbar. Each puts the
+  shape in the middle of what you are looking at and hands it straight to the
+  keyboard: a line arrives with its far end already selected, so the arrow keys
+  set its length; a box arrives in its second step, so the arrow keys set the
+  remaining depth. A whole box can now be drawn without a finger ever touching
+  the canvas. This was the last thing in the app that required a drag.
+- Neither button is a new way to describe a shape. They build the same lines and
+  the same boxes the drag builds, through the same code, with the same single
+  undo — the only thing removed is the drag.
+- **The grid is no longer nearly invisible.** It measured 1.33:1 against the
+  paper in the dark theme and 1.38:1 in the light one, well under the 3:1 the
+  rest of the app is held to. Both are now above it, in the same hue, and the
+  drawing still reads in the right order: grid quietest, guides above it,
+  your committed lines loudest.
+
+---
+
 ## 1.3.2 — ITERATION · 2026-07-30
 
 **The second step now shows you which way to drag.**

@@ -66,9 +66,9 @@ export function offscreenMarker(view, vp, viewport, inset = 30) {
 export function themeColors(theme) {
   // Colour reinforces; weight and dash carry the meaning (D6).
   return theme === "light"
-    ? { ink: "#171C2B", guide: "#586079", grid: "#D5DCEA", paper: "#FFFFFF",
+    ? { ink: "#171C2B", guide: "#586079", grid: "#8A8F98", paper: "#FFFFFF",
         vp: "#4A54C8", vpLocked: "#586079", bad: "#B03270", sel: "#0E6E88", ghost: "#586079" }
-    : { ink: "#EAECF5", guide: "#8B93AD", grid: "#26304F", paper: "#141A2E",
+    : { ink: "#EAECF5", guide: "#8B93AD", grid: "#636A80", paper: "#141A2E",
         vp: "#8A97FF", vpLocked: "#8B93AD", bad: "#E0619E", sel: "#58C6E0", ghost: "#8B93AD" };
 }
 
