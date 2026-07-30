@@ -49,7 +49,7 @@ and on `staging`, awaiting Noah's single aggregate pass. What each step became:
 
 **Gates, all three green, all three run by CI on the same entry points a
 session runs locally:**
-- `npm test` — 53 tests (solver, snapping, D11 guide ranking, D12 binding
+- `npm test` — 57 tests (solver, snapping, D11 guide ranking, D12 binding
   honesty, D16 the closed guide set and no endpoint anchoring, export, project
   validation, undo). Every new block was made to fail against the unfixed code
   before it was trusted.
@@ -404,6 +404,41 @@ VPs legible.
 - PNG: probe the real canvas ceiling on Noah's iPad before offering dimensions,
   and clamp with an honest message rather than emitting the blank image iOS
   produces past the limit (Doctrine §5).
+
+### D18. There is no plain line
+
+**Noah, 2026-07-29:** *"No 'drawn as plain line.'"* §3.2's angular threshold is
+deleted. A stroke that missed every guide by more than the band used to fall
+through to `free` — the one outcome that is never useful in a perspective tool,
+because it silently returns a line belonging to nothing that will not move when
+a point does. Whatever the angle, the nearest guide takes it. `SNAP_THRESHOLD`
+and the per-instrument band D13 added for touch are both gone from the code
+rather than left lying around claiming to do something.
+
+Deliberate escapes are untouched: Assist off and "Guide: none" are his choices.
+The change is that the app no longer makes that choice for him.
+
+### D19. The guide can be switched mid-stroke
+
+**Noah, 2026-07-29:** *"Allow switching targets mid line?"* Yes. The choice used
+to lock 28 screen px into the drag (D13) and never move, so a stroke aimed
+wrongly had to be lifted, undone and redrawn. The guide is now re-picked on
+every pointer move for the whole stroke, and swinging the finger toward another
+guide moves the line onto it — verified in the real app in one continuous touch
+drag: the live region read "Following VP1" then "Following VP2", one line, 0px
+off VP2.
+
+The lock existed because of jitter. **Hysteresis replaces it:** a rival guide
+must beat the one in hand by `SWITCH_MARGIN` (6°) to take over, so a tremor
+cannot flap the line while a deliberate swing crosses the margin at once.
+
+**A limit, measured and worth knowing rather than discovering:** two vanishing
+points that are within the switch margin of each other from a given origin —
+which is exactly what happens near the horizon, where both were ~3° apart in a
+real scene — cannot be swung between, because there is no angular gap to swing
+through. The forced Guide picker is the way to change between them there. That
+is geometry, not a defect, and the test for mid-stroke switching says so where
+it picks its origin.
 
 ### D17. Deleting is always possible, and deleting a guide moves nothing
 

@@ -99,8 +99,9 @@ try {
   check('strokes become edges', s.scene.edges.length === beforeEdges + 3,
     `${s.scene.edges.length - beforeEdges} of 3 landed`);
   const bindings = s.scene.edges.map(e => (e.binding === 'free' ? 'free' : (typeof e.binding === 'string' ? e.binding : 'vp')));
-  check('a stroke drawn along a guide binds to it, not to nothing',
-    bindings.filter(b => b !== 'free').length >= 3, `bindings: ${bindings.join(', ')}`);
+  // D18: there is no plain line. EVERY stroke carries a guide, not just most.
+  check('every stroke lands on a guide — none come back plain (D18)',
+    bindings.length > 0 && bindings.every(b => b !== 'free'), `bindings: ${bindings.join(', ')}`);
 
   // D16 replaces §2.4's mandatory merging. Noah's rule: nothing but a GUIDE may
   // influence a stroke — an endpoint lands where it was put and is never welded

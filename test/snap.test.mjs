@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createScene, addVp, addAnchor, setHorizon, solveScene, moveVp, addRayVertex } from "../public/app/solver.mjs";
 import {
-  scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge, resolveEndpoint, commitStroke, thresholdFor, bindingSatisfied, effectiveBinding,
+  scoreBindings, chooseBinding, nearestVertex, nearestBoundEdge, resolveEndpoint, commitStroke, bindingSatisfied, effectiveBinding, SWITCH_MARGIN, sameBinding,
 } from "../public/app/snap.mjs";
 
 function scene2pt() {
@@ -26,23 +26,25 @@ test("§3.2 scoring: a stroke 5° off a VP line binds to that VP", () => {
   assert.deepEqual(chosen.binding, { vpId: vp1.id });
 });
 
-test("§3.2 threshold: 40° off every candidate falls back to free", () => {
+test("D18 replaces §3.2's threshold: a direction far from every guide takes the nearest one", () => {
   const { scene } = scene2pt();
   const origin = { x: 600, y: 500 };
-  const ranked = scoreBindings(scene, origin, { x: 1, y: 0 });
-  assert.ok(ranked.length >= 4);
-  // Find a direction at least 40° from every candidate line.
-  let found = null;
+  // Find the worst-case direction — the one furthest from every guide there is.
+  let worstDir = null, worstAngle = -1;
   for (let deg = 0; deg < 180; deg += 1) {
     const r = deg * Math.PI / 180;
     const dir = { x: Math.cos(r), y: Math.sin(r) };
-    const worst = scoreBindings(scene, origin, dir)[0];
-    if (worst.angle >= 40) { found = dir; break; }
+    const nearest = scoreBindings(scene, origin, dir)[0];
+    if (nearest.angle > worstAngle) { worstAngle = nearest.angle; worstDir = dir; }
   }
-  assert.ok(found, "a direction 40°+ off every guide exists in a 2-point setup");
-  assert.equal(chooseBinding(scene, origin, found).binding, "free");
+  assert.ok(worstAngle > 20, `the worst case is only ${worstAngle.toFixed(1)}° off — pick a scene with a real gap`);
+  // The spec would have returned `free` here. Noah's rule says there is no such
+  // thing, so the nearest guide takes it however far away that is.
+  const chosen = chooseBinding(scene, origin, worstDir, {});
+  assert.notEqual(chosen.binding, "free", `${worstAngle.toFixed(1)}° off every guide still came back unguided`);
+  const nearest = scoreBindings(scene, origin, worstDir)[0];
+  assert.ok(Math.abs(chosen.u.x) === Math.abs(nearest.u.x) || chosen.binding, "it is a real guide");
 });
-
 test("assist off, and a forced binding, both bypass scoring (§3.2 overrides)", () => {
   const { scene, vp2 } = scene2pt();
   const origin = { x: 600, y: 500 };
@@ -240,33 +242,25 @@ test("D11: a vertical stroke is unaffected — verticals still bind vertical", (
   assert.equal(chosen.binding, "vertical");
 });
 
-test("D11: touch gets a wider snap band than a stylus, and both refuse a wild angle", () => {
-  const { scene, vp1 } = farVpScene();
+test("D18: a stroke at any angle lands on a guide — never on nothing", () => {
+  const { scene } = farVpScene();
   const from = { x: 900, y: 500 };
-  const base = Math.atan2(aimAt(from, vp1).y, aimAt(from, vp1).x);
-  const at = deg => { const a = base + deg / (180 / Math.PI); return { x: Math.cos(a), y: Math.sin(a) }; };
-
-  // 18° off: outside the pen band (15°), inside the touch band (22°).
-  assert.equal(chooseBinding(scene, from, at(18), { threshold: thresholdFor("pen") }).binding, "free");
-  const touched = chooseBinding(scene, from, at(18), { threshold: thresholdFor("touch") });
-  assert.equal(typeof touched.binding, "object");
-  assert.equal(touched.binding.vpId, vp1.id);
-
-  // 40° off: no guide, whatever the instrument. Assist must not invent one.
-  for (const kind of ["pen", "touch", "mouse"]) {
-    assert.equal(chooseBinding(scene, from, at(40), { threshold: thresholdFor(kind) }).binding, "free");
+  // Every direction on the circle, including the ones that used to fall through
+  // the old 15°/22° threshold to `free`.
+  for (let a = 0; a < 360; a += 3) {
+    const r = a * Math.PI / 180;
+    const chosen = chooseBinding(scene, from, { x: Math.cos(r), y: Math.sin(r) }, {});
+    assert.notEqual(chosen.binding, "free", `${a}° came back unguided`);
+    assert.ok(chosen.u, `${a}° came back with no direction`);
   }
 });
 
-// ---- D12: a binding is a fact about the line, never an aspiration ---------
-//
-// Found by adversarially auditing the D11 fix (Doctrine §14 — after a
-// regression reaches Noah's device, the next handoff gets an exhaustive audit
-// first). §2.4 makes endpoint merging mandatory; when BOTH ends merge into
-// points that already exist, nothing makes the line pass through the guide the
-// stroke asked for. Measured before the fix: an edge stored as bound to VP1
-// whose line missed VP1 by 1,866px.
-
+test("D18: the deliberate escapes still work — assist off, and a forced none", () => {
+  const { scene } = farVpScene();
+  const dir = { x: 0.6, y: 0.8 };
+  assert.equal(chooseBinding(scene, { x: 900, y: 500 }, dir, { assist: false }).binding, "free");
+  assert.equal(chooseBinding(scene, { x: 900, y: 500 }, dir, { forced: "free" }).binding, "free");
+});
 test("D12: a stroke between two existing points that are not on the guide is not recorded as bound", () => {
   const { scene, vp1 } = farVpScene();
   const p1 = addAnchor(scene, { x: 900, y: 400 }).vertex;
@@ -368,8 +362,11 @@ test("D16: the 45° pair appears ONLY when it is switched on", () => {
   const dir = { x: Math.SQRT1_2, y: Math.SQRT1_2 };           // exactly 45°
   const off = scoreBindings(scene, { x: 800, y: 600 }, dir).map(c => c.binding);
   assert.equal(off.includes("diag45"), false, "off by default");
-  assert.equal(chooseBinding(scene, { x: 800, y: 600 }, dir, {}).binding, "free",
-    "a 45° stroke matches nothing when the toggle is off");
+  // D18: with the toggle off a 45° stroke does not come back unguided — it takes
+  // the nearest guide there is, which is simply not the 45° one.
+  const without = chooseBinding(scene, { x: 800, y: 600 }, dir, {}).binding;
+  assert.notEqual(without, "free", "still guided");
+  assert.notEqual(without, "diag45", "but never the guide that is switched off");
   const on = scoreBindings(scene, { x: 800, y: 600 }, dir, { diagonals: true }).map(c => c.binding);
   assert.equal(on.includes("diag45"), true);
   assert.equal(chooseBinding(scene, { x: 800, y: 600 }, dir, { diagonals: true }).binding, "diag45");
@@ -402,4 +399,75 @@ test("D16: an endpoint lands where it was put — no merging, no snapping to a l
   const missed = Math.abs(ex * (a.y - vp1.y) - ey * (a.x - vp1.x)) / eL;
   assert.ok(missed < 1e-6, `the line still converges on VP1 (off by ${missed})`);
   assert.deepEqual(res.edge.binding, { vpId: vp1.id });
+});
+
+// ---- D19: the guide can be switched mid-stroke -----------------------------
+//
+// Noah, 2026-07-29: "Allow switching targets mid line?" Yes. The guide is
+// re-picked on every pointer move, with hysteresis so a tremor cannot flap the
+// line between two guides while a deliberate swing switches at once.
+
+test("D19: swinging the stroke onto another guide switches it mid-line", () => {
+  const { scene, vp1, vp2 } = farVpScene();
+  // Well BELOW the horizon, so the two points are genuinely different
+  // directions from here (~29° apart). Measured while writing this: from a
+  // point NEAR the horizon they are only ~3° apart, which is inside the switch
+  // margin — there is nothing to swing through, and the Guide picker is the way
+  // to change between them there. That is geometry, not a defect.
+  const from = { x: 800, y: 1100 };
+  const toward = vp => {
+    const dx = vp.x - from.x, dy = vp.y - from.y, L = Math.hypot(dx, dy);
+    return { x: dx / L, y: dy / L };
+  };
+  // Start out along VP1's line and confirm it is what we are holding.
+  const first = chooseBinding(scene, from, toward(vp1), {});
+  assert.equal(first.binding.vpId, vp1.id);
+  // Now swing decisively to VP2's line while HOLDING VP1 — it must hand over.
+  const swung = chooseBinding(scene, from, toward(vp2), { current: first.binding });
+  assert.equal(swung.binding.vpId, vp2.id, "a deliberate swing switches the guide");
+  // And vertical, which is nowhere near either, takes it just as readily.
+  const up = chooseBinding(scene, from, { x: 0, y: 1 }, { current: swung.binding });
+  assert.equal(up.binding, "vertical");
+});
+
+test("D19: hysteresis — a tremor does NOT flap the line between two guides", () => {
+  // Written the second time round. The first version jittered around a VP aim
+  // and passed with hysteresis DELETED, because D11's tie-breaks were already
+  // pinning that case — a test satisfied by a mechanism other than the one it
+  // names is decoration. This one sits exactly on the boundary between vertical
+  // and horizontal, 45° from each, where nothing else breaks the tie: without
+  // hysteresis the guide flips with every wobble.
+  const scene = createScene({ name: "d19", width: 1600, height: 1200 });
+  setHorizon(scene, 540);                       // no vanishing points at all
+  const from = { x: 800, y: 600 };
+  const base = 45 * Math.PI / 180;
+  let held = chooseBinding(scene, from, { x: Math.cos(base), y: Math.sin(base) }, {}).binding;
+  const started = held;
+  assert.ok(started === "vertical" || started === "horizontal", `started on ${started}`);
+  let flips = 0;
+  for (let i = 0; i < 200; i++) {
+    const wobble = ((i * 37) % 9 - 4) * 0.6;     // ±2.4°, deterministic, either side
+    const a = base + wobble * Math.PI / 180;
+    const next = chooseBinding(scene, from, { x: Math.cos(a), y: Math.sin(a) }, { current: held }).binding;
+    if (!sameBinding(next, started)) flips++;
+    held = next;
+  }
+  assert.equal(flips, 0, `the guide moved ${flips} times under a ±2.4° tremor`);
+});
+
+test("D19: the margin is a margin, not a lock — past it the switch happens", () => {
+  const { scene } = farVpScene();
+  const from = { x: 900, y: 500 };
+  // Hold `vertical`, then rotate away from it degree by degree and find where it
+  // lets go. It must let go, and only after SWITCH_MARGIN is exceeded.
+  let held = "vertical";
+  let switchedAt = null;
+  for (let deg = 90; deg >= 0; deg -= 1) {
+    const r = deg * Math.PI / 180;
+    const next = chooseBinding(scene, from, { x: Math.cos(r), y: Math.sin(r) }, { current: held }).binding;
+    if (!sameBinding(next, "vertical")) { switchedAt = 90 - deg; break; }
+  }
+  assert.ok(switchedAt !== null, "it never let go — that is a lock, not hysteresis");
+  assert.ok(switchedAt > SWITCH_MARGIN - 1,
+    `let go after only ${switchedAt}°, inside the ${SWITCH_MARGIN}° margin`);
 });

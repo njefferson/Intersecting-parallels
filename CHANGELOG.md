@@ -8,6 +8,28 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.4.0 — CAPABILITY · 2026-07-29
+
+**No more plain lines, and you can change your mind mid-stroke.**
+
+- **Every line lands on a guide.** However far off the angle, a stroke takes the
+  nearest vanishing point, vertical or horizontal. The app will never again hand
+  back a line that belongs to nothing and tell you it drew a plain line.
+- **The guide can be switched while you are still drawing.** Swing your finger
+  toward another point and the line goes with it — no lifting, no undo. It says
+  which guide has it as you go.
+- A tremor cannot flap the line between two guides: a different guide has to
+  clearly beat the one in hand before it takes over. A deliberate swing crosses
+  that instantly.
+- Worth knowing: two points that are almost the same line from where you started
+  — which is what happens near the horizon — cannot be swung between, because
+  there is nothing to swing through. Use the Guide menu there.
+- Turning Assist off, or picking "Guide: none", still gives you exactly what you
+  drew. Those are your choices; the difference is the app no longer makes them
+  for you.
+
+---
+
 ## 0.3.0 — CAPABILITY · 2026-07-29
 
 **You can delete things now.**

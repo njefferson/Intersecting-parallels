@@ -1,16 +1,17 @@
-// snap.mjs — hit-testing, stroke-binding scoring (§3.2) and the endpoint
-// precedence of D2. Pure functions over the scene; no DOM.
+// snap.mjs — hit-testing and stroke-guide scoring. Pure functions over the
+// scene; no DOM.
 //
-// D2's precedence, applied to every endpoint at placement:
-//   1. Merge into an existing vertex within SNAP_RADIUS.
-//   2. Otherwise intersect an existing BOUND edge within SNAP_RADIUS.
-//   3. Otherwise create a plain vertex (anchor for a stroke's first endpoint,
-//      ray vertex with authored length for its second).
-// Rule 2 is what makes acceptance test 1's box intersection-defined, so a VP
-// drag reads as perspective rather than rotation.
+// Read the amendments in NOTES.md before changing anything here. The short
+// version, because it has been got wrong twice:
+//   D16  The guide set is EXACTLY the vanishing points, vertical and horizontal
+//        (plus the optional 45° pair). Endpoint anchoring — D2's merge into a
+//        nearby vertex or snap onto an existing edge — is OFF; an endpoint
+//        lands where it was put. `join` still exists for a future toggle.
+//   D18  There is no plain line: every stroke takes the nearest guide.
+//   D19  The guide may switch mid-stroke, with hysteresis so a tremor cannot.
 
 import {
-  SNAP_RADIUS, SNAP_THRESHOLD, EPS_LEN_FACTOR,
+  SNAP_RADIUS, EPS_LEN_FACTOR,
   projectPointOnLine, bindingDirection,
   addAnchor, addRayVertex, addIntersectVertex, addEdge,
 } from "./solver.mjs";
@@ -48,15 +49,33 @@ export const AXIS_MARGIN = 4;          // degrees
 export const VP_TIE = 4;               // degrees
 
 
-// §12 leaves SNAP_THRESHOLD "to tune against real stylus input". A FINGER is
-// measurably coarser than a stylus: the direction is taken over ~10 canvas px,
-// and a fingertip covers more than that. Touch therefore gets a wider band —
-// same rule, different instrument. Pen and mouse keep the spec's 15°.
-export const TOUCH_SNAP_THRESHOLD = 22;
+// D18 — THERE IS NO PLAIN LINE. Every stroke lands on a guide.
+//
+// Noah, 2026-07-29: *"No 'drawn as plain line.'"*
+//
+// §3.2's angular threshold is gone. A stroke more than N degrees off every
+// guide used to fall through to `free`, which in a perspective construction
+// tool is the one outcome that is never useful: it silently hands back a line
+// that belongs to nothing and will not move when a point does. Whatever the
+// angle, the stroke now takes the NEAREST available guide. SNAP_THRESHOLD and
+// the per-instrument band it needed are deleted rather than left lying around
+// claiming to do something.
+//
+// Deliberate escapes are untouched: Assist off, and "Guide: none" in the
+// picker, are choices he makes, not something the app decides for him.
 
-export function thresholdFor(pointerType) {
-  return pointerType === "touch" ? TOUCH_SNAP_THRESHOLD : SNAP_THRESHOLD;
-}
+// D19 — the guide can be switched MID-STROKE, and switching must be deliberate.
+//
+// Noah, 2026-07-29: *"Allow switching targets mid line?"* Yes. The choice used
+// to lock a short way into the drag and never move again, so a stroke aimed
+// wrongly had to be undone and redrawn. Now every pointer move re-picks, and
+// swinging the finger toward another guide moves the line onto it.
+//
+// The reason it locked was jitter. Hysteresis replaces the lock: a different
+// guide has to beat the one in hand by SWITCH_MARGIN degrees before it takes
+// over, so a tremor cannot flap the line between two guides while a deliberate
+// swing crosses that margin immediately.
+export const SWITCH_MARGIN = 6;        // degrees a rival must win by, mid-stroke
 
 const isVpBinding = b => typeof b !== "string";
 
@@ -108,14 +127,17 @@ export function scoreBindings(scene, originPos, dir, { diagonals = false } = {})
   return out;
 }
 
-// The stroke's binding (§3.2): forced wins; assist off means free; otherwise
-// the best candidate, unless its angular error exceeds SNAP_THRESHOLD.
-export function chooseBinding(scene, originPos, dir, { forced = null, assist = true, threshold = SNAP_THRESHOLD, diagonals = false } = {}) {
+// The stroke's binding: forced wins; assist off means free (his choice, D18);
+// otherwise the NEAREST guide, always — with the guide already in hand kept
+// unless a rival beats it by SWITCH_MARGIN (D19).
+export function chooseBinding(scene, originPos, dir, { forced = null, assist = true, diagonals = false, current = null } = {}) {
   if (forced) return forced === "free" ? { binding: "free", u: null } : bestForced(scene, originPos, forced);
   if (!assist) return { binding: "free", u: null };
   const ranked = scoreBindings(scene, originPos, dir, { diagonals });
-  const inRange = ranked.filter(c => c.angle <= threshold);
-  if (!inRange.length) return { binding: "free", u: null };
+  // D18: every candidate is in range. There is always a nearest guide, so a
+  // stroke can never come back unguided.
+  const inRange = ranked;
+  if (!inRange.length) return { binding: "free", u: null };   // only if a scene has no guides at all
   const best = inRange[0];                                   // sorted best-first
   const vps = inRange.filter(c => isVpBinding(c.binding));   // therefore angle-sorted too
   let bestVp = vps[0];
@@ -130,10 +152,22 @@ export function chooseBinding(scene, originPos, dir, { forced = null, assist = t
   }
   // D11, part one: the VP takes a near-tie with an axis. Only a clearly better
   // axis beats it.
-  if (bestVp && bestVp !== best && bestVp.angle <= best.angle + AXIS_MARGIN) {
-    return { binding: bestVp.binding, u: bestVp.u };
+  let winner = best;
+  if (bestVp && bestVp !== best && bestVp.angle <= best.angle + AXIS_MARGIN) winner = bestVp;
+
+  // D19: mid-stroke, the guide already in hand keeps the line unless the winner
+  // beats it by SWITCH_MARGIN. Without this a tremor flaps the line between two
+  // guides; with it, a deliberate swing still crosses the margin at once.
+  if (current) {
+    const held = inRange.find(c => sameBinding(c.binding, current));
+    if (held && held.angle <= winner.angle + SWITCH_MARGIN) winner = held;
   }
-  return { binding: best.binding, u: best.u };
+  return { binding: winner.binding, u: winner.u };
+}
+
+export function sameBinding(a, b) {
+  if (typeof a === "string" || typeof b === "string") return a === b;
+  return !!(a && b && a.vpId === b.vpId);
 }
 
 // Is the drag reaching toward this vanishing point, or away from it? Both draw

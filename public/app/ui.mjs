@@ -13,7 +13,7 @@ import {
   createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS, bindingDirection,
   deleteVp as deleteVpFromScene, deleteVertex,
 } from "./solver.mjs";
-import { chooseBinding, resolveEndpoint, commitStroke, nearestVertex, nearestEdge, thresholdFor, bindingName, effectiveBinding } from "./snap.mjs";
+import { chooseBinding, resolveEndpoint, commitStroke, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
   createView, fitView, toCanvas, toScreen, zoomAt, draw, vpAt, offscreenMarker, HANDLE_HIT,
 } from "./render.mjs";
@@ -25,12 +25,13 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 const NUDGE = 1, NUDGE_BIG = 20;
-// D13: both in SCREEN px, because that is where a hand's noise lives — canvas
-// px shrink with zoom and stop describing the gesture.
+// D13: in SCREEN px, because that is where a hand's noise lives — canvas px
+// shrink with zoom and stop describing the gesture. D19 removed the companion
+// LOCK_TRAVEL: the guide is re-picked for the whole stroke now, so it can be
+// switched mid-line, and hysteresis rather than a lock keeps it steady.
 const MIN_TRAVEL = 10;    // before any guide is offered at all
-const LOCK_TRAVEL = 28;   // past this the choice stops moving under the finger
 
 const $ = id => document.getElementById(id);
 const el = {
@@ -607,21 +608,22 @@ el.canvas.addEventListener("pointermove", ev => {
     // 700px.
     //
     // So the sample is measured in SCREEN px, where the hand's noise actually
-    // lives, and the guide is re-picked as the stroke grows until it is long
-    // enough to mean something. §3.2's "decide once" survives where it matters:
-    // once LOCK_TRAVEL is reached the choice stops moving, so the line does not
-    // wander under the finger.
+    // lives. §3.2's "decide once" is gone entirely (D19): the guide is re-picked
+    // for the whole stroke so it can be switched mid-line, and hysteresis rather
+    // than a lock is what stops the line wandering under the finger.
     const screenTravel = travel * view.scale;
-    if (screenTravel >= MIN_TRAVEL && !gesture.locked) {
+    if (screenTravel >= MIN_TRAVEL) {
       const dir = { x: dx / travel, y: dy / travel };
+      // D19: re-picked on every move, for the whole stroke — swing the finger
+      // toward another guide and the line goes with it. `current` is the
+      // incumbent, which a rival must out-fit by SWITCH_MARGIN to take over.
       const chosen = chooseBinding(scene, gesture.startCanvas, dir, {
         forced: forcedBinding(), assist: prefs.assist,
-        threshold: thresholdFor(gesture.pointerType), diagonals: prefs.snap45,
+        diagonals: prefs.snap45, current: gesture.binding,
       });
       const changed = JSON.stringify(chosen.binding) !== JSON.stringify(gesture.binding);
       gesture.binding = chosen.binding;
       gesture.u = chosen.u;
-      if (screenTravel >= LOCK_TRAVEL) gesture.locked = true;
       if (changed) say(`Following ${bindingName(scene, chosen.binding)}`);
     }
     const cands = (gesture.candidates || []).map(k => ({
@@ -664,15 +666,14 @@ function endPointer(ev) {
     const end = wasGesture.last;
     const travel = Math.hypot(end.x - wasGesture.startCanvas.x, end.y - wasGesture.startCanvas.y);
     if (travel < 6) { render(); return; }                 // a tap, not a stroke
+    // D19: the guide in hand when the finger lifted is the guide, because it is
+    // the one that was on screen. A stroke too short to have picked one is
+    // decided from the whole gesture.
     let binding = wasGesture.binding;
-    // D13: a stroke that never grew long enough to lock is decided from the
-    // whole gesture, which is a far better estimate of aim than its first
-    // few pixels.
-    if (!binding || !wasGesture.locked) {
+    if (!binding) {
       const dir = { x: (end.x - wasGesture.startCanvas.x) / travel, y: (end.y - wasGesture.startCanvas.y) / travel };
       binding = chooseBinding(scene, wasGesture.startCanvas, dir, {
-        forced: forcedBinding(), assist: prefs.assist,
-        threshold: thresholdFor(wasGesture.pointerType), diagonals: prefs.snap45,
+        forced: forcedBinding(), assist: prefs.assist, diagonals: prefs.snap45,
       }).binding;
     }
     beginGesture(history, scene);                          // D7: the whole stroke is one step
@@ -687,18 +688,12 @@ function endPointer(ev) {
     afterEdit(v && v.kind === "intersect"
       ? `Line drawn along ${bindingName(scene, binding)}, corner locked to both guides`
       : `Line drawn along ${bindingName(scene, binding)}`);
-    // The surprising outcome is the silent one: assist was ON and nothing
-    // caught the stroke, so a line the user believes is bound to a guide is a
-    // plain line that will not move when a VP does. The live region alone said
-    // so to a screen reader and to nobody else (D11).
-    if (res.demoted) {
-      // D12: both ends landed on points that already existed, and the line
-      // between them does not pass through the guide. Saying so beats
-      // recording a guide the drawing does not support.
-      toast(`Those points are not on a line to ${bindingName(scene, res.demoted)} — drawn as a plain line`, "info");
-    } else if (prefs.assist && binding === "free" && !forcedBinding()) {
-      toast("No guide matched that angle — drawn as a plain line", "info");
-    }
+    // D12's demotion cannot fire from drawing any more: D16 turned endpoint
+    // joining off, so both ends of a stroke are created by us and always sit on
+    // the guide. It stays in the data layer as a guard against a hand-edited
+    // project file, and it no longer has a message here — under D18 the app does
+    // not tell anyone it drew a plain line, because it does not draw one.
+    if (res.demoted) say(`Line drawn along no guide`);
   }
 }
 
