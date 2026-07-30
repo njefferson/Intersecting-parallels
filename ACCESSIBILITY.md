@@ -167,6 +167,38 @@ left of it. Both controls stay visible and hittable.
 **Status:** FIXED 2026-07-29, before any deploy. Verified by re-reading the
 screenshots at the same view.
 
+### F-04 · Drawing a line or a box is drag-only — no keyboard path
+**Found:** 2026-07-30 · by Noah, on the shipped 1.0.0, and by the interaction
+declaration written the same day
+**Rule:** Doctrine §4 (tremor is a supported condition) / WCAG 2.2 SC 2.5.7
+**Detail:** Every other manipulation in the app has a non-drag path — points,
+corners, depths, the horizon. Drawing itself does not: a line and a box can only
+be made by dragging on the canvas. This is declared in
+[`INTERACTIONS.md`](INTERACTIONS.md) as a GAP rather than left silent, and
+[`check-interactions.mjs`](check-interactions.mjs) fails the build if this finding
+is ever removed from this register while the gap remains.
+**Why it is a finding and not a shrug:** the guide system means a line is fully
+described by an origin, a guide and a length — all three of which already have
+numeric controls elsewhere in the app — so a keyboard path is buildable, not
+theoretical.
+**Status:** OPEN. Next accessibility item.
+
+### F-05 · A selected corner answered no keys, and could not be dragged
+**Found:** 2026-07-30 · by Noah, on the shipped 1.0.0
+**Rule:** Doctrine §3 (direct manipulation) and §4 (keyboard always, SC 2.5.7)
+**Detail:** Tapping a corner filled the inspector but left focus on `<body>`, and
+arrow keys moved nothing — measured at `(805.3, 645.1)` before and after three
+presses. Dragging it moved nothing either. So the one object the box release was
+about had neither of the two paths §4 requires, and the app's own gates could not
+see it: the a11y gate audits the DOM, and nothing declared that a corner was
+draggable at all.
+**Fix (1.1.0):** the canvas takes focus when a tap selects, arrow keys nudge the
+selection (an anchor freely, a guide-riding corner along its guide, with Shift for
+20px), and the same corner can be dragged with the same rule. The two paths share
+one code path so they cannot disagree.
+**Status:** FIXED 1.1.0. Verified: the walk drives both, and the interaction
+declaration now fails the build if either disappears.
+
 ### Gate verification (Doctrine §6: made to fail once before it is trusted)
 
 **2026-07-29** — before the first commit, `--muted` was deliberately darkened

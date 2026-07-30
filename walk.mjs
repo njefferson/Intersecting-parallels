@@ -55,7 +55,15 @@ const check = (name, ok, detail = '') => {
 const server = await serveRoot();
 const origin = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch(launchOpts);
+// D28 — every context except the first-run block starts with the welcome already
+// dismissed. Without this the panel sits over the app and every check below it
+// measures a covered surface.
+const seenWelcome = ctx => ctx.addInitScript(() => {
+  try { localStorage.setItem('ip-welcome-seen', '1'); } catch { /* ignore */ }
+});
+
 const context = await browser.newContext({ viewport: { width: 1100, height: 800 }, colorScheme: 'dark' });
+await seenWelcome(context);
 const page = await context.newPage();
 
 const pageErrors = [];
@@ -307,6 +315,7 @@ try {
   const touchCtx = await browser.newContext({
     viewport: { width: 1100, height: 800 }, colorScheme: 'dark', hasTouch: true,
   });
+  await seenWelcome(touchCtx);
   const tPage = await touchCtx.newPage();
   tPage.on('pageerror', e => pageErrors.push(`convergence page: ${e}`));
   await tPage.goto(origin + '/', { waitUntil: 'networkidle' });
@@ -382,6 +391,7 @@ try {
   const delCtx = await browser.newContext({
     viewport: { width: 1194, height: 834 }, colorScheme: 'dark', hasTouch: true,
   });
+  await seenWelcome(delCtx);
   const dPage = await delCtx.newPage();
   dPage.on('pageerror', e => pageErrors.push(`delete page: ${e}`));
   await dPage.goto(origin + '/', { waitUntil: 'networkidle' });
@@ -454,6 +464,7 @@ try {
   const boxCtx = await browser.newContext({
     viewport: { width: 1194, height: 834 }, colorScheme: 'dark', hasTouch: true,
   });
+  await seenWelcome(boxCtx);
   const bPage = await boxCtx.newPage();
   bPage.on('pageerror', e => pageErrors.push(`box page: ${e}`));
   await bPage.goto(origin + '/', { waitUntil: 'networkidle' });
@@ -573,6 +584,7 @@ try {
   // that is the point of a toggle — both behaviours are now reachable and both
   // are asserted, instead of one being the app's opinion.
   const wCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(wCtx);
   const wPage = await wCtx.newPage();
   wPage.on('pageerror', e => pageErrors.push(`weld page: ${e}`));
   await wPage.goto(origin + '/', { waitUntil: 'networkidle' });
@@ -640,6 +652,7 @@ try {
   // are the ones that assert what did NOT happen: the first tap must not clear,
   // and arming one button must not leave the other armed.
   const cCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(cCtx);
   const cPage = await cCtx.newPage();
   cPage.on('pageerror', e => pageErrors.push(`clear page: ${e}`));
   await cPage.goto(origin + '/', { waitUntil: 'networkidle' });
@@ -793,6 +806,140 @@ try {
     afterWipe.points === 1 && afterWipe.label === 'VP1',
     `${afterWipe.points} point, labelled ${afterWipe.label}`);
   await cCtx.close();
+
+  // D27 — an off-screen marker must not read as the point itself.
+  const oCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(oCtx);
+  const oPage = await oCtx.newPage();
+  oPage.on('pageerror', e => pageErrors.push(`marker page: ${e}`));
+  await oPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await oPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 20000 });
+  const marker = await oPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const vp = s.vanishingPoints[0];
+    window.__ip.moveVp(vp.id, { x: -3000, y: s.horizon.y });      // well off screen
+    return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const n = document.querySelector('.vp-marker');
+      if (!n) return r({ found: false });
+      const arrow = n.querySelector('.vp-marker-arrow');
+      r({
+        found: true,
+        hasArrow: !!arrow,
+        rotated: arrow ? arrow.style.transform : '',
+        aria: n.getAttribute('aria-label') || '',
+        offscreenFlag: n.dataset.offscreen,
+      });
+    })));
+  });
+  check('an off-screen vanishing point gets a marker with a direction arrow (D27)',
+    marker.found && marker.hasArrow && /rotate\(/.test(marker.rotated),
+    marker.found ? `arrow ${marker.hasArrow ? 'present' : 'MISSING'}, transform "${marker.rotated}"` : 'no marker at all');
+  check('and it says it is off screen rather than posing as the point',
+    /OFF SCREEN/.test(marker.aria) && /points toward it/.test(marker.aria),
+    `aria-label "${marker.aria.slice(0, 90)}…"`);
+
+  // §4 / SC 2.5.1 — the single-pointer alternatives to pinch and two-finger pan.
+  const zoomed = await oPage.evaluate(async () => {
+    const before = window.__ip.zoom();
+    document.getElementById('zoom-in').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const inz = window.__ip.zoom();
+    document.getElementById('zoom-out').click();
+    document.getElementById('zoom-out').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const outz = window.__ip.zoom();
+    document.getElementById('zoom-fit').click();
+    await new Promise(r => requestAnimationFrame(r));
+    return { before, inz, outz, fit: window.__ip.zoom() };
+  });
+  check('zoom in, zoom out and fit work without a pinch (SC 2.5.1)',
+    zoomed.inz > zoomed.before && zoomed.outz < zoomed.inz && zoomed.fit > 0,
+    `${zoomed.before.toFixed(2)} -> in ${zoomed.inz.toFixed(2)} -> out ${zoomed.outz.toFixed(2)} -> fit ${zoomed.fit.toFixed(2)}`);
+  await oCtx.close();
+
+  // D28 — the first-run panel, against §4's six requirements for the way out,
+  // at the ordinary viewport AND the small-phone-at-200%-text case the doctrine
+  // names. Nothing here is judged by eye: each one is measured.
+  for (const [label, vp, textScale] of [
+    ['1194x834', { width: 1194, height: 834 }, 1],
+    ['320x568 at 200% text', { width: 320, height: 568 }, 2],
+  ]) {
+    const fCtx = await browser.newContext({ viewport: vp, colorScheme: 'dark' });
+    const fPage = await fCtx.newPage();
+    fPage.on('pageerror', e => pageErrors.push(`welcome page: ${e}`));
+    if (textScale !== 1) {
+      await fPage.addInitScript(scale => {
+        document.addEventListener('DOMContentLoaded', () => {
+          document.documentElement.style.fontSize = `${16 * scale}px`;
+        });
+      }, textScale);
+    }
+    await fPage.goto(origin + '/', { waitUntil: 'networkidle' });
+    const opened = await fPage.waitForSelector('#dlg-welcome[open]', { timeout: 8000 }).then(() => true).catch(() => false);
+    check(`the first-run panel appears on a clean slate (${label})`, opened, opened ? 'shown' : 'never opened');
+    if (!opened) { await fCtx.close(); continue; }
+
+    const m = await fPage.evaluate(() => {
+      const d = document.getElementById('dlg-welcome');
+      const top = document.getElementById('welcome-close');
+      const foot = document.getElementById('welcome-close-foot');
+      const body = d.querySelector('.dlg-body');
+      const r = top.getBoundingClientRect(), dr = d.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return {
+        // visible in the FIRST FRAME without scrolling
+        topInView: r.top >= 0 && r.bottom <= window.innerHeight && r.left >= 0 && r.right <= window.innerWidth,
+        // hit-testing its centre returns the dismiss itself, not something over it
+        hitIsClose: !!hit && (hit === top || top.contains(hit)),
+        // present at the bottom as well
+        hasFoot: !!foot,
+        // bounded in length — measured, not assumed
+        panelH: Math.round(dr.height), viewH: window.innerHeight,
+        scrollable: body.scrollHeight > body.clientHeight + 1,
+        topSize: [Math.round(r.width), Math.round(r.height)],
+      };
+    });
+    check(`its close is visible in the first frame without scrolling (${label})`,
+      m.topInView, `close at ${m.topSize[0]}x${m.topSize[1]}px, in view: ${m.topInView}`);
+    check(`hit-testing the close's centre returns the close (${label})`,
+      m.hitIsClose, m.hitIsClose ? 'nothing is over it' : 'something else is on top of it');
+    check(`there is a second way out at the bottom (${label})`, m.hasFoot,
+      m.hasFoot ? 'foot button present' : 'only one way out');
+    check(`the panel is bounded and fits its viewport (${label})`,
+      m.panelH <= m.viewH, `${m.panelH}px panel in a ${m.viewH}px viewport`);
+
+    // reachable from anywhere in it: scroll the body to the very end and re-check
+    const afterScroll = await fPage.evaluate(() => {
+      const body = document.querySelector('#dlg-welcome .dlg-body');
+      body.scrollTop = body.scrollHeight;
+      const top = document.getElementById('welcome-close');
+      const r = top.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return { inView: r.top >= 0 && r.bottom <= window.innerHeight, hitIsClose: !!hit && (hit === top || top.contains(hit)) };
+    });
+    check(`the way out is still there after scrolling to the very end (${label})`,
+      afterScroll.inView && afterScroll.hitIsClose,
+      `in view ${afterScroll.inView}, hit-test ${afterScroll.hitIsClose}`);
+
+    // and it actually goes away, with focus landing somewhere real
+    await fPage.click('#welcome-close');
+    await fPage.waitForTimeout(120);
+    const after = await fPage.evaluate(() => ({
+      gone: !document.querySelector('#dlg-welcome[open]'),
+      focus: document.activeElement ? document.activeElement.id || document.activeElement.tagName : 'none',
+    }));
+    check(`closing it genuinely removes it, and focus lands somewhere real (${label})`,
+      after.gone && after.focus !== 'BODY' && after.focus !== 'none',
+      `open: ${!after.gone}, focus on ${after.focus}`);
+
+    // never conditional, and it stays gone on the next visit
+    await fPage.reload({ waitUntil: 'networkidle' });
+    await fPage.waitForTimeout(200);
+    const second = await fPage.evaluate(() => !!document.querySelector('#dlg-welcome[open]'));
+    check(`it does not come back on the next visit (${label})`, !second,
+      second ? 'shown again' : 'stayed dismissed');
+    await fCtx.close();
+  }
 
   check('no page errors during the whole walk', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 } catch (err) {

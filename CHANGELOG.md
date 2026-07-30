@@ -8,6 +8,29 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.1.0 — CAPABILITY · 2026-07-30
+
+**Everything Noah found on V1, and the gates that should have caught it.**
+
+- **A corner moves now.** Tap one and drag it — an anchored corner goes where you
+  put it, a corner riding a guide slides along that guide. It could not be dragged
+  at all before.
+- **Arrow keys work on whatever is selected.** Tapping a corner used to fill the
+  panel and then ignore every key. Now the canvas takes focus when you select, and
+  arrows nudge by 1, or 20 with Shift — a point, a corner, either.
+- **A straight-up box drag makes a tall thin box.** It was changing all three axes
+  at once, because the depth floor was tied to the height: dragging 141 tall gave
+  70 deep, 636 tall gave 318 deep. Depth now only follows sideways movement.
+- **Off-screen vanishing points show an arrow** pointing at where the point really
+  is, plus how far away it is, and a squared-off badge instead of a round dot — so
+  a marker cannot be mistaken for the point. It never was the point: it sits on
+  the edge of the screen, on the line from the middle of your view.
+- **A first-run explanation**, with two ways out of it, one at the top and one at
+  the bottom, and "Show the introduction again" in About if you want it back.
+- **Zoom and Fit buttons**, so pinching is a shortcut rather than the only way.
+
+---
+
 ## 1.0.0 — VERSION · 2026-07-30
 
 **Version 1. Noah's call.**

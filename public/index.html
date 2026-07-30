@@ -57,6 +57,14 @@
       <button class="btn" id="touch-draws" type="button" aria-pressed="false">Touch draws</button>
     </div>
 
+    <!-- Single-pointer alternatives to pinch and two-finger pan (§4, SC 2.5.1).
+         A gesture is an accelerator, never the only door. -->
+    <div class="bar-group" role="group" aria-label="View">
+      <button class="btn" id="zoom-out" type="button" aria-label="Zoom out">&minus;</button>
+      <button class="btn" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+      <button class="btn" id="zoom-fit" type="button">Fit</button>
+    </div>
+
     <div class="bar-group" role="group" aria-label="History">
       <button class="btn" id="undo" type="button" disabled>Undo</button>
       <button class="btn" id="redo" type="button" disabled>Redo</button>
@@ -111,6 +119,40 @@
 </div>
 
 <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+<!-- D28 — the first-run explanation. Doctrine §4 expects these and is exacting
+     about the way out: visible in the first frame without scrolling, reachable
+     from anywhere in it, present at the bottom as well, working before anything
+     else does, never conditional, bounded in length. All six are asserted by the
+     walk, at the small-phone-at-200%-text case as well as the ordinary one. -->
+<dialog id="dlg-welcome" aria-labelledby="welcome-title">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h2 id="welcome-title">Intersecting Parallels</h2>
+      <button class="btn" type="submit" value="close" id="welcome-close" aria-label="Close this introduction">Close</button>
+    </div>
+    <div class="dlg-body">
+      <p>Where you stand and what you see. Set vanishing points, and every line you
+        draw runs to one of them — so when you move a point, the drawing follows.</p>
+      <h3>Three things to try</h3>
+      <ul>
+        <li><strong>Draw</strong> — drag on the canvas. The line takes the nearest
+          guide: a vanishing point, vertical, horizontal, or 45° if you turn it on.
+          Swing toward another guide mid-stroke and it changes its mind.</li>
+        <li><strong>Box</strong> — one drag makes a whole box. Straight up is tall
+          and thin; drag sideways as well to deepen that side.</li>
+        <li><strong>Place</strong> — drag a vanishing point and watch everything
+          bound to it move. That is the whole idea of the app in one gesture.</li>
+      </ul>
+      <p class="hint">Everything stays on your device. No account, no network — it
+        works with the aeroplane mode on. Points, corners and lines all answer the
+        arrow keys once selected, and every drag has a keyboard and numeric path.</p>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" type="submit" value="close" id="welcome-close-foot">Close and start drawing</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="dlg-export" aria-labelledby="export-title">
   <form method="dialog" class="dlg">
@@ -231,6 +273,7 @@
       <p class="hint" id="about-version">version</p>
     </div>
     <div class="dlg-foot">
+      <button class="btn" type="button" id="show-welcome">Show the introduction again</button>
       <button class="btn" type="submit" value="close">Close</button>
     </div>
   </form>

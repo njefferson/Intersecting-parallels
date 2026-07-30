@@ -40,3 +40,9 @@ jobs:
       - run: npx --no-install playwright-core install --with-deps chromium
 
       - run: node a11y-gate.mjs --verbose
+
+      # Doctrine §4: every drag and gesture declares its non-drag path, and a
+      # declaration with no alternative — or one whose selector matches nothing —
+      # fails the build. Added in 1.1.0, after Noah found V1 shipping with a
+      # corner that could be neither dragged nor nudged.
+      - run: node check-interactions.mjs

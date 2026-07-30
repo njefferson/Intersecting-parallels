@@ -66,11 +66,21 @@ test("weld off refuses a CROSSING too, not only a nearby corner", () => {
 
 // ---- D23 -----------------------------------------------------------------
 
-test("a straight-up drag still makes a square plan", () => {
+test("a straight-up drag makes a TALL THIN box — depth does not follow height", () => {
+  // Noah, 2026-07-30: "I tried creating a tall, narrow, thin box, but dragging
+  // straight up changed all three axis." It did: the depth floor used to be
+  // height/2. Straight up must mean tall and nothing else.
   const { scene } = twoPointScene();
-  const s = splitBoxDepths(scene, { x: 800, y: 900 }, { x: 800, y: 700 });
-  assert.equal(s.height, 200);
-  assert.equal(s.depthL, s.depthR, "no sideways movement means no preference");
+  const shortDrag = splitBoxDepths(scene, { x: 800, y: 900 }, { x: 800, y: 800 });
+  const tallDrag = splitBoxDepths(scene, { x: 800, y: 900 }, { x: 800, y: 300 });
+  assert.equal(shortDrag.depthL, shortDrag.depthR, "no sideways movement means no preference");
+  assert.equal(tallDrag.depthL, shortDrag.depthL,
+    `depth followed height: ${shortDrag.depthL} -> ${tallDrag.depthL}`);
+  assert.equal(tallDrag.depthR, shortDrag.depthR);
+  assert.ok(tallDrag.height > shortDrag.height * 4, "the height did follow the drag");
+  // and the result really is thin: six times as tall as it is deep
+  assert.ok(tallDrag.height / tallDrag.depthL > 6,
+    `${tallDrag.height} tall against ${tallDrag.depthL} deep is not a thin box`);
 });
 
 test("dragging toward one vanishing point deepens that side only", () => {

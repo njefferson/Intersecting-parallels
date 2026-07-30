@@ -66,6 +66,12 @@ const PAGES = [
     url: '/',
     registry: ['h1.title', '.build', '.btn', '.hint', '.vp-name', '.coord label', '.panel-head h2'],
     states: [
+      // D28 — the first-run panel is a surface like any other, and it is the FIRST
+      // thing anyone sees, so it is audited in the commit that introduces it. It
+      // opens by itself, which is why it has no `open` selector and instead asks
+      // for a clean slate.
+      { name: 'welcome', open: null, firstRun: true,
+        registry: ['.dlg-head h2', '.dlg-body', '.dlg-body li', '.dlg-body .hint'] },
       { name: 'canvas', open: null },
       { name: 'export', open: '#open-export', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body label', '.hint'] },
       // Not '.empty' here: whether the saved-projects list is empty depends on
@@ -112,11 +118,24 @@ try {
       page.on('pageerror', e => pageErrors.push(String(e)));
       const where = `${pageDef.url} (${state.name}) [${theme}]`;
 
+      // Every state except the first-run one starts from a slate where the
+      // welcome has already been dismissed — otherwise it sits over the surface
+      // being measured and every click retries into it. Seeded BEFORE the first
+      // navigation, because the panel opens during boot.
+      if (!state.firstRun) {
+        await page.addInitScript(() => {
+          try { localStorage.setItem('ip-welcome-seen', '1'); } catch { /* ignore */ }
+        });
+      }
       await page.goto(origin + pageDef.url, { waitUntil: 'networkidle' });
       // The app boots asynchronously (it reads IndexedDB first), so wait for
       // the surface to actually exist before measuring anything about it.
       await page.waitForFunction(() => document.querySelectorAll('.vp-row').length > 0, null, { timeout: 10000 })
         .catch(() => fail(where, 'the app did not finish booting within 10s — nothing below was measured against a working page'));
+      if (state.firstRun) {
+        await page.waitForFunction(() => !!document.querySelector('#dlg-welcome[open]'), null, { timeout: 5000 })
+          .catch(() => fail(where, 'the first-run panel did not open on a clean slate'));
+      }
       if (state.open) {
         await page.click(state.open);
         await page.waitForFunction(() => !!document.querySelector('dialog[open]'), null, { timeout: 5000 })

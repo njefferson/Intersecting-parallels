@@ -463,19 +463,26 @@ export function resolveStrokeEnd(scene, startPos, binding, u, p, r = SNAP_RADIUS
 //
 // Pure, and exported, so the mapping is pinned by tests rather than only visible
 // through a gesture.
-export function splitBoxDepths(scene, at, to) {
+export function splitBoxDepths(scene, at, to, { unit = 90 } = {}) {
   const height = Math.abs(to.y - at.y);
   const hx = to.x - at.x;
-  const floor = Math.max(6, height * 0.5);
+  // The floor is a FIXED size, not a fraction of the height. Tying it to the
+  // height welded all three axes to one drag: Noah, 2026-07-30, "I tried creating
+  // a tall, narrow, thin box, but dragging straight up changed all three axis."
+  // Measured on the shipped build — height 141 gave depths 70.7, height 636 gave
+  // depths 318.1, so a tall thin box could not be drawn at all. Straight up now
+  // means TALL: the depths stay at the floor however far up the drag goes, and
+  // sideways is the only thing that deepens them.
+  const floor = Math.max(8, unit * 0.22);
   const vps = scene.vanishingPoints.filter(v => !v.locked).slice(0, 2);
   if (vps.length < 2) return { height, depthL: floor, depthR: floor };
   const sideOf = vp => {
     const dx = vp.x - at.x, dy = vp.y - at.y;
     const L = Math.hypot(dx, dy) || 1;
-    return dx / L;                                   // horizontal component of that guide
+    return dx / L;
   };
   const [sL, sR] = vps.map(sideOf);
-  const toward = s => (Math.sign(hx) === Math.sign(s) && s !== 0 ? Math.abs(hx) : 0);
+  const toward = s2 => (Math.sign(hx) === Math.sign(s2) && s2 !== 0 ? Math.abs(hx) : 0);
   return { height, depthL: floor + toward(sL), depthR: floor + toward(sR) };
 }
 

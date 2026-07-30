@@ -596,6 +596,65 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D26–D28, and the audit that should have come first
+
+**Noah, 2026-07-30, on the shipped 1.0.0:** five reports at once — off-screen VP
+markers being mistaken for the points, arrow keys moving nothing, a box corner that
+would not drag, a straight-up box drag changing all three axes, and no first-run
+explanation — ending with *"I don't know how you missed all those design things
+that are part of my doctrine."*
+
+**The honest answer, recorded because the next session needs it more than I do:**
+this app was built against the spec and the D-amendments, and §4 was treated as
+satisfied because the a11y gate had been ported from the hub. §4's own text
+contains requirements that were never turned into gates, and every one of his five
+sits inside one of them. Nothing here was a surprise the doctrine had not already
+named:
+
+- *"EVERY DRAG HAS A NON-DRAG PATH ... DECLARE IT, so it is a gate and not an
+  intention. A declared interaction with no declared alternative FAILS the
+  build."* There was no declaration and no gate. A corner that could be neither
+  dragged nor nudged was invisible to every check the app had.
+- *"Pinch-zoom needs zoom controls. Two-finger pan needs another way to pan."*
+  Neither existed.
+- *"Interrupting surfaces are EXPECTED"* — first-run panels are named explicitly,
+  with six requirements for the way out. There was no first-run surface at all.
+- *"A canvas app's marks are graphical objects ... the app DECLARES their colours
+  and the gate computes them."* Still outstanding — see the open items.
+
+Measured on the shipped build before any fix, so the reports are recorded as
+numbers rather than impressions: arrow keys moved a selected corner from
+(805.3, 645.1) to (805.3, 645.1); dragging it moved it the same distance; a
+straight-up box drag of 141 gave depths of 70.7, and one of 636 gave 318.1.
+
+**D26 — a selection answers the keys, and can be dragged.** The canvas takes focus
+when a tap selects. Arrow keys nudge (Shift for 20), an anchor freely and a
+guide-riding corner along its guide; the drag obeys the same rule through the same
+code path, so the two cannot disagree about what a corner may do. One undo step per
+drag, opened at release so a tap that only selects leaves no empty step.
+
+**D27 — an off-screen marker is a compass, not the point.** It carries an arrowhead
+rotated toward the point, the distance, a squared badge rather than a round dot, and
+an accessible name that says OFF SCREEN first. Shape and text, never hue.
+
+**D28 — the first-run explanation**, built to §4's six dismiss requirements and
+gated against all six, at 1194×834 and at 320×568 with 200% text: close visible in
+the first frame (measured in-viewport), hit-testing its centre returns the close
+itself, a second way out at the bottom, still reachable after scrolling to the very
+end, genuinely gone afterwards with focus on a real control, and the panel bounded
+(584px in an 834px viewport; 520px in a 568px one). Re-openable from About.
+
+**The gate that was missing** is now [`INTERACTIONS.md`](INTERACTIONS.md) +
+`interactions.mjs` + [`check-interactions.mjs`](check-interactions.mjs)
+(`npm run interactions`, and in CI). Every drag and gesture declares its non-drag
+path; an alternative whose selector matches nothing fails; a gap must cite a
+finding in ACCESSIBILITY.md. It failed on its first run with seven failures, which
+is the point of it.
+
+**Still open and declared rather than hidden:** drawing a line or a box is
+drag-only (F-04), and canvas mark colours are not yet declared for computed 3:1
+contrast (SC 1.4.11). Both are findings with numbers now.
+
 ### D25. Clear belongs in the toolbar
 
 **Noah, 2026-07-30, having read D24:** *"Where is clear"* — then *"Add to toolbar

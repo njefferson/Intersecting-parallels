@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -119,10 +119,32 @@ function positionMarkers(vp) {
       el.stage.appendChild(node);
       markers.set(point.id, node);
     }
-    node.textContent = point.label;
+    // D27 — an off-screen marker must not read as the point itself.
+    //
+    // Noah, 2026-07-30: "The VP indicators, when the VP is off screen, need an
+    // arrow or something because I keep confusing them as the real VP." He is
+    // describing the same class of mistake D15 fixed for aiming: the marker is a
+    // COMPASS, not the point. It sits on the ray from the viewport centre, so it
+    // is nowhere near where the point actually is.
+    //
+    // So it carries an arrowhead pointing the way, and the distance in canvas px.
+    // Shape and text, not colour, do the work (§4): the arrow survives a
+    // greyscale render and a screen reader gets the same sentence.
+    const dist = Math.round(Math.hypot(point.x - scene.canvas.width / 2, point.y - scene.canvas.height / 2));
+    node.textContent = "";
+    const arrow = document.createElement("span");
+    arrow.className = "vp-marker-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.style.transform = `rotate(${(m.angle ?? 0)}rad)`;
+    arrow.textContent = "\u27A4";                  // a solid arrowhead, rotated to point at the point
+    const name = document.createElement("span");
+    name.textContent = point.label;
+    node.append(arrow, name);
     node.dataset.locked = String(!!point.locked);
+    node.dataset.offscreen = "true";
     node.setAttribute("aria-label",
-      `${point.label}, off screen${point.locked ? ", locked" : ""}. At ${Math.round(point.x)}, ${Math.round(point.y)}. Arrow keys move it.`);
+      `${point.label} is OFF SCREEN${point.locked ? ", locked" : ""}. This marker points toward it; the point itself is about ${dist} away at ${Math.round(point.x)}, ${Math.round(point.y)}. Arrow keys move it.`);
+    node.title = `${point.label} is off screen — this arrow points at it, it is not the point`;
     // A marker pinned to the viewport edge can land on top of the panel, where
     // it covers the very row that controls the same point. Step it clear
     // instead: the panel keeps its content, the marker keeps its edge.
@@ -588,9 +610,27 @@ el.canvas.addEventListener("pointerdown", ev => {
     const pick = HANDLE_HIT / view.scale;
     const v = nearestVertex(scene, c, pick);
     selection = v ? { type: "vertex", id: v.id } : null;
+    if (selection) el.canvas.focus({ preventScroll: true });   // D26: the keys need a home
     if (!selection) {
       const e = nearestEdge(scene, c, pick);
       selection = e ? { type: "edge", id: e.id } : null;
+    }
+    // D26 — and it can be DRAGGED. Noah, 2026-07-30: "I tried dragging a box
+    // corner with my finger and it would not move." It did not: a corner had a
+    // numeric field and nothing else, which fails §3's direct manipulation ("what
+    // he touches must respond") even though it satisfied the non-drag half of
+    // §4's pair. Both halves are required, and the keyboard nudge above is this
+    // drag's declared alternative.
+    if (v) {
+      gesture = {
+        kind: "vertex",
+        vertexId: v.id,
+        kindOf: v.kind,
+        startCanvas: c,
+        startPos: { x: v.x, y: v.y },
+        startT: v.t,
+        moved: false,
+      };
     }
     renderPanel();
     render();
@@ -670,6 +710,27 @@ el.canvas.addEventListener("pointermove", ev => {
     // solving per event does the work twice and shows half of it. The latest
     // position wins; intermediate ones were never going to be drawn.
     pendingVpMove = { vpId: gesture.vpId, at: toCanvas(view, p) };
+    render();
+    return;
+  }
+
+  if (gesture.kind === "vertex") {
+    const c = toCanvas(view, p);
+    const v = scene.vertices.find(x => x.id === gesture.vertexId);
+    if (!v) return;
+    const dx = c.x - gesture.startCanvas.x, dy = c.y - gesture.startCanvas.y;
+    if (!gesture.moved && Math.hypot(dx, dy) * view.scale < 4) return;   // a tap, not a drag
+    gesture.moved = true;
+    if (gesture.kindOf === "anchor") {
+      moveAnchor(scene, v.id, { x: gesture.startPos.x + dx, y: gesture.startPos.y + dy });
+    } else if (gesture.kindOf === "ray") {
+      // Along its guide only — the same rule the keyboard obeys, so the two paths
+      // cannot disagree about what this corner is allowed to do.
+      const origin = scene.vertices.find(x => x.id === v.origin);
+      const u = origin ? bindingDirection(scene, { x: origin.x, y: origin.y }, v.binding) : null;
+      if (u) rebindVertex(scene, v.id, { t: gesture.startT + dx * u.x + dy * u.y });
+    }
+    renderPanel({ structural: false });
     render();
     return;
   }
@@ -754,6 +815,26 @@ function endPointer(ev) {
     return;
   }
   if (wasGesture.kind === "pan") return;
+
+  if (wasGesture.kind === "vertex") {
+    if (!wasGesture.moved) { render(); return; }              // a tap that selected, nothing more
+    const v = scene.vertices.find(x => x.id === wasGesture.vertexId);
+    // The whole drag is ONE undo step, and history is opened here rather than on
+    // pointerdown so a tap that only selects does not leave an empty step behind.
+    const restore = { ...wasGesture.startPos, t: wasGesture.startT };
+    const now = v ? { x: v.x, y: v.y, t: v.t } : null;
+    if (v) {
+      if (wasGesture.kindOf === "anchor") moveAnchor(scene, v.id, { x: restore.x, y: restore.y });
+      else if (wasGesture.kindOf === "ray") rebindVertex(scene, v.id, { t: restore.t });
+      beginGesture(history, scene);                            // D7
+      if (wasGesture.kindOf === "anchor") moveAnchor(scene, v.id, { x: now.x, y: now.y });
+      else if (wasGesture.kindOf === "ray") rebindVertex(scene, v.id, { t: now.t });
+    }
+    afterEdit(v && wasGesture.kindOf === "ray"
+      ? `${Math.round(v.t)} along ${bindingName(scene, v.binding)}`
+      : v ? `Corner at ${Math.round(v.x)}, ${Math.round(v.y)}` : null);
+    return;
+  }
 
   if (wasGesture.kind === "box") {
     ghost = null;
@@ -882,6 +963,94 @@ function newScene({ width, height, points }) {
   return s;
 }
 
+// D26 — a SELECTED thing answers the arrow keys.
+//
+// Noah, 2026-07-30: "The arrow keys on my keyboard are not moving anything."
+// Measured on the shipped build: tapping a corner filled the inspector, left focus
+// on <body>, and three arrow presses moved it 0px. The nudge existed only on the
+// vanishing-point rows in the panel — a keyboard path for one kind of object and
+// nothing for the rest, which is not what §4 asks for.
+//
+// This is also the non-drag path §4 requires for the corner drag added beside it:
+// every drag has a keyboard equivalent, and here they are the same nudge.
+function nudgeSelection(dx, dy, big) {
+  if (!selection || selection.type !== "vertex") return false;
+  const v = scene.vertices.find(x => x.id === selection.id);
+  if (!v) return false;
+  const step = big ? NUDGE_BIG : NUDGE;
+  beginGesture(history, scene);
+  if (v.kind === "anchor") {
+    const r = moveAnchor(scene, v.id, { x: v.x + dx * step, y: v.y + dy * step });
+    if (!r.ok) { toast(r.reason, "error"); return true; }
+    afterEdit(`Corner at ${Math.round(v.x)}, ${Math.round(v.y)}`);
+    return true;
+  }
+  if (v.kind === "ray") {
+    // A ray corner may only move ALONG its guide, so the arrow key is projected
+    // onto that guide: pressing right on a guide running up-left still moves it
+    // up-left, by the component you asked for. Anything else would drag the
+    // corner off the line that defines it.
+    const origin = scene.vertices.find(x => x.id === v.origin);
+    const u = origin ? bindingDirection(scene, { x: origin.x, y: origin.y }, v.binding) : null;
+    if (!u) { toast("This corner's guide is degenerate here.", "error"); return true; }
+    const along = (dx * u.x + dy * u.y) * step;
+    if (!along) { say("That direction runs across this corner's guide, so it cannot move that way."); return true; }
+    const r = rebindVertex(scene, v.id, { t: v.t + along });
+    if (!r.ok) { toast(r.reason, "error"); return true; }
+    afterEdit(`${Math.round(v.t)} along ${bindingName(scene, v.binding)}`);
+    return true;
+  }
+  say("This corner is where two guides cross — move either guide and it follows.");
+  return true;
+}
+
+// The canvas is focusable so the keys have somewhere to land, and a selection made
+// by tapping puts focus there (§4: keyboard always).
+el.canvas.setAttribute("tabindex", "0");
+el.canvas.addEventListener("keydown", ev => {
+  const map = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  const d = map[ev.key];
+  if (!d) return;
+  if (nudgeSelection(d[0], d[1], ev.shiftKey)) ev.preventDefault();
+});
+
+// D28 — the first-run explanation.
+//
+// §4: interrupting surfaces are EXPECTED, and what is not negotiable is the way
+// out. The close is wired FIRST, before anything that could fail — a panel whose
+// dismiss depends on its content is a trap the moment the content fails — and
+// there are two of them, top and bottom. Nothing about it is conditional.
+const dlgWelcome = $("dlg-welcome");
+const SEEN_KEY = "ip-welcome-seen";
+function closeWelcome() {
+  if (dlgWelcome?.open) dlgWelcome.close();
+  try { localStorage.setItem(SEEN_KEY, "1"); } catch { /* private mode: it just shows again */ }
+  // Focus lands somewhere real rather than on <body>.
+  $("mode-draw")?.focus({ preventScroll: true });
+}
+$("welcome-close")?.addEventListener("click", closeWelcome);
+$("welcome-close-foot")?.addEventListener("click", closeWelcome);
+dlgWelcome?.addEventListener("close", () => {
+  try { localStorage.setItem(SEEN_KEY, "1"); } catch { /* ignore */ }
+});
+// Escape must work too, and a <dialog> gives that for free — but only if it is
+// not cancelled, so nothing here preventDefaults `cancel`.
+// A first-run panel that can never be seen again is a worse deal than one you can
+// re-open, so About offers it back.
+$("show-welcome")?.addEventListener("click", () => {
+  $("dlg-about")?.close();
+  dlgWelcome?.showModal();
+  $("welcome-close")?.focus({ preventScroll: true });
+});
+
+function maybeShowWelcome() {
+  let seen = false;
+  try { seen = localStorage.getItem(SEEN_KEY) === "1"; } catch { seen = false; }
+  if (seen || !dlgWelcome) return;
+  dlgWelcome.showModal();
+  $("welcome-close")?.focus({ preventScroll: true });
+}
+
 // ---- toolbar wiring ------------------------------------------------------
 
 function setMode(mode) {
@@ -954,6 +1123,24 @@ $("add-vp").addEventListener("click", () => {
   const centre = toCanvas(view, { x: viewport().width / 2, y: viewport().height / 2 });
   const res = addVp(scene, { label: `VP${scene.vanishingPoints.length + 1}`, x: Math.round(centre.x), y: Math.round(centre.y), axis: "z", onHorizon: false });
   afterEdit(`${res.vp.label} added at ${Math.round(res.vp.x)}, ${Math.round(res.vp.y)}`, { structural: true });
+});
+
+// §4 / SC 2.5.1 — pinch and two-finger pan are accelerators; these are the door.
+// Zoom about the CENTRE of the viewport, which is where someone looking at the
+// drawing is looking, and announce the result rather than leaving it to be
+// inferred from motion.
+function zoomBy(factor) {
+  const vp = viewport();
+  zoomAt(view, { x: vp.width / 2, y: vp.height / 2 }, factor);
+  render();
+  say(`Zoom ${Math.round(view.scale * 100)}%`);
+}
+$("zoom-in")?.addEventListener("click", () => zoomBy(1.25));
+$("zoom-out")?.addEventListener("click", () => zoomBy(1 / 1.25));
+$("zoom-fit")?.addEventListener("click", () => {
+  fitView(view, viewport());
+  render();
+  say(`Fitted the whole drawing — zoom ${Math.round(view.scale * 100)}%`);
 });
 
 $("show-panel").addEventListener("click", () => { prefs.panel = !prefs.panel; renderPanel(); autosaver.poke(); });
@@ -1275,6 +1462,8 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
   // exposes nothing a reader could not already read from their own drawing —
   // and a gate that can only test a rebuilt approximation of the app is not
   // testing the app. `scene` is live state; treat it as read-only.
+  maybeShowWelcome();                       // D28, after the app is ready behind it
+
   window.__ip = {
     get scene() { return scene; },
     get canvas() { return { width: el.canvas.width, height: el.canvas.height }; },
@@ -1287,6 +1476,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     // measures is the real control and not a rebuilt copy of it.
     select: sel => { selection = sel; renderInspector(); render(); return selection; },
     toScreen: p => toScreen(view, p),
+    zoom: () => view.scale,
     buildSvg, renderPng,
     flush: () => autosaver.flush(),
     version: VERSION,

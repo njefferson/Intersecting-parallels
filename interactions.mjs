@@ -1,0 +1,68 @@
+// interactions.mjs — the machine-readable half of INTERACTIONS.md.
+//
+// Doctrine §4: "Each app declares its drag and gesture interactions alongside the
+// non-drag control satisfying each one. A declared interaction with no declared
+// alternative FAILS the build, and a declaration that matches nothing FAILS
+// rather than being skipped."
+//
+// `selector` is what must EXIST in the page for the alternative to be real. A
+// declaration whose selector matches nothing fails loudly — the same rule the
+// contrast registry follows, and for the same reason: a renamed class must not
+// quietly drop an accessibility path.
+
+export const INTERACTIONS = [
+  {
+    id: "drag-vanishing-point",
+    kind: "drag",
+    what: "Drag a vanishing point on the canvas, or its off-screen marker",
+    alternatives: [
+      { how: "Arrow keys on the point's panel button (Shift for 20px)", selector: ".vp-row button[id$='-focus']", keyboard: true },
+      { how: "Exact x and y number fields", selector: ".vp-row input[type='number']", keyboard: true },
+    ],
+  },
+  {
+    id: "drag-corner",
+    kind: "drag",
+    what: "Drag a selected corner — anchored corners freely, guide-riding corners along their guide",
+    alternatives: [
+      { how: "Arrow keys once selected; the canvas takes focus on selection", selector: "canvas[tabindex]", keyboard: true },
+      { how: "Inspector number field: x/y for an anchor, distance along the guide for a ray", selector: "#inspector", keyboard: true },
+    ],
+  },
+  {
+    id: "pinch-zoom",
+    kind: "gesture",
+    what: "Two-finger pinch to zoom the view",
+    alternatives: [
+      { how: "Zoom out button", selector: "#zoom-out", keyboard: true },
+      { how: "Zoom in button", selector: "#zoom-in", keyboard: true },
+      { how: "Fit the whole drawing", selector: "#zoom-fit", keyboard: true },
+    ],
+  },
+  {
+    id: "two-finger-pan",
+    kind: "gesture",
+    what: "Two-finger drag to pan the view",
+    alternatives: [
+      { how: "Fit brings the whole drawing back into view", selector: "#zoom-fit", keyboard: true },
+      { how: "Zoom out widens what is visible without panning", selector: "#zoom-out", keyboard: true },
+    ],
+  },
+  {
+    id: "draw-stroke",
+    kind: "drag",
+    what: "Drag on the canvas to draw a line",
+    // An honest gap, declared as a gap. The gate treats a `gap` as a FAILURE
+    // unless it is registered in ACCESSIBILITY.md, so it cannot be forgotten —
+    // it is a finding with a number, not a silence.
+    gap: "F-04",
+    alternatives: [],
+  },
+  {
+    id: "draw-box",
+    kind: "drag",
+    what: "One drag builds a box",
+    gap: "F-04",
+    alternatives: [],
+  },
+];

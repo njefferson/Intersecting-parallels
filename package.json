@@ -15,6 +15,7 @@
     "render:icons": "node render-icons.mjs",
     "render:og": "node render-og.mjs",
     "render:art": "node render-art.mjs",
+    "interactions": "node check-interactions.mjs",
     "walk": "node walk.mjs",
     "walk:shots": "node walk.mjs --shots"
   },
