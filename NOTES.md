@@ -106,6 +106,23 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-07-30 — 0.5.2.** Third promote. New icon and social
+tile, both drawn through a real three-point camera rather than generated (see "The
+artwork is computed" above). Noah chose the shifted-right tile and the wider icon
+window, said **"Promote"**, and `main` fast-forwarded to `staging` at `d144f58` —
+no merge commit, the identical tree he looked at. All four workflows verified green
+on that exact SHA before the merge: Deploy, Accessibility gate, Solver tests, App
+walk. The production deploy (run 30512606936) was watched to `completed / success`
+before this record was pushed — the hub LESSONS rule about not pushing again
+between "pushed" and "green".
+
+The deploy run IS the evidence here, because this sandbox cannot read the deployed
+site: the agent proxy answers `CONNECT tunnel failed, response 403` for
+pages.dev. So "production serves 0.5.2" is a claim about a successful wrangler
+deploy of this tree, not about a page anyone fetched. Noah's own screenshot of the
+version stamp is the only thing that closes that gap, which is exactly why the
+stamp is on screen (Doctrine §7b).
+
 **PROMOTED TO PRODUCTION 2026-07-29 — 0.5.0.** Second promote of the day. Noah
 drew a cube on 0.3.0, watched it come apart under a VP drag, and asked for two
 things: boxes as a tool, and line ends that connect. Both landed as 0.5.0 (with
