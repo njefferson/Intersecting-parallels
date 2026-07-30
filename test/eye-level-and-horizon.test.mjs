@@ -10,7 +10,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createScene, addVp, addAnchor, setEyeLevel, horizonLine, addFace, deleteVertex, clearDrawing, solveScene,
+  createScene, addVp, addAnchor, setEyeLevel, horizonLine, addFace, deleteVertex, clearDrawing, solveScene, scaleVpSpread,
 } from "../public/app/solver.mjs";
 import { buildBox } from "../public/app/snap.mjs";
 import { parseProjectJson } from "../public/app/state.mjs";
@@ -219,4 +219,41 @@ test("D44: inverting a box changes WHICH pair of walls faces you", () => {
   assert.notEqual(after, before,
     "the near corner did not change when the box inverted — the same two walls would still be shaded");
   assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)));
+});
+
+test("D45: Stronger keeps horizon points ON the horizon", () => {
+  const { scene, l, r } = twoPointScene();
+  // Well clear of the paper, so the guard is not what is under test here.
+  l.x = -3000; r.x = 4600;
+  const before = horizonLine(scene);
+  assert.equal(before.offsetFromEyeLevel, 0, "starts on eye level");
+  const res = scaleVpSpread(scene, 0.8);
+  assert.equal(res.ok, true, res.reason);
+  assert.equal(l.y, 540, "a horizon point kept its height");
+  assert.equal(r.y, 540);
+  assert.equal(horizonLine(scene).offsetFromEyeLevel, 0,
+    "the horizon slid away from eye level, which is what pressing Stronger used to do");
+});
+
+test("D45: the third point IS exaggerated in y — it is the one with a height to change", () => {
+  const { scene, l, r } = twoPointScene();
+  l.x = -3000; r.x = 4600;
+  const nadir = addVp(scene, { label: "VP3", x: 800, y: 2600, axis: "z", onHorizon: false }).vp;
+  const res = scaleVpSpread(scene, 0.8);
+  assert.equal(res.ok, true, res.reason);
+  assert.ok(nadir.y < 2600, "the point below the drawing did not come closer");
+});
+
+test("D45: a point is never scaled onto the paper", () => {
+  const scene = createScene({ name: "t", width: 1000, height: 800 });
+  setEyeLevel(scene, 400);
+  addVp(scene, { label: "VP1", x: -900, y: 400, onHorizon: true });
+  addVp(scene, { label: "VP2", x: 1900, y: 400, onHorizon: true });
+  let guard = 0;
+  while (scaleVpSpread(scene, 0.8).ok && guard++ < 60) { /* keep pressing Stronger */ }
+  assert.ok(guard < 60, "it never refused");
+  for (const vp of scene.vanishingPoints) {
+    const onPaper = vp.x > -250 && vp.x < 1250 && vp.y > -200 && vp.y < 1000;
+    assert.ok(!onPaper, `${vp.label} ended up at ${Math.round(vp.x)},${Math.round(vp.y)} — on the paper`);
+  }
 });

@@ -1564,17 +1564,20 @@ try {
       const cx = s.canvas.width / 2, cy = s.canvas.height / 2;
       return Math.round(s.vanishingPoints.reduce((m, v) => m + Math.hypot(v.x - cx, v.y - cy), 0) / s.vanishingPoints.length);
     };
-    const a = window.__ip.scene.vertices.find(v => v.kind === 'anchor');
-    const cornerOf = () => {
-      const s = window.__ip.scene;
-      const r = s.vertices.filter(v => v.kind === 'ray' && v.origin === a.id && typeof v.binding === 'object')[0];
-      return { x: Math.round(r.x), y: Math.round(r.y) };
-    };
-    const before = { spread: spread(), corner: cornerOf() };
+    // The largest displacement anywhere in the drawing, not one chosen corner: a
+    // base corner sitting near the horizon barely moves when the points slide
+    // along it, while the corners built from two guides move a lot. Measuring the
+    // whole drawing is the actual claim — "the drawing follows the dial".
+    const snap = () => window.__ip.scene.vertices.map(v => ({ x: v.x, y: v.y }));
+    const worst = (a2, b2) => Math.round(Math.max(...a2.map((p, i) => Math.hypot(p.x - b2[i].x, p.y - b2[i].y))));
+    const v0 = snap();
+    const before = { spread: spread(), corner: { x: 0, y: 0 } };
     document.getElementById('stronger').click();
-    const after = { spread: spread(), corner: cornerOf() };
+    const v1 = snap();
+    const after = { spread: spread(), corner: { x: worst(v0, v1), y: 0 } };
     document.getElementById('gentler').click();
-    const restored = { spread: spread(), corner: cornerOf() };
+    const v2 = snap();
+    const restored = { spread: spread(), corner: { x: worst(v0, v2), y: 0 } };
     const s = window.__ip.scene;
     return {
       before, after, restored,
@@ -1583,12 +1586,12 @@ try {
     };
   });
   check('Stronger brings the points in, and the drawing follows them (D42)',
-    dial.after.spread < dial.before.spread * 0.9
-      && (dial.after.corner.x !== dial.before.corner.x || dial.after.corner.y !== dial.before.corner.y),
-    `spread ${dial.before.spread} -> ${dial.after.spread}, corner ${JSON.stringify(dial.before.corner)} -> ${JSON.stringify(dial.after.corner)}`);
+    dial.after.spread < dial.before.spread * 0.9 && dial.after.corner.x > 5,
+    `spread ${dial.before.spread} -> ${dial.after.spread}, furthest corner moved ${dial.after.corner.x}px`);
   check('Gentler puts it back, and nothing was lost either way',
-    Math.abs(dial.restored.spread - dial.before.spread) <= 2 && dial.finite && dial.edges === 12,
-    `spread back to ${dial.restored.spread} from ${dial.before.spread}`);
+    Math.abs(dial.restored.spread - dial.before.spread) <= 2 && dial.restored.corner.x <= 1
+      && dial.finite && dial.edges === 12,
+    `spread back to ${dial.restored.spread} from ${dial.before.spread}, drawing off by ${dial.restored.corner.x}px`);
 
   // It refuses rather than dragging a point into the middle of the drawing.
   const refused = await cPg.evaluate(() => {
@@ -1596,15 +1599,43 @@ try {
     const s = window.__ip.scene;
     const cx = s.canvas.width / 2, cy = s.canvas.height / 2;
     const floor = Math.hypot(s.canvas.width, s.canvas.height) * 0.15;
+    const mx = s.canvas.width * 0.25, my = s.canvas.height * 0.25;
     return {
-      closest: Math.round(Math.min(...s.vanishingPoints.map(v => Math.hypot(v.x - cx, v.y - cy)))),
-      floor: Math.round(floor),
+      onPaper: s.vanishingPoints.filter(v =>
+        v.x > -mx && v.x < s.canvas.width + mx && v.y > -my && v.y < s.canvas.height + my).length,
       finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
     };
   });
-  check('and it refuses before a point ends up inside the drawing (D42)',
-    refused.closest >= refused.floor - 1 && refused.finite,
-    `closest point ${refused.closest} from centre, floor ${refused.floor}`);
+  check('and it refuses before a point ends up ON THE PAPER (D42/D45)',
+    refused.onPaper === 0 && refused.finite,
+    `${refused.onPaper} points on the paper after pressing Stronger to the limit`);
+
+  // D45 — pressing Stronger must not slide the horizon off eye level.
+  const stayed = await cPg.evaluate(() => {
+    const s = window.__ip.scene;
+    document.getElementById('gentler').click();
+    document.getElementById('gentler').click();
+    const h = window.__ip.horizon();
+    return { offset: h ? Math.round(h.offsetFromEyeLevel) : null, eye: s.eyeLevel.y };
+  });
+  check('and the horizon stays on eye level however hard the dial is turned (D45)',
+    stayed.offset === 0, `horizon sits ${stayed.offset} from eye level`);
+
+  // D45 — a cube is sized from the points, so it is still a cube after Stronger.
+  const sized = await cPg.evaluate(() => {
+    const before = window.__ip.scene.vanishingPoints.map(v => v.x);
+    document.getElementById('clear-drawing').click();
+    document.getElementById('clear-drawing').click();
+    document.getElementById('add-cube').click();
+    const s = window.__ip.scene;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    const riser = s.vertices.find(v => v.kind === 'ray' && v.origin === a.id && v.binding === 'vertical');
+    const nearest = Math.min(...s.vanishingPoints.map(v => Math.hypot(v.x - a.x, v.y - a.y)));
+    return { edge: Math.round(Math.abs(riser.t)), nearest: Math.round(nearest), before: before.length };
+  });
+  check('a cube is sized from how far away the points are, not a fixed number (D45)',
+    sized.edge < sized.nearest * 0.3 && sized.edge > 20,
+    `edge ${sized.edge} against a nearest point ${sized.nearest} away`);
   await cubeCtx.close();
 
   // D43 — the canvas artifact Noah photographed on production 1.7.0: a band of

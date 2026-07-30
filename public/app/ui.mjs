@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.7.1";
+const VERSION = "1.7.2";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1321,15 +1321,34 @@ viewToggle("eye-level", "eyeLevel",
 // requests: a true cube needs a fourth point on the horizon and gives you
 // geometry; this gives you a shape that READS as a cube and exaggerates as it
 // leaves the centre of the paper, which is what forced perspective is for.
-const CUBE_EDGE = 220;
+// D45 — a cube's edge is a fraction of how far away the points are, not a fixed
+// number of canvas units.
+//
+// Noah placed one after pressing Stronger and got a slab spanning the paper. A
+// fixed 220 is a sensible cube when the points are 2,000 away and a wildly
+// foreshortened plank when they are 400 away, because what matters is the edge
+// AS A FRACTION of the distance to the point it runs toward. Sized from the
+// nearest point, a cube looks like a cube at any setting of the dial — and gets
+// more dramatic as you exaggerate, which is the whole idea.
+const CUBE_FRACTION = 0.18;      // of the distance to the nearest vanishing point
+const CUBE_MIN = 40, CUBE_MAX = 420;
 const STRETCH = 1.25;                  // and 1/1.25 the other way, so it is reversible
 const SPREAD_STEP = 0.8;               // in = stronger; 1/0.8 = out = gentler
+
+function cubeEdge(at) {
+  const usable = scene.vanishingPoints.filter(v => !v.locked);
+  if (!usable.length) return CUBE_MIN * 4;
+  const nearest = Math.min(...usable.map(v => Math.hypot(v.x - at.x, v.y - at.y)));
+  if (!Number.isFinite(nearest)) return CUBE_MIN * 4;
+  return Math.round(Math.max(CUBE_MIN, Math.min(CUBE_MAX, nearest * CUBE_FRACTION)));
+}
 
 function addCube() {
   endExtrude(false);
   const at = viewCentre();
+  const edge = cubeEdge(at);
   beginGesture(history, scene);
-  const res = buildBox(scene, { at, height: CUBE_EDGE, depthL: CUBE_EDGE, depthR: CUBE_EDGE });
+  const res = buildBox(scene, { at, height: edge, depthL: edge, depthR: edge });
   if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
   selection = { type: "vertex", id: res.corners.nearTop.id };
   el.canvas.focus({ preventScroll: true });

@@ -602,7 +602,13 @@ export function moveVp(scene, vpId, { x, y }) {
 // paper is what the drawing sits on and what the artist is composing within, and
 // scaling about a moving centroid would drift the composition sideways every
 // time it was used.
-const SPREAD_MIN = 0.15;   // as a fraction of the paper's diagonal
+// A point must stay OFF the paper, with room to spare. Measured against the paper
+// itself rather than its centre: the first version of this guard used distance
+// from the centre, which happily allowed a point to sit inside the sheet as long
+// as it was far enough sideways. A vanishing point inside the drawing collapses
+// every depth limit near it — corners stop responding because they are already
+// clamped — which is the state Noah's screenshot was in.
+const SPREAD_MARGIN = 0.25;   // of the paper's own width/height, outside the edge
 
 export function scaleVpSpread(scene, k) {
   if (!Number.isFinite(k) || k <= 0) return { ok: false, reason: "that is not a scale" };
@@ -610,21 +616,28 @@ export function scaleVpSpread(scene, k) {
   if (!movable.length) {
     return { ok: false, reason: "every vanishing point is locked — unlock one to change the perspective" };
   }
-  const cx = scene.canvas.width / 2, cy = scene.canvas.height / 2;
-  const floor = Math.hypot(scene.canvas.width, scene.canvas.height) * SPREAD_MIN;
-  // Refuse as a whole rather than moving some and stopping: a point dragged in
-  // this far is inside the drawing, where it stops being a vanishing point and
-  // starts being a hole every line runs into.
-  for (const vp of movable) {
-    const d = Math.hypot((vp.x - cx) * k, (vp.y - cy) * k);
-    if (d < floor) {
-      return { ok: false, reason: `any stronger and ${vp.label} would be inside the drawing` };
+  const { width: w, height: h } = scene.canvas;
+  const cx = w / 2, cy = h / 2;
+  const mx = w * SPREAD_MARGIN, my = h * SPREAD_MARGIN;
+
+  // D45 — a point that sits ON the horizon STAYS on it. Scaling y as well as x
+  // pulled horizon points off the line they define, so pressing Stronger slid the
+  // horizon away from eye level a little at a time. Only the third point — the
+  // one above or below — has a meaningful y to exaggerate.
+  const next = movable.map(vp => ({
+    vp,
+    x: cx + (vp.x - cx) * k,
+    y: vp.onHorizon ? vp.y : cy + (vp.y - cy) * k,
+  }));
+
+  // Refuse as a whole rather than moving some and stopping.
+  for (const n of next) {
+    const outside = n.x < -mx || n.x > w + mx || n.y < -my || n.y > h + my;
+    if (!outside) {
+      return { ok: false, reason: `any stronger and ${n.vp.label} would be on the paper, where it stops being a vanishing point` };
     }
   }
-  for (const vp of movable) {
-    vp.x = cx + (vp.x - cx) * k;
-    vp.y = cy + (vp.y - cy) * k;
-  }
+  for (const n of next) { n.vp.x = n.x; n.vp.y = n.y; }
   solveScene(scene);
   return { ok: true, moved: movable.length };
 }

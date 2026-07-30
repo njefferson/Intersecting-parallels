@@ -8,6 +8,26 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.7.2 — ITERATION · 2026-07-30
+
+**Add cube now makes a cube whatever the perspective is set to.**
+
+- **A cube is sized from how far away the vanishing points are**, not from a
+  fixed number. Placing one after a few taps of Stronger used to give a flat slab
+  spanning the paper, because the same edge length is a cube when the points are
+  far away and a plank when they are near. It gets more dramatic as you
+  exaggerate, which is the point, without stopping being a cube.
+- **Stronger no longer slides the horizon away from eye level.** Points that sit
+  on the horizon keep their height now; only the third point, the one above or
+  below, has a height worth exaggerating.
+- **Stronger stops sooner, and for the right reason.** It used to measure whether
+  a point was far enough from the middle of the paper, which let one settle on the
+  paper as long as it was off to one side. A vanishing point on the paper collapses
+  the depth limits of everything near it, so corners stop responding to dragging.
+  It now refuses while every point is still clear of the sheet.
+
+---
+
 ## 1.7.1 — ITERATION · 2026-07-30
 
 **Two things Noah photographed on 1.7.0.**

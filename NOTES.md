@@ -668,6 +668,44 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D45 — a cube that stays a cube, and a dial that stops in time (FIXED 1.7.2, staging)
+
+**Noah, 2026-07-30, with a photograph:** *"Placed a cube with the button, and it
+is only manipulatable with the out-of-sight corners."* The screenshot shows a flat
+slab spanning the whole paper, with both vanishing point markers pinned to the
+screen edges — so the points had been pulled well in with Stronger first.
+
+**Three defects, all mine, all from D42.**
+
+1. **`Add cube` used a fixed 220 canvas units.** That is a cube when the points
+   are 2,000 away and a wildly foreshortened plank when they are 400 away, because
+   what matters is the edge AS A FRACTION of the distance to the point it runs
+   toward. It is sized from the nearest point now (18%, clamped), so it is a cube
+   at any setting of the dial and gets more dramatic as you exaggerate.
+
+2. **Stronger slid the horizon off eye level.** `scaleVpSpread` scaled x AND y
+   about the paper centre, so a point sitting exactly on the horizon drifted a
+   little further off it with every press. Points flagged `onHorizon` keep their y
+   now; only the third point has a height worth exaggerating.
+
+3. **The guard measured the wrong thing.** It refused when a point came within
+   15% of the paper's diagonal OF THE CENTRE, which happily allowed a point to sit
+   ON the sheet as long as it was far enough sideways. A vanishing point inside the
+   drawing collapses `tLimit` for every corner near it — `0.95 x distance to the
+   point` — so those corners are already clamped and stop responding to dragging.
+   It refuses while every point is still a quarter of a page clear of the sheet.
+
+**On the manipulation report specifically: I could not reproduce it, and (3) is
+the best explanation I have rather than a confirmed one.** What was tried, all on
+a cube: `manipulate` on all eight corners through the API (all moved, 40-72px); a
+mouse tap on each corner's exact screen position (all eight selected the right
+corner); and a ONE-FINGER CDP touch drag on each corner with Touch draws ON in
+Select mode, matching the toolbar state in his screenshot (all eight moved
+103-111px). The condition his screenshot is actually in — points pulled in close —
+was reproduced too, and every corner still moved. If it recurs after 1.7.2, the
+thing to capture is the Points panel open beside it, because the distance field
+for a stuck corner will say whether it is clamped.
+
 ### D43/D44 — the canvas artifact and reversed normals (FIXED 1.7.1, staging)
 
 **Both found by Noah on PRODUCTION 1.7.0, with photographs.**
