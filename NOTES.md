@@ -106,6 +106,44 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-07-30 — 1.7.0.** Seventh promote. `main`
+fast-forwarded `d32ae72` -> `401877d`, no merge commit, and
+`git diff origin/main origin/staging` empty on the remote afterwards. Five
+releases, and between them they answered every defect Noah reported this
+afternoon plus the two features he asked for:
+
+- **1.4.0** — D34 closed F-04: Add line and Add box, so nothing in the app
+  requires a drag. D35 reversed a bad call of mine and raised the grid to 3:1;
+  no colour is protected.
+- **1.5.0** — D36/D37/D38: eye level split from the horizon (the horizon is
+  derived from the points, or absent), solid faces whose top/underside follows
+  eye level, rays to every point.
+- **1.5.1** — D36a, a defect I shipped: a scene saved by an older build could not
+  be opened at all. The migration guarded the file door and not the storage door.
+- **1.6.0** — D39 signed depths, so a box can be pushed through zero and invert;
+  D40 hidden-line removal and a shading-strength control; D41 the three-point cap
+  with the count fixed once anything is drawn.
+- **1.7.0** — D42: Add cube, Taller/Shorter, Stronger/Gentler. Forced perspective
+  as an artist means it, after Noah clarified he wanted exaggeration rather than a
+  measuring-point construction.
+
+All four workflows verified green on `401877d` on `staging` BEFORE the merge and
+again on `main` after it: Deploy, Accessibility gate, Solver tests, App walk. The
+record was held until every run on `main` reached `completed / success`, for the
+third promote running.
+
+Gates at 1.7.0: **149 unit tests** (109 at 1.3.2), a11y PASS, **139 walk checks**
+(102 at 1.3.2), 7 declared interactions with **no gaps** — F-04 is closed, so for
+the first time every declared drag has a non-drag alternative.
+
+The standing pages.dev caveat is unchanged: this sandbox cannot read the site, so
+the evidence is a successful deploy of this exact tree, and the on-screen stamp
+reading 1.7.0 on Noah's iPad closes it.
+
+What ships still open: the canvas grid is now a toggle rather than a compromise;
+snap radius is still hardcoded where §4 wants it adjustable; target SPACING is
+ungated; and the Weld preference still desyncs from its button on reload.
+
 **PROMOTED TO PRODUCTION 2026-07-30 — 1.3.2.** Sixth promote, and the largest
 one: `main` fast-forwarded from `e60543b` (1.0.0's record) to `172749c` — no merge
 commit, the identical tree, and `git diff origin/main origin/staging` empty on the
