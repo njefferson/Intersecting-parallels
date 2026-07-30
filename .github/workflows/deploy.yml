@@ -22,7 +22,14 @@ on:
 
 concurrency:
   group: deploy-${{ github.ref_name }}
-  cancel-in-progress: true
+  # NEVER cancel a PRODUCTION deploy. On staging, latest-wins is right: an older
+  # preview is worthless. On main it is dangerous — a cancelled deploy leaves
+  # production silently serving the PREVIOUS release while the promote looks
+  # done. That happened on 2026-07-30: a docs commit pushed seconds after the
+  # 0.5.0 promote cancelled the promote's own deploy, and only reading the run
+  # showed `cancelled` rather than `success`. The follow-up push happened to
+  # carry the same tree, so production landed anyway — luck, not design.
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 permissions:
   contents: read
@@ -92,5 +99,6 @@ jobs:
           echo "If this deploy is bad:"
           echo "  Cloudflare dashboard -> Workers & Pages -> intersecting-parallels -> Deployments"
           echo "  -> pick the last good one -> Manage deployment -> Rollback."
-          echo "That is instant. A git revert is also fine but waits for a fresh build,"
-          echo "and note concurrency cancel-in-progress can cancel an in-flight deploy."
+          echo "That is instant. A git revert is also fine but waits for a fresh build."
+          echo "A production deploy is never cancelled by a later push (see concurrency),"
+          echo "so a promote cannot be left half-done by pushing again straight after."
