@@ -47,7 +47,7 @@ const DOWNTOWN = city({
   // stand mid-distance, and the near lots are low — which is exactly the
   // arrangement in Noah's reference sketch.
   heights: {
-    "-2,-2": 0.26,                "-2,0": 0.40, "-2,1": 0.30,   // -2,-1 empty
+                                  "-2,0": 0.40, "-2,1": 0.30,   // -2,-1 and -2,-2 empty: the nearest lot projects to y=4869, a stray slab across the icon window's bottom edge
                    "-1,-1": 0.46, "-1,0": 0.52, "-1,1": 0.34,   // -1,-2 empty: it covered the nadir
                     "0,-1": 0.94,  "0,0": 1.34,  "0,1": 0.80,   // 0,-2 empty
      "1,-2": 0.52,  "1,-1": 1.14,                "1,1": 1.06,   // 1,0 empty lot
@@ -64,6 +64,24 @@ const SKYLINE = city({
      "2,0": 0.40,  "2,1": 1.02,  "2,2": 0.48,
   },
 });
+
+// The chosen social-tile composition, named, because the icon is now a square
+// WINDOW onto this same scene rather than a second drawing of it. Noah: "Could the
+// icon not just be a crop of the social review tile?" — it can, and it should: a
+// crop cannot disagree about the perspective, whereas two separately framed scenes
+// with different camera distances did, which is what he spotted.
+//
+// It cannot be a crop of the PIXELS, though. His two horizon points are 662px
+// apart and the tile is 630px tall, so no square region of the raster contains
+// both. Taking the window in scene coordinates instead gives the same lines with
+// more sky above them, which is a crop of the drawing rather than of the file.
+const WIDE_SHIFT = {
+  name: "wide-shift", out: "art/og-wide-shift.svg", w: 1200, h: 630,
+  vps: { A: { x: 431, y: 88 }, B: { x: 1093, y: 88 }, C: { x: 762, y: 556 } },
+  cluster: { x: 792, y: 336 }, unitPx: 104, hScale: 0.80, grid: [[-2.5, 3.5], [-2.5, 3]], step: 0.5,
+  overshoot: 1.14, roads: DOWNTOWN, boxes: DOWNTOWN.boxes,
+  note: "shifted right for the wordmark; nadir pulled up to 556 (s = d/sqrt2 keeps the focal length as long as this frame allows); city five blocks wide with the streets running on toward the camera",
+};
 
 const VARIANTS = [
   {
@@ -86,12 +104,28 @@ const VARIANTS = [
     overshoot: 1.14,
     note: "third point in frame, centred; horizon points at 242/958 — s = d/sqrt2, which maximises the focal length this frame can have",
   },
+  WIDE_SHIFT,
   {
-    name: "wide-shift", out: "art/og-wide-shift.svg", w: 1200, h: 630,
-    vps: { A: { x: 431, y: 88 }, B: { x: 1093, y: 88 }, C: { x: 762, y: 556 } },
-    cluster: { x: 792, y: 336 }, unitPx: 104, hScale: 0.80, grid: [[-2.5, 3.5], [-2.5, 3]], step: 0.5,
-    overshoot: 1.14, roads: DOWNTOWN, boxes: DOWNTOWN.boxes,
-    note: "shifted right for the wordmark; nadir pulled up to 556 (s = d/sqrt2 keeps the focal length as long as the frame allows); city spread five blocks wide and run toward the camera so the lower frame carries roads",
+    ...WIDE_SHIFT,
+    name: "icon-crop", out: "art/icon-crop.svg", raster: "art/icon-crop.png",
+    w: 1024, h: 1024,
+    // Square window in SCENE coordinates: wide enough to hold both horizon points
+    // at its edges, tall enough to reach past the nadir, extending above y=0 for
+    // the sky the wide frame never had room for.
+    window: { x: 421, y: -66, size: 682 },
+    strokeWidth: 3.0, dotR: 8,
+    note: "tight window — both horizon points sit right on the edges",
+  },
+  {
+    ...WIDE_SHIFT,
+    name: "icon-crop-wide", out: "art/icon-crop-wide.svg", raster: "art/icon-crop-wide.png",
+    w: 1024, h: 1024,
+    // Same centre, wider window. Pulling the horizon points inside the middle 80%
+    // matters: a maskable icon is cropped by the launcher, and at the tight window
+    // both dots are within 7% of the edge, so a launcher would eat them.
+    window: { x: 342, y: -145, size: 840 },
+    strokeWidth: 3.4, dotR: 9.5,
+    note: "wider window — horizon points inside the middle 80%, so a maskable crop keeps them",
   },
   {
     name: "wide-out", out: "art/og-wide-out.svg", w: 1200, h: 630,
@@ -116,7 +150,8 @@ function svgFor(v) {
   // The horizon is not decoration either: it is the line through A and B, which
   // is the vanishing line of the ground plane the boxes stand on.
   const t = (B.x - A.x) === 0 ? 0 : (B.y - A.y) / (B.x - A.x);
-  const hz = { p: { x: -50, y: A.y + t * (-50 - A.x) }, q: { x: v.w + 50, y: A.y + t * (v.w + 50 - A.x) } };
+  const hzL = (v.window?.x ?? 0) - 50, hzR = hzL + (v.window?.size ?? v.w) + 100;
+  const hz = { p: { x: hzL, y: A.y + t * (hzL - A.x) }, q: { x: hzR, y: A.y + t * (hzR - A.x) } };
 
   const grid = scene.lines.filter(l => l.kind === "grid").map(l => line(l, `stroke="${CYAN}" stroke-opacity=".09" stroke-width="1"`)).join("");
   const roads = scene.lines.filter(l => l.kind === "road").map(l => line(l, `stroke="${CYAN}" stroke-opacity=".34" stroke-width="1.3"`)).join("");
@@ -133,7 +168,12 @@ function svgFor(v) {
     `<circle cx="${fmt(p.x)}" cy="${fmt(p.y)}" r="${r * 2.6}" fill="${fill}" fill-opacity=".18"/>` +
     `<circle cx="${fmt(p.x)}" cy="${fmt(p.y)}" r="${r}" fill="${fill}"/>`;
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${v.w} ${v.h}" width="${v.w}" height="${v.h}">
+  // viewBox is the window; width/height are the output size. The background rect
+  // is drawn over the window, not over the tile, or a windowed render would show
+  // bare page where the tile's own rect stops.
+  const win = v.window ?? { x: 0, y: 0, w: v.w, h: v.h };
+  const vb = { x: win.x, y: win.y, w: win.size ?? win.w, h: win.size ?? win.h };
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" width="${v.w}" height="${v.h}">
 <defs>
   <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="${NAVY_TOP}"/><stop offset="1" stop-color="${NAVY_LOW}"/>
@@ -142,8 +182,8 @@ function svgFor(v) {
     <stop offset="0" stop-color="${AMBER}" stop-opacity=".16"/><stop offset="1" stop-color="${AMBER}" stop-opacity="0"/>
   </radialGradient>
 </defs>
-<rect id="bg" width="${v.w}" height="${v.h}" fill="url(#sky)"/>
-<rect width="${v.w}" height="${v.h}" fill="url(#glow)"/>
+<rect id="bg" x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" fill="url(#sky)"/>
+<rect x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" fill="url(#glow)"/>
 <g id="art">
   <g id="grid">${grid}</g>
   <g id="roads">${roads}</g>
