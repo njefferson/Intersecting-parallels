@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS, bindingDirection,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll,
+  clearDrawing, clearAll, manipulate, ancestorParams,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -53,6 +53,8 @@ let activeVpId = null;
 let pngCeiling = 4096;
 let pendingFrame = false;
 let pendingVpMove = null;   // applied on the next frame, never per pointer event
+let pendingManipulate = null;   // D29 — same, for a corner drag's inverse solve
+let manipulateWarned = false;
 
 const viewport = () => ({ width: el.stage.clientWidth, height: el.stage.clientHeight });
 const theme = () => (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
@@ -88,6 +90,15 @@ function render() {
     if (pendingVpMove) {
       moveVp(scene, pendingVpMove.vpId, pendingVpMove.at);
       pendingVpMove = null;
+    }
+    // D29 — same rule for corners: one inverse solve per FRAME, never one per
+    // pointer event. The solve is 1-4% of a frame, but a finger emits far more
+    // events than there are frames.
+    if (pendingManipulate) {
+      const r = manipulate(scene, pendingManipulate.vertexId, pendingManipulate.target);
+      if (!r.ok && !manipulateWarned) { manipulateWarned = true; toast(r.reason, "error"); }
+      pendingManipulate = null;
+      renderPanel({ structural: false });
     }
     const vp = viewport();
     draw(ctx, view, vp, {
@@ -428,10 +439,27 @@ function renderInspector() {
       note.textContent = `Rides ${along}. Distance is signed — a negative number goes the other way along the same guide.`;
       box.appendChild(note);
     } else {
+      // D29 — an intersect corner has no coordinates of its own, but it is no
+      // longer a dead end: it moves by adjusting the numbers behind it, and the
+      // panel says which those are and offers them. Before, this was a sentence
+      // and nothing else, while the drag silently did nothing at all.
+      const params = ancestorParams(scene, v.id)
+        .map(id => scene.vertices.find(x => x.id === id))
+        .filter(Boolean);
       const note = document.createElement("p");
       note.className = "hint";
-      note.textContent = "Held where two guides cross, so it has no coordinates of its own — move either guide and it follows.";
+      note.textContent = params.length
+        ? `Held where two guides cross. Dragging it, or nudging it with the arrow keys, adjusts the ${params.length} distance${params.length === 1 ? "" : "s"} below.`
+        : "Held where two guides cross, and everything that defines it is fixed.";
       box.appendChild(note);
+      for (const p of params) {
+        box.appendChild(numberField(`vtx-${p.id}-t`, bindingName(scene, p.binding), Math.round(p.t), value => {
+          beginGesture(history, scene);
+          const r = rebindVertex(scene, p.id, { t: value });
+          if (!r.ok) { toast(r.reason, "error"); return; }
+          afterEdit(`${Math.round(value)} along ${bindingName(scene, p.binding)}`);
+        }));
+      }
     }
     box.appendChild(delPoint);
   } else {
@@ -720,17 +748,20 @@ el.canvas.addEventListener("pointermove", ev => {
     if (!v) return;
     const dx = c.x - gesture.startCanvas.x, dy = c.y - gesture.startCanvas.y;
     if (!gesture.moved && Math.hypot(dx, dy) * view.scale < 4) return;   // a tap, not a drag
-    gesture.moved = true;
-    if (gesture.kindOf === "anchor") {
-      moveAnchor(scene, v.id, { x: gesture.startPos.x + dx, y: gesture.startPos.y + dy });
-    } else if (gesture.kindOf === "ray") {
-      // Along its guide only — the same rule the keyboard obeys, so the two paths
-      // cannot disagree about what this corner is allowed to do.
-      const origin = scene.vertices.find(x => x.id === v.origin);
-      const u = origin ? bindingDirection(scene, { x: origin.x, y: origin.y }, v.binding) : null;
-      if (u) rebindVertex(scene, v.id, { t: gesture.startT + dx * u.x + dy * u.y });
+    if (!gesture.moved) {
+      // D7 — history opens at the moment it becomes a drag, so a tap that only
+      // selects leaves no empty step behind. (Before D29 this was a
+      // restore-and-reapply dance at release, which could not work for a corner
+      // whose position is not stored anywhere.)
+      beginGesture(history, scene);
+      gesture.moved = true;
     }
-    renderPanel({ structural: false });
+    // D29 — the grab offset is preserved: the corner follows the finger from
+    // where it was picked up, rather than jumping its centre to the fingertip.
+    pendingManipulate = {
+      vertexId: v.id,
+      target: { x: gesture.startPos.x + dx, y: gesture.startPos.y + dy },
+    };
     render();
     return;
   }
@@ -817,22 +848,14 @@ function endPointer(ev) {
   if (wasGesture.kind === "pan") return;
 
   if (wasGesture.kind === "vertex") {
+    manipulateWarned = false;
     if (!wasGesture.moved) { render(); return; }              // a tap that selected, nothing more
-    const v = scene.vertices.find(x => x.id === wasGesture.vertexId);
-    // The whole drag is ONE undo step, and history is opened here rather than on
-    // pointerdown so a tap that only selects does not leave an empty step behind.
-    const restore = { ...wasGesture.startPos, t: wasGesture.startT };
-    const now = v ? { x: v.x, y: v.y, t: v.t } : null;
-    if (v) {
-      if (wasGesture.kindOf === "anchor") moveAnchor(scene, v.id, { x: restore.x, y: restore.y });
-      else if (wasGesture.kindOf === "ray") rebindVertex(scene, v.id, { t: restore.t });
-      beginGesture(history, scene);                            // D7
-      if (wasGesture.kindOf === "anchor") moveAnchor(scene, v.id, { x: now.x, y: now.y });
-      else if (wasGesture.kindOf === "ray") rebindVertex(scene, v.id, { t: now.t });
+    if (pendingManipulate) {
+      manipulate(scene, pendingManipulate.vertexId, pendingManipulate.target);
+      pendingManipulate = null;
     }
-    afterEdit(v && wasGesture.kindOf === "ray"
-      ? `${Math.round(v.t)} along ${bindingName(scene, v.binding)}`
-      : v ? `Corner at ${Math.round(v.x)}, ${Math.round(v.y)}` : null);
+    const v = scene.vertices.find(x => x.id === wasGesture.vertexId);
+    afterEdit(v ? describeVertex(v) : null);
     return;
   }
 
@@ -845,7 +868,7 @@ function endPointer(ev) {
       depthL: wasGesture.depthL, depthR: wasGesture.depthR,
     });
     if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
-    afterEdit(`Box drawn — ${res.edges.length} lines, every corner held by two guides. Select a corner to set its distance exactly.`);
+    afterEdit(`Box drawn — ${res.edges.length} lines, every corner held by two guides. Drag any corner to reshape it.`);
     return;
   }
 
@@ -973,34 +996,30 @@ function newScene({ width, height, points }) {
 //
 // This is also the non-drag path §4 requires for the corner drag added beside it:
 // every drag has a keyboard equivalent, and here they are the same nudge.
+function describeVertex(v) {
+  if (v.kind === "ray") return `${Math.round(v.t)} along ${bindingName(scene, v.binding)}`;
+  return `Corner at ${Math.round(v.x)}, ${Math.round(v.y)}`;
+}
+
 function nudgeSelection(dx, dy, big) {
   if (!selection || selection.type !== "vertex") return false;
   const v = scene.vertices.find(x => x.id === selection.id);
   if (!v) return false;
   const step = big ? NUDGE_BIG : NUDGE;
+  // D29 — the arrow keys go through the SAME manipulate() the drag uses. They
+  // were separate code paths and had already drifted apart once (F-05): a corner
+  // that could not be dragged also could not be nudged, and each gap was
+  // invisible to the other. One entry, one behaviour, for every kind of corner.
+  const before = { x: v.x, y: v.y };
   beginGesture(history, scene);
-  if (v.kind === "anchor") {
-    const r = moveAnchor(scene, v.id, { x: v.x + dx * step, y: v.y + dy * step });
-    if (!r.ok) { toast(r.reason, "error"); return true; }
-    afterEdit(`Corner at ${Math.round(v.x)}, ${Math.round(v.y)}`);
+  const r = manipulate(scene, v.id, { x: v.x + dx * step, y: v.y + dy * step });
+  if (!r.ok) { undoHistoryInPlace(); toast(r.reason, "error"); return true; }
+  if (Math.hypot(v.x - before.x, v.y - before.y) < 1e-9) {
+    undoHistoryInPlace();
+    say("That direction runs across this corner's guides, so it cannot move that way.");
     return true;
   }
-  if (v.kind === "ray") {
-    // A ray corner may only move ALONG its guide, so the arrow key is projected
-    // onto that guide: pressing right on a guide running up-left still moves it
-    // up-left, by the component you asked for. Anything else would drag the
-    // corner off the line that defines it.
-    const origin = scene.vertices.find(x => x.id === v.origin);
-    const u = origin ? bindingDirection(scene, { x: origin.x, y: origin.y }, v.binding) : null;
-    if (!u) { toast("This corner's guide is degenerate here.", "error"); return true; }
-    const along = (dx * u.x + dy * u.y) * step;
-    if (!along) { say("That direction runs across this corner's guide, so it cannot move that way."); return true; }
-    const r = rebindVertex(scene, v.id, { t: v.t + along });
-    if (!r.ok) { toast(r.reason, "error"); return true; }
-    afterEdit(`${Math.round(v.t)} along ${bindingName(scene, v.binding)}`);
-    return true;
-  }
-  say("This corner is where two guides cross — move either guide and it follows.");
+  afterEdit(describeVertex(v));
   return true;
 }
 
@@ -1060,7 +1079,7 @@ function setMode(mode) {
   }
   const names = { place: "Place", draw: "Draw", box: "Box", select: "Select" };
   say(`${names[mode] ?? mode} mode`);
-  if (mode === "box") toast("Box mode — drag from the near bottom corner: up for height, sideways for depth");
+  if (mode === "box") toast("Box mode — drag from the near bottom corner: up for height, sideways for depth. Then drag any corner to reshape it.");
   autosaver.poke();
 }
 $("mode-place").addEventListener("click", () => setMode("place"));
@@ -1475,6 +1494,9 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     // to select a corner the way a tap does — same path, same refresh, so what it
     // measures is the real control and not a rebuilt copy of it.
     select: sel => { selection = sel; renderInspector(); render(); return selection; },
+    // D29 — the walk drives the real manipulate path rather than a copy of it.
+    manipulate: (id, target) => { const r = manipulate(scene, id, target); renderPanel({ structural: false }); render(); return r; },
+    ancestors: id => ancestorParams(scene, id),
     toScreen: p => toScreen(view, p),
     zoom: () => view.scale,
     buildSvg, renderPng,

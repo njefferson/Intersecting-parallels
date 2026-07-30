@@ -24,10 +24,16 @@ exist in the built page, and every alternative must be reachable by keyboard.
 - **Drag a vanishing point** (canvas, and its off-screen marker)
   → arrow keys on the point's panel button or on its marker (Shift for 20px),
     and exact `x` / `y` number fields in the Vanishing points panel.
-- **Drag a box corner or any selected point** — added in 1.1.0
+- **Drag ANY corner** — 1.1.0 for anchors and guide-riding corners, 1.2.0 for
+  corners where two guides cross
   → arrow keys once it is selected (the canvas takes focus on selection), and the
-    inspector's number field: `x` / `y` for an anchored corner, a signed distance
-    along the guide for a corner riding one.
+    inspector's number fields: `x` / `y` for an anchored corner, a signed distance
+    along the guide for a corner riding one, and for a crossing corner the
+    distances it is built from.
+    All three paths go through one `manipulate()` in the solver. They were three
+    code paths and had already drifted apart once — a corner that could not be
+    dragged also could not be nudged, and neither gap could see the other
+    (ACCESSIBILITY F-05, then F-06).
 - **Draw a line** (drag on the canvas)
   → not yet keyboard-drawable. **Declared gap, stated rather than hidden:** the
     guide system means a line is fully described by an origin, a guide and a

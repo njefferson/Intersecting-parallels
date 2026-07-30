@@ -316,6 +316,202 @@ export function moveAnchor(scene, vertexId, { x, y }) {
   return { ok: true, vertex: v };
 }
 
+// ---- D29: one entry for every manipulation --------------------------------
+//
+// Noah, 2026-07-30, on 1.1.0: "The circled corners in this image are the only
+// corners that do anything when I drag on them ... the rest do nothing." Half a
+// box's corners are `intersect` vertices — each the crossing of two guide lines —
+// and nothing in the app could move one. They were not refused, they were
+// SILENTLY inert: the drag branch had cases for anchor and ray and fell through,
+// which also pushed an empty undo step and announced success.
+//
+// The constraint graph already holds everything needed to move them. An intersect
+// has no parameters of its own, but its ANCESTORS do: walk `defs`/`origin` back to
+// the ray vertices and their `t` values are the numbers that place it. So moving
+// an intersect is an inverse problem — find the ancestor t's that put this corner
+// under the finger — and the forward model is the solver we already trust.
+//
+// Damped Gauss-Newton over those t's, with the existing solveScene as the forward
+// map. Measured on the real modules: reachable targets converge in 1-3 iterations
+// to sub-pixel error at 1-4% of a 60Hz frame, and every edge stays on its
+// vanishing point to ~1e-13px. Underdetermined corners (the box's far top corner
+// depends on three parameters through two equations) take the minimum-norm step,
+// which distributes the drag by geometric sensitivity — dragging it straight up
+// moves mostly height and leaves the two depths symmetric, so it behaves like
+// direct manipulation rather than like three hidden sliders.
+//
+// The guards are not optional and each one is a measured failure, not a
+// precaution. See `manipulate` for what each prevents.
+
+const GN_MAX_ITERATIONS = 8;
+const GN_TOLERANCE = 0.5;          // px — half a pixel is past what a finger means
+const GN_EPS = 0.01;               // px — finite-difference step on t
+const GN_STEP_CAP = 600;           // px — no single iteration may leap further
+const T_FLOOR = 1;                 // |t| >= 1: solveRay folds at t = 0 (see below)
+const T_VP_FRACTION = 0.95;        // and never let a corner reach its own VP
+
+/**
+ * The ray vertices whose `t` determines where `vertexId` sits. Walks the
+ * dependency chain, so it works for a corner defined by other corners (the box's
+ * far top corner is two levels deep) without anything knowing what a box is.
+ */
+export function ancestorParams(scene, vertexId, seen = new Set()) {
+  const v = vertexById(scene, vertexId);
+  if (!v || seen.has(vertexId)) return [];
+  seen.add(vertexId);
+  if (v.kind === "anchor") return [];
+  if (v.kind === "ray") {
+    return [v.id, ...ancestorParams(scene, v.origin, seen)];
+  }
+  return v.defs.flatMap(d => ancestorParams(scene, d.origin, seen));
+}
+
+// How far along its guide a ray may travel before it reaches its own vanishing
+// point. A corner AT its vanishing point is a degenerate construction, and the
+// unbounded solve will happily converge there for an extreme target — measured:
+// a corner dragged onto a VP produced a box whose base edge had crossed to the
+// far side of the anchor. Axis bindings have no such limit.
+function tLimit(scene, ray) {
+  const origin = vertexById(scene, ray.origin);
+  if (!origin || AXIS_BINDINGS.has(ray.binding)) return Infinity;
+  const vp = scene.vanishingPoints.find(p => p.id === ray.binding?.vpId);
+  if (!vp) return Infinity;
+  const d = Math.hypot(vp.x - origin.x, vp.y - origin.y);
+  return Number.isFinite(d) ? d * T_VP_FRACTION : Infinity;
+}
+
+function clampT(scene, ray, t) {
+  const limit = tLimit(scene, ray);
+  const sign = t < 0 ? -1 : 1;
+  const mag = Math.min(Math.max(Math.abs(t), T_FLOOR), limit);
+  return sign * mag;
+}
+
+const finitePoint = v => v && Number.isFinite(v.x) && Number.isFinite(v.y);
+
+/**
+ * Move `vertexId` so that it lands on `target`, by whatever means its kind allows.
+ * ONE entry point, because drag, arrow keys and the numeric fields were three code
+ * paths that had already drifted apart once (ACCESSIBILITY F-05).
+ *
+ * Returns { ok, kind, moved, converged, error, params } or { ok:false, reason }.
+ */
+export function manipulate(scene, vertexId, target) {
+  const v = vertexById(scene, vertexId);
+  if (!v) return { ok: false, reason: `vertex "${vertexId}" does not exist` };
+  if (!Number.isFinite(target?.x) || !Number.isFinite(target?.y)) {
+    return { ok: false, reason: "the target is not a point" };
+  }
+  // GUARD 1 — never start from a broken corner. Measured: one drag on a corner
+  // that was born degenerate (two parallel guides) writes NaN into its ancestors'
+  // t values through the Jacobian and destroys the whole construction
+  // irrecoverably. A corner the solver could not place is not a corner to grab.
+  if (!finitePoint(v) || v.degenerate) {
+    return { ok: false, reason: "this corner has no position yet — its two guides are parallel or its vanishing point sits on its origin" };
+  }
+
+  if (v.kind === "anchor") {
+    const r = moveAnchor(scene, vertexId, target);
+    return r.ok ? { ok: true, kind: "anchor", moved: true, converged: true, error: 0, params: [] } : r;
+  }
+
+  if (v.kind === "ray") {
+    // Strictly single-parameter: project the target onto this ray's own guide and
+    // set t. Deliberately NOT the generic inverse — a ray must never adjust its
+    // ancestors, because the depths of a box are independent and the walk pins
+    // that changing one leaves the other alone to within 0.01px.
+    const origin = vertexById(scene, v.origin);
+    const u = origin ? bindingDirection(scene, { x: origin.x, y: origin.y }, v.binding) : null;
+    if (!u) return { ok: false, reason: "this corner's guide is degenerate here" };
+    const t = clampT(scene, v, (target.x - origin.x) * u.x + (target.y - origin.y) * u.y);
+    const r = rebindVertex(scene, vertexId, { t });
+    return r.ok
+      ? { ok: true, kind: "ray", moved: true, converged: true, error: Math.hypot(v.x - target.x, v.y - target.y), params: [v.id] }
+      : r;
+  }
+
+  // ---- intersect: the inverse solve ---------------------------------------
+  const params = [...new Set(ancestorParams(scene, vertexId))]
+    .map(id => vertexById(scene, id))
+    .filter(p => p && p.kind === "ray");
+  if (!params.length) {
+    return { ok: false, reason: "this corner is fixed by other points that cannot move" };
+  }
+
+  const read = () => ({ x: v.x, y: v.y });
+  const snapshot = params.map(p => p.t);
+  const writeT = theta => {
+    params.forEach((p, i) => { p.t = clampT(scene, p, theta[i]); });
+    solveScene(scene);
+  };
+  const restore = () => writeT(snapshot);
+
+  let theta = params.map(p => p.t);
+  let best = { theta: [...theta], err: Infinity };
+  let lambda = 1e-3;
+  let iterations = 0;
+
+  for (; iterations < GN_MAX_ITERATIONS; iterations++) {
+    writeT(theta);
+    theta = params.map(p => p.t);           // clamping may have moved us
+    const at = read();
+    if (!finitePoint(v)) { restore(); return { ok: false, reason: "the construction stopped being solvable there" }; }
+    const r = [at.x - target.x, at.y - target.y];
+    const err = Math.hypot(r[0], r[1]);
+    if (err < best.err) best = { theta: [...theta], err };
+    if (err <= GN_TOLERANCE) break;
+
+    // Finite-difference Jacobian: 2 rows (x,y), one column per parameter.
+    const J = [];
+    for (let i = 0; i < params.length; i++) {
+      const kept = theta[i];
+      params[i].t = kept + GN_EPS;
+      solveScene(scene);
+      const plus = read();
+      params[i].t = kept;
+      solveScene(scene);
+      if (!Number.isFinite(plus.x) || !Number.isFinite(plus.y)) { J.push([0, 0]); continue; }
+      J.push([(plus.x - at.x) / GN_EPS, (plus.y - at.y) / GN_EPS]);
+    }
+
+    // Minimum-norm damped step: d = -J^T (J J^T + lambda I)^-1 r. Two equations,
+    // n unknowns; when n > 2 this spreads the correction by sensitivity rather
+    // than dumping it into whichever parameter comes first.
+    const a = J.reduce((s, c) => s + c[0] * c[0], 0) + lambda;
+    const b = J.reduce((s, c) => s + c[0] * c[1], 0);
+    const d = J.reduce((s, c) => s + c[1] * c[1], 0) + lambda;
+    const det = a * d - b * b;
+    if (!Number.isFinite(det) || Math.abs(det) < 1e-12) { restore(); writeT(best.theta); break; }
+    const w = [(-r[0] * d + r[1] * b) / det, (r[0] * b - r[1] * a) / det];
+    const step = J.map(c => c[0] * w[0] + c[1] * w[1]);
+    // GUARD 2 — a non-finite residual, Jacobian or step ends the solve rather
+    // than writing NaN into the scene.
+    if (step.some(x => !Number.isFinite(x))) { writeT(best.theta); break; }
+    const norm = Math.hypot(...step);
+    const scale = norm > GN_STEP_CAP ? GN_STEP_CAP / norm : 1;
+    const next = theta.map((x, i) => x + step[i] * scale);
+    if (next.some(x => !Number.isFinite(x))) { writeT(best.theta); break; }
+    theta = next;
+    lambda = err < best.err ? Math.max(lambda * 0.5, 1e-6) : Math.min(lambda * 4, 1e3);
+  }
+
+  // GUARD 3 — on non-convergence keep the best position found, so an
+  // unreachable target pins the corner at the edge of what the construction can
+  // do instead of leaving it wherever the last iteration landed.
+  writeT(best.theta);
+  const finalErr = Math.hypot(v.x - target.x, v.y - target.y);
+  if (!finitePoint(v)) { restore(); return { ok: false, reason: "the construction stopped being solvable there" }; }
+  return {
+    ok: true,
+    kind: "intersect",
+    moved: true,
+    converged: finalErr <= GN_TOLERANCE,
+    error: finalErr,
+    iterations,
+    params: params.map(p => p.id),
+  };
+}
+
 export function moveVp(scene, vpId, { x, y }) {
   const vp = scene.vanishingPoints.find(v => v.id === vpId);
   if (!vp) return { ok: false, reason: `vanishing point "${vpId}" does not exist` };

@@ -178,12 +178,33 @@ export function draw(ctx, view, viewport, opts = {}) {
   }
   ctx.setLineDash([]);
 
-  // 5 — vertices; a degenerate one gets a RING (shape, not hue — §4)
+  // 5 — vertices. A degenerate one gets a RING; everything else is drawn as a
+  // SQUARE handle, because since D29 every corner can be dragged and the shape
+  // says so. Before, all corners looked identical and only half of them moved —
+  // Noah had to scrub each one to find out which, which is the discoverability
+  // half of his report and the reason this is shape and not hue (§4): it
+  // survives a greyscale render and it is legible at a glance.
   for (const v of scene.vertices) {
     if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) continue;
     const p = toScreen(view, v);
     const isSel = selection && selection.type === "vertex" && selection.id === v.id;
     ctx.fillStyle = v.degenerate ? c.bad : (isSel ? c.sel : c.ink);
+    if (!v.degenerate) {
+      const r = (isSel ? VERTEX_DOT + 1.5 : VERTEX_DOT) + 0.5;
+      ctx.beginPath();
+      ctx.rect(p.x - r, p.y - r, r * 2, r * 2);
+      ctx.fill();
+      if (isSel) {
+        // A selected corner also carries an open outer square, so "this is the
+        // one the arrow keys will move" reads without relying on the fill colour.
+        ctx.strokeStyle = c.sel;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.rect(p.x - r - 4, p.y - r - 4, (r + 4) * 2, (r + 4) * 2);
+        ctx.stroke();
+      }
+      continue;
+    }
     ctx.beginPath();
     ctx.arc(p.x, p.y, isSel ? VERTEX_DOT + 1.5 : VERTEX_DOT, 0, Math.PI * 2);
     ctx.fill();

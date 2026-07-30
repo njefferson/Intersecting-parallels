@@ -23,10 +23,10 @@ export const INTERACTIONS = [
   {
     id: "drag-corner",
     kind: "drag",
-    what: "Drag a selected corner — anchored corners freely, guide-riding corners along their guide",
+    what: "Drag ANY corner — anchored corners freely, guide-riding corners along their guide, and corners where two guides cross by inverse-solving the distances behind them (D29)",
     alternatives: [
-      { how: "Arrow keys once selected; the canvas takes focus on selection", selector: "canvas[tabindex]", keyboard: true },
-      { how: "Inspector number field: x/y for an anchor, distance along the guide for a ray", selector: "#inspector", keyboard: true },
+      { how: "Arrow keys once selected — the same manipulate() the drag uses, for every kind of corner", selector: "canvas[tabindex]", keyboard: true },
+      { how: "Inspector number fields: x/y for an anchor, distance along the guide for a ray, and for a crossing corner the distances it is built from", selector: "#inspector", keyboard: true },
     ],
   },
   {

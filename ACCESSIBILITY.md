@@ -199,6 +199,39 @@ one code path so they cannot disagree.
 **Status:** FIXED 1.1.0. Verified: the walk drives both, and the interaction
 declaration now fails the build if either disappears.
 
+### F-06 · Half a box's corners could not be moved by any means
+**Found:** 2026-07-30 · by Noah, on the shipped 1.1.0, with a screenshot
+**Rule:** Doctrine §3 (direct manipulation) and §4 (keyboard always, SC 2.5.7)
+**Detail:** A box's eight corners are one anchor, three that ride a guide, and
+FOUR that are the crossing of two guide lines. The drag handler had branches for
+the first two kinds and fell through for the third, so those four moved for no
+pointer, no key and no number field. Worse than inert: the drag pushed an empty
+undo step and announced "Corner at x, y" as if something had happened, so the app
+reported success while doing nothing. Noah: *"The circled corners in this image
+are the only corners that do anything when I drag on them ... the rest do
+nothing."* He circled three of the four live ones — the fourth keeps only the
+vertical part of a drag, so an off-axis grab on it also looks dead.
+**Fix (1.2.0):** `manipulate()` in the solver, one entry for drag, arrow keys and
+numeric fields. A crossing corner has no parameters of its own, so its position is
+inverted onto the distances behind it (damped Gauss-Newton over its ray ancestors,
+minimum-norm step when underdetermined). Corners are drawn as SQUARE handles now,
+so what is grabbable reads at a glance rather than by scrubbing.
+**Status:** FIXED 1.2.0. Verified: unit tests drive all eight corners and check
+the inverse against closed-form oracles; the walk drags one of every kind through
+the real UI and asserts the box survives, that ONE undo restores it, and that the
+arrow keys reach the same corners by the same path.
+
+### F-07 · The gates could not see any of this
+**Found:** 2026-07-30 · while fixing F-06
+**Rule:** Doctrine §6 (a gate, not an intention)
+**Detail:** Before 1.2.0 `walk.mjs` never dragged a vertex of any kind — only
+vanishing points. So the entire class of defect Noah reported was invisible to
+every gate the app had, which is why it shipped twice.
+**Fix (1.2.0):** the walk drags an anchor, a guide-riding corner and a crossing
+corner through real pointer events, and asserts the geometry afterwards.
+**Status:** FIXED 1.2.0. It found a real regression on its first run — a deleted
+box-release branch that produced 0 edges — before that reached staging.
+
 ### Gate verification (Doctrine §6: made to fail once before it is trusted)
 
 **2026-07-29** — before the first commit, `--muted` was deliberately darkened

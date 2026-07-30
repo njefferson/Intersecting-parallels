@@ -596,6 +596,41 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D29 — every corner moves, through one entry (SHIPPED 1.2.0, staging)
+
+The first half of the assessment below, built and gated. `manipulate(scene, id,
+target)` in the solver is now the ONLY way anything moves: drag, arrow keys and
+the inspector's number fields all call it, because they were three code paths that
+had already drifted apart once (F-05) and drifted again (F-06).
+
+- anchor → move; ray → project onto its own guide and set t, STRICTLY single
+  parameter (the walk pins that changing one depth leaves the other alone);
+  intersect → damped Gauss-Newton over the ray ancestors found by walking
+  defs/origins, minimum-norm step when underdetermined.
+- Measured: all eight corners reachable, 1–3 iterations, sub-pixel, box intact
+  (worst VP miss ~1e-13px). The far top corner dragged straight up puts the
+  travel into HEIGHT and keeps the depths symmetric — the min-norm step is what
+  makes it feel like direct manipulation instead of three hidden sliders.
+- The four guards each have a test that reds without them: refuse a corner with
+  no finite position (a Jacobian taken there NaN-poisons every ancestor and
+  destroys the box beyond undo); abort on any non-finite residual/step; clamp
+  |t| ≥ 1 (the solver's side-choice folds at zero) and ≤ 0.95 × origin-to-VP
+  distance (an unbounded solve happily converges with a corner sitting ON a
+  vanishing point); keep the best position found when a target is unreachable, so
+  the corner pins at the boundary instead of chasing.
+- History opens at the moved=true transition, which also killed the empty undo
+  steps a dead-corner drag used to push.
+- Corners draw as SQUARE handles now. The report was two defects: half the
+  corners did nothing, AND nothing said which half — he had to scrub them.
+- The walk drags one of every kind through real pointer events. It had never
+  dragged a vertex at all (F-07), which is why this class shipped twice; on its
+  first run it caught a regression I had just made (a deleted box-release branch,
+  0 edges) before it reached staging.
+
+NOT done in 1.2.0, deliberately: splitBoxDepths is untouched. The two-stage
+creation gesture is designed below and is next; retuning the split now would
+break the tall-thin gate, which is Noah's own earlier complaint encoded as a test.
+
 ### ULTRACODE ASSESSMENT, 2026-07-30 — the box interaction, and the plan for 1.2.0
 
 Noah, on the shipped 1.1.0: *"There is now no method to draw a box - it's really

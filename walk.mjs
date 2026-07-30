@@ -526,7 +526,7 @@ try {
     for (const v of rays) out[toward(v)] = +len(v).toFixed(1);
     return { ...out, bases: rays.length, anchored: !!anchor && byId.size > 0 };
   });
-  check('the drag sets each depth separately, not a square plan (D23)',
+  check('the box drag favours the side you drag toward (D23 — note the far side sits at the floor; the second depth comes from a corner drag, D29)',
     plan.bases === 2 && plan.right > plan.left * 1.2,
     `left base ${plan.left}px, right base ${plan.right}px — dragged up and to the right`);
 
@@ -806,6 +806,136 @@ try {
     afterWipe.points === 1 && afterWipe.label === 'VP1',
     `${afterWipe.points} point, labelled ${afterWipe.label}`);
   await cCtx.close();
+
+  // D29 — the four corners that did nothing. This is the defect class Noah
+  // reported and NO gate could see it: before this block the walk never dragged a
+  // vertex of any kind, only vanishing points.
+  const kCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(kCtx);
+  const kPage = await kCtx.newPage();
+  kPage.on('pageerror', e => pageErrors.push(`corner page: ${e}`));
+  await kPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await kPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 20000 });
+  await kPage.click('#mode-box');
+  await kPage.mouse.move(600, 640);
+  await kPage.mouse.down();
+  for (let i = 1; i <= 14; i++) await kPage.mouse.move(600 + i * 6, 640 - i * 9);
+  await kPage.mouse.up();
+  await kPage.waitForTimeout(150);
+  await kPage.click('#mode-select');
+
+  const cornerAt = kind => kPage.evaluate(k => {
+    const s = window.__ip.scene;
+    const v = s.vertices.find(x => x.kind === k);
+    if (!v) return null;
+    const p = window.__ip.toScreen(v);
+    const r = document.getElementById('canvas').getBoundingClientRect();
+    return { id: v.id, kind: v.kind, x: Math.round(p.x + r.left), y: Math.round(p.y + r.top), vx: v.x, vy: v.y };
+  }, kind);
+
+  // Every KIND of corner, driven by a real drag.
+  const dragResults = [];
+  for (const kind of ['anchor', 'ray', 'intersect']) {
+    const before = await cornerAt(kind);
+    if (!before) { dragResults.push({ kind, moved: false, why: 'no corner of this kind' }); continue; }
+    await kPage.mouse.move(before.x, before.y);
+    await kPage.mouse.down();
+    for (let i = 1; i <= 8; i++) await kPage.mouse.move(before.x + i * 5, before.y - i * 4);
+    await kPage.mouse.up();
+    await kPage.waitForTimeout(120);
+    const after = await kPage.evaluate(id => {
+      const v = window.__ip.scene.vertices.find(x => x.id === id);
+      return { x: v.x, y: v.y };
+    }, before.id);
+    dragResults.push({ kind, moved: Math.hypot(after.x - before.vx, after.y - before.vy) > 2 });
+  }
+  check('every KIND of corner moves when dragged — including the intersect corners (D29)',
+    dragResults.every(r => r.moved),
+    dragResults.map(r => `${r.kind}: ${r.moved ? 'moved' : 'DID NOT MOVE'}`).join(', '));
+
+  // The box survived all three drags.
+  const boxAfterDrags = await kPage.evaluate(() => {
+    const s = window.__ip.scene, byId = new Map(s.vertices.map(v => [v.id, v]));
+    let worst = 0;
+    for (const e of s.edges) {
+      if (typeof e.binding === 'string') continue;
+      const vp = s.vanishingPoints.find(v => v.id === e.binding.vpId);
+      const a = byId.get(e.a), b = byId.get(e.b);
+      const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+      worst = Math.max(worst, Math.abs(dx * (a.y - vp.y) - dy * (a.x - vp.x)) / L);
+    }
+    return {
+      edges: s.edges.length, verts: s.vertices.length,
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+      degenerate: s.vertices.filter(v => v.degenerate).length,
+      worst: +worst.toFixed(4),
+    };
+  });
+  check('and the box is still a box after all three drags',
+    boxAfterDrags.edges === 12 && boxAfterDrags.verts === 8 && boxAfterDrags.finite
+      && boxAfterDrags.degenerate === 0 && boxAfterDrags.worst < 0.001,
+    JSON.stringify(boxAfterDrags));
+
+  // ONE undo per drag — not zero (the old empty-step bug) and not several.
+  const undoSteps = await kPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const v = s.vertices.find(x => x.kind === 'intersect');
+    const before = { x: v.x, y: v.y };
+    document.getElementById('undo').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const v2 = window.__ip.scene.vertices.find(x => x.id === v.id);
+    return { restored: Math.hypot(v2.x - before.x, v2.y - before.y) > 2 };
+  });
+  check('ONE undo restores an intersect-corner drag', undoSteps.restored,
+    undoSteps.restored ? 'restored in one step' : 'undo did not restore it');
+
+  // The keyboard reaches the same corners through the same path.
+  const keyed = await kPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const v = s.vertices.find(x => x.kind === 'intersect');
+    window.__ip.select({ type: 'vertex', id: v.id });
+    await new Promise(r => requestAnimationFrame(r));
+    const before = { x: v.x, y: v.y };
+    const canvas = document.getElementById('canvas');
+    canvas.focus();
+    for (let i = 0; i < 3; i++) {
+      canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, shiftKey: true }));
+      await new Promise(r => requestAnimationFrame(r));
+    }
+    const after = window.__ip.scene.vertices.find(x => x.id === v.id);
+    return { moved: Math.hypot(after.x - before.x, after.y - before.y) > 2, dy: +(after.y - before.y).toFixed(1) };
+  });
+  check('arrow keys move an intersect corner too (same path as the drag)',
+    keyed.moved, `moved ${keyed.dy}px vertically`);
+
+  // THE REGRESSION KILLER: the shipped box drag leaves one depth at the ~20px
+  // floor ("two connected squares"). Dragging the back bottom corner toward the
+  // horizon must lift BOTH depths off the floor in one gesture — that is what
+  // makes the slab recoverable rather than a dead end.
+  const rescued = await kPage.evaluate(async () => {
+    const ip = window.__ip;
+    const s = ip.scene;
+    const anchor = s.vertices.find(v => v.kind === 'anchor');
+    const rays = s.vertices.filter(v => v.kind === 'ray' && v.origin === anchor.id && typeof v.binding === 'object');
+    const before = rays.map(r => Math.abs(r.t));
+    // backBottom is the intersect that depends on exactly the two base rays
+    // backBottom is the intersect whose ancestors are exactly the two BASE rays
+    // — not merely any two-parameter corner (leftTop also has two, and picking it
+    // measured a height change against the depths and reported a false failure).
+    const baseIds = rays.map(r => r.id).sort().join(',');
+    const back = s.vertices.find(v => v.kind === 'intersect'
+      && ip.ancestors(v.id).slice().sort().join(',') === baseIds);
+    if (!back) return { found: false };
+    ip.manipulate(back.id, { x: back.x, y: back.y - 150 });
+    await new Promise(r => requestAnimationFrame(r));
+    const after = rays.map(r => Math.abs(r.t));
+    return { found: true, before: before.map(n => +n.toFixed(1)), after: after.map(n => +n.toFixed(1)) };
+  });
+  check('dragging the back corner lifts BOTH depths off the floor in one gesture (D29)',
+    rescued.found && rescued.after.every(d => d > 60),
+    rescued.found ? `depths ${JSON.stringify(rescued.before)} -> ${JSON.stringify(rescued.after)}`
+                  : 'no two-parameter corner found');
+  await kCtx.close();
 
   // D27 — an off-screen marker must not read as the point itself.
   const oCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });

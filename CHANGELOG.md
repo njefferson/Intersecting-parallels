@@ -8,6 +8,32 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.2.0 — CAPABILITY · 2026-07-30
+
+**Every corner of a box moves now.**
+
+- **The four dead corners work.** A box has eight corners: one you placed, three
+  that ride a guide, and four that are where two guides cross. Only the first four
+  could be dragged — the other four did nothing, for a finger, the arrow keys or
+  the panel. They move now, by working out the distances behind them.
+- **The far bottom corner sets both depths at once.** That is the answer to a box
+  coming out as two connected squares: draw it, then pull that corner toward the
+  horizon and both sides deepen together. Measured on the shipped shape: 20 and
+  168 deep becomes 782 and 887 in one drag.
+- **Corners are drawn as squares**, so you can see which points are handles
+  instead of finding out by trying each one.
+- The arrow keys and the number fields reach exactly the same corners by exactly
+  the same route, so they can never disagree about what a corner is allowed to do
+  again.
+- A corner drag that does nothing no longer pretends otherwise: it used to add an
+  undo step and announce a move that never happened.
+
+Known and not yet fixed: one drag still cannot state a box's height and both
+depths — that is three numbers from two, and the second depth comes from the
+corner drag above. A proper two-stage box gesture is designed and next.
+
+---
+
 ## 1.1.0 — CAPABILITY · 2026-07-30
 
 **Everything Noah found on V1, and the gates that should have caught it.**
