@@ -6,6 +6,8 @@
 // Scene state persists across sessions; HISTORY DOES NOT — stated in NOTES.md
 // so no session assumes otherwise.
 
+import { migrateScene } from "./solver.mjs";
+
 export const UNDO_LIMIT = 100;
 
 export function createHistory() {
@@ -57,17 +59,16 @@ export function parseProjectJson(text) {
   if (!raw.canvas || !Number.isFinite(raw.canvas.width) || !Number.isFinite(raw.canvas.height) || raw.canvas.width <= 0 || raw.canvas.height <= 0) {
     return { ok: false, reason: "canvas dimensions missing or not positive numbers" };
   }
-  if (raw.schemaVersion === 1) {
-    // v1 stored one line called `horizon` and slaved points to it. That line was
-    // always the OBSERVER'S EYE LEVEL — the horizon proper is wherever the points
-    // put it — so it migrates to eyeLevel under its true name, unchanged in value.
-    if (!raw.horizon || !Number.isFinite(raw.horizon.y)) return { ok: false, reason: "horizon missing" };
-    raw.eyeLevel = { y: raw.horizon.y };
-    delete raw.horizon;
-    raw.schemaVersion = 2;
+  // A v1 file must carry the line it claimed to; after that the shared migration
+  // does the renaming, so a FILE and a scene restored from storage cannot drift
+  // apart in how they are brought up to date.
+  if (raw.schemaVersion === 1 && (!raw.horizon || !Number.isFinite(raw.horizon.y))) {
+    return { ok: false, reason: "horizon missing" };
   }
-  if (!raw.eyeLevel || !Number.isFinite(raw.eyeLevel.y)) return { ok: false, reason: "eye level missing" };
-  if (!Array.isArray(raw.faces)) raw.faces = [];
+  if (raw.schemaVersion === 2 && (!raw.eyeLevel || !Number.isFinite(raw.eyeLevel.y))) {
+    return { ok: false, reason: "eye level missing" };
+  }
+  migrateScene(raw);
   for (const key of ["vanishingPoints", "vertices", "edges"]) {
     if (!Array.isArray(raw[key])) return { ok: false, reason: `${key} is not a list` };
   }
@@ -164,7 +165,11 @@ export async function loadLastScene() {
     const rec = await tx(db, STORE, "readonly", s => s.get(last.sceneId));
     if (!rec) return null;
     const { _prefs, ...scene } = rec;
-    return { scene, prefs: _prefs ?? null };
+    // D36a — migrate HERE, at the storage door. This is the door almost everyone
+    // comes through, and it does not pass through adoptScene: boot assigns the
+    // restored scene directly. Guarding only the other doors is what shipped a
+    // build that could not draw anyone's saved drawing.
+    return { scene: migrateScene(scene), prefs: _prefs ?? null };
   } finally { db.close(); }
 }
 
@@ -182,7 +187,7 @@ export async function loadSceneById(id) {
     const rec = await tx(db, STORE, "readonly", s => s.get(id));
     if (!rec) return null;
     const { _prefs, ...scene } = rec;
-    return { scene, prefs: _prefs ?? null };
+    return { scene: migrateScene(scene), prefs: _prefs ?? null };   // D36a, same door
   } finally { db.close(); }
 }
 

@@ -67,6 +67,41 @@ export function bindingDirection(scene, originPos, binding) {
 
 // ---- scene construction --------------------------------------------------
 
+// D36a — THE MIGRATION, and the one boundary it has to run at.
+//
+// FOUND ON NOAH'S IPAD, 2026-07-30, on 1.5.0: "There are no VPs on the page and I
+// cannot add any, now." His saved drawing was written by an older build, so it
+// carried `horizon` and no `eyeLevel`; the first render read `scene.eyeLevel.y`,
+// threw, and took the panel down with it. Every point was still in the file. The
+// app just could not draw a single one of them, or itself.
+//
+// parseProjectJson migrated — but that is only the FILE door. The scene restored
+// from IndexedDB at boot never went through it, and that is the door almost
+// everyone comes through. So this lives here, next to the schema it is about, and
+// runs at `adoptScene`: the single point every scene passes through, whether it
+// came from a file, from storage, from undo, or from New.
+//
+// It is total and idempotent by construction — it fills what is missing and
+// leaves what is present — so running it on an already-current scene, which
+// undo/redo does constantly, costs nothing and changes nothing.
+export function migrateScene(raw) {
+  if (!raw || typeof raw !== "object") return raw;
+  const height = Number.isFinite(raw.canvas?.height) ? raw.canvas.height : 800;
+  if (!raw.eyeLevel || !Number.isFinite(raw.eyeLevel.y)) {
+    // v1 called this line "horizon" and slaved points to it. It was always the
+    // observer's eye level; it migrates under its true name, with its own value.
+    const y = Number.isFinite(raw.horizon?.y) ? raw.horizon.y : height / 2;
+    raw.eyeLevel = { y };
+  }
+  delete raw.horizon;
+  if (!Array.isArray(raw.faces)) raw.faces = [];
+  for (const key of ["vanishingPoints", "vertices", "edges"]) {
+    if (!Array.isArray(raw[key])) raw[key] = [];
+  }
+  raw.schemaVersion = SCHEMA_VERSION;
+  return raw;
+}
+
 export function createScene({ name = "untitled", width, height }) {
   const now = Date.now();
   return {

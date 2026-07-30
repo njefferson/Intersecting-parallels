@@ -630,6 +630,45 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D36a — the migration door I missed (FIXED 1.5.1, staging)
+
+**Noah, 2026-07-30, on 1.5.0:** *"There are no VPs on the page and I cannot add
+any, now."*
+
+His saved drawing was written by an older build, so it carried `horizon` and no
+`eyeLevel`. The first `render()` read `scene.eyeLevel.y`, threw, and took the
+canvas and the points panel with it — inside `boot()`'s async IIFE, so it never
+even surfaced as a page error, and `window.__ip` was never assigned. Every point
+was still in the file. The app just could not draw one of them, or itself.
+
+**The mistake was believing there was ONE door.** `parseProjectJson` migrated,
+and I reasoned that `adoptScene` was the single point every scene passes through
+— from storage, from a file, from undo, from New. It is not: `boot()` assigns
+`scene = restored.scene` directly and calls `solveScene`, bypassing it entirely.
+That is the door almost everyone comes through, and it was the only one unguarded.
+
+`migrateScene` now lives in solver.mjs next to the schema and runs at
+`loadLastScene`, `loadSceneById`, `parseProjectJson`, `adoptScene` AND `boot`. It
+is total and idempotent by construction — it fills what is missing and leaves
+what is present — so running it five times over costs nothing.
+
+**Why no gate caught it:** every walk context starts with an empty IndexedDB, so
+the walk had only ever met scenes this build wrote itself. There was no way for
+it to see a schema change break an old file. The new block writes a pre-1.5.0
+record into storage and reloads onto it, then asserts the app boots, that the old
+horizon became eye level with the same number, that the canvas actually has ink
+on it, that the panel has a row per point, and that Add VP still works.
+
+Planting the defect back reddens three of those checks and names the symptom —
+but only after the block was changed to treat a failure to boot as a REPORT
+rather than an abort. The first version died on the timeout and said
+"waitForFunction: Timeout 20000ms exceeded", which is the gate describing its own
+disappointment instead of the four things that were broken.
+
+**The general rule, for every schema change after this one:** a migration is not
+done when the file loader handles it. Find every path by which a scene enters
+memory and make the migration idempotent so it can run on all of them.
+
 ### D36/D37/D38 — eye level, solids, rays (SHIPPED 1.5.0, staging)
 
 **Noah, 2026-07-30, with three screenshots:** *"The horizon should follow two of

@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll, manipulate, ancestorParams,
+  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.5.0";
+const VERSION = "1.5.1";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1014,7 +1014,12 @@ function startVpDrag(ev, vpId, node) {
 // ---- scene lifecycle -----------------------------------------------------
 
 function adoptScene(next, { keepView = false } = {}) {
-  scene = next;
+  // D36a — EVERY scene enters here: from storage at boot, from a project file,
+  // from undo, from New. So the migration runs here and nowhere else, because a
+  // migration that only guards one door is not a migration. This is the fix for
+  // "There are no VPs on the page and I cannot add any" — the points were never
+  // gone, the first render just threw on a field an older file did not have.
+  scene = migrateScene(next);
   view.scene = scene;
   if (!keepView) fitView(view, viewport());
   selection = null;
@@ -1693,7 +1698,12 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
   let restored = null;
   try { restored = await loadLastScene(); } catch { /* first run, or storage blocked */ }
   if (restored && restored.scene) {
-    scene = restored.scene;
+    // Belt as well as braces: loadLastScene migrates, and this repeats it because
+    // boot does NOT go through adoptScene and a scene reaching render() without
+    // the fields render() reads takes the whole app down before window.__ip even
+    // exists — no canvas, no panel, no way to add a point. That is exactly what
+    // 1.5.0 did to Noah's saved drawing.
+    scene = migrateScene(restored.scene);
     if (restored.prefs) prefs = { ...prefs, ...restored.prefs };
     $("snap45")?.setAttribute("aria-pressed", String(prefs.snap45));
     view.scene = scene;

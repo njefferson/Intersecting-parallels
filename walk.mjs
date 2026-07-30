@@ -1329,6 +1329,109 @@ try {
     `${untouched.edges} edges, ${untouched.verts} corners`);
   await nodragCtx.close();
 
+  // D36a — BOOTING ON A DRAWING SAVED BY AN OLDER BUILD.
+  //
+  // Noah, on 1.5.0: "There are no VPs on the page and I cannot add any, now."
+  // His saved scene carried `horizon` and no `eyeLevel`, the first render threw
+  // on it, and the panel died with the canvas. Every point was still in the file.
+  //
+  // No walk context could ever have caught that, because every one of them starts
+  // with an empty IndexedDB and therefore always meets a scene this build wrote
+  // itself. This block writes an OLD scene into storage and reloads onto it.
+  const oldCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(oldCtx);
+  const oldPage = await oldCtx.newPage();
+  const oldErrors = [];
+  oldPage.on('pageerror', e => oldErrors.push(String(e)));
+  await oldPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await oldPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 20000 });
+  await oldPage.evaluate(() => window.__ip.flush());
+  await oldPage.waitForTimeout(200);
+
+  // Rewrite the stored record into exactly the shape a pre-1.5.0 build wrote.
+  const downgraded = await oldPage.evaluate(() => new Promise((resolve, reject) => {
+    const req = indexedDB.open('intersecting-parallels', 1);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const db = req.result;
+      const t = db.transaction(['meta', 'scenes'], 'readwrite');
+      const meta = t.objectStore('meta').get('lastOpen');
+      meta.onsuccess = () => {
+        const id = meta.result?.sceneId;
+        if (!id) { resolve({ ok: false, why: 'nothing stored' }); return; }
+        const get = t.objectStore('scenes').get(id);
+        get.onsuccess = () => {
+          const rec = get.result;
+          rec.schemaVersion = 1;
+          rec.horizon = { y: rec.eyeLevel.y };     // the old name, the old shape
+          delete rec.eyeLevel;
+          delete rec.faces;
+          t.objectStore('scenes').put(rec);
+          resolve({ ok: true, points: rec.vanishingPoints.length, horizon: rec.horizon.y });
+        };
+        get.onerror = () => reject(get.error);
+      };
+      meta.onerror = () => reject(meta.error);
+    };
+  }));
+  check('a pre-1.5.0 scene was written into storage (D36a setup)',
+    downgraded.ok && downgraded.points >= 2, JSON.stringify(downgraded));
+
+  oldErrors.length = 0;
+  await oldPage.reload({ waitUntil: 'networkidle' });
+  // NOT fatal if it never boots — that IS the defect, and a gate that dies on it
+  // reports a Playwright timeout instead of the four things actually broken.
+  const cameUp = await oldPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 15000 })
+    .then(() => true).catch(() => false);
+  await oldPage.waitForTimeout(250);
+
+  const booted = await oldPage.evaluate(() => {
+    const s = window.__ip?.scene;
+    if (!s) {
+      const canvas = document.getElementById('canvas');
+      const d = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      let inked = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 0) inked++;
+      return { points: 0, rows: document.querySelectorAll('.vp-row button[id$="-focus"]').length, inked, dead: true };
+    }
+    const canvas = document.getElementById('canvas');
+    const d = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let inked = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) inked++;
+    return {
+      points: s.vanishingPoints.length,
+      eyeLevel: s.eyeLevel?.y,
+      staleField: s.horizon,
+      faces: Array.isArray(s.faces),
+      schema: s.schemaVersion,
+      rows: document.querySelectorAll('.vp-row button[id$="-focus"]').length,
+      inked,
+    };
+  });
+  check('the app boots on a scene from an older build, with its points intact (D36a)',
+    cameUp && booted.points >= 2,
+    booted.dead
+      ? 'the app never came up at all — this is exactly what Noah saw'
+      : `${booted.points} points, ${oldErrors.length} page errors${oldErrors[0] ? `: ${oldErrors[0].slice(0, 90)}` : ''}`);
+  check('the old horizon became eye level, keeping its number',
+    booted.eyeLevel === downgraded.horizon && booted.staleField === undefined && booted.faces && booted.schema === 2,
+    `eyeLevel ${booted.eyeLevel} (was horizon ${downgraded.horizon}), schema ${booted.schema}`);
+  check('and it actually DREW — the symptom was a blank page, not a bad number',
+    booted.inked > 1000, `${booted.inked} inked pixels`);
+  check('the points panel came back too, which is what "I cannot add any" meant',
+    booted.rows === booted.points, `${booted.rows} rows for ${booted.points} points`);
+
+  await oldPage.click('#add-vp').catch(() => {});
+  await oldPage.waitForTimeout(200);
+  const added = await oldPage.evaluate(() => ({
+    points: window.__ip?.scene?.vanishingPoints.length ?? 0,
+    rows: document.querySelectorAll('.vp-row button[id$="-focus"]').length,
+  }));
+  check('Add VP works on a migrated scene',
+    added.points === booted.points + 1 && added.rows === added.points,
+    `${booted.points} -> ${added.points} points, ${added.rows} rows`);
+  await oldCtx.close();
+
   // D29 — the four corners that did nothing. This is the defect class Noah
   // reported and NO gate could see it: before this block the walk never dragged a
   // vertex of any kind, only vanishing points.
@@ -1596,6 +1699,9 @@ try {
   check('no page errors during the whole walk', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 } catch (err) {
   check('the walk ran to completion', false, String(err && err.stack ? err.stack.split('\n')[0] : err));
+  // An abort with no checks behind it is unreadable without the page's own
+  // errors — print what the browser said, not just what Playwright timed out on.
+  for (const e of pageErrors.slice(0, 5)) check(`page error seen before the abort`, false, e.slice(0, 200));
 } finally {
   await browser.close();
   server.close();

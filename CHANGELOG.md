@@ -8,6 +8,22 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.5.1 — ITERATION · 2026-07-30
+
+**Fix: 1.5.0 could not open a drawing you had already saved.**
+
+- If you had used the app before 1.5.0, opening it showed **no vanishing points
+  and no way to add any**. Nothing was lost — every point was still in the file
+  the whole time. 1.5.0 renamed the stored horizon to eye level and knew how to
+  convert a project FILE, but not the drawing restored from the browser at
+  startup, which is how nearly everyone arrives. The first attempt to draw failed
+  on the missing name and took the canvas and the points panel down with it.
+- The conversion now runs wherever a drawing comes in — from storage, from a
+  file, from undo — and your saved drawing opens with its eye level at exactly
+  the number its horizon had.
+
+---
+
 ## 1.5.0 — CAPABILITY · 2026-07-30
 
 **Eye level and the horizon are different things, and boxes can be solid.**

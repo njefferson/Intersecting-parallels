@@ -390,3 +390,14 @@ the base first hid it completely. The visible horizontal face is painted last no
 A third instrument problem was pure cost: shipping four million pixels across the
 Playwright bridge to diff two frames timed the walk out, so the diff is computed
 in the page and only the count crosses.
+
+**2026-07-30, D36a (1.5.1)** — the walk could not have caught this class at all
+before today: every context starts with an empty IndexedDB, so it had only ever
+met scenes the build under test wrote itself. A schema change that breaks a saved
+drawing was invisible to it by construction. The new block writes a pre-1.5.0
+record into storage and reloads onto it. Planting the defect back — removing the
+migration from the storage read and from boot — reddens three checks, one of
+which reports "the app never came up at all", which is the actual symptom. That
+message only exists because the first version of the block ABORTED on the boot
+timeout and reported a Playwright error instead of the four broken things; a gate
+that dies tells you about itself, not about the app.
