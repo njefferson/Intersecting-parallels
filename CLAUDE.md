@@ -45,7 +45,10 @@ pair joins its registry in the SAME commit that introduces it; the register is
 `ACCESSIBILITY.md`. The gate is also runnable locally: `npm run a11y` — the
 same bytes CI runs.
 
-## Repo metadata (manual, confirm — see Doctrine §10)
+## Repo metadata (manual — DONE, 2026-07-30)
 Description / website / topics / social-preview are GitHub-UI steps the session
-token cannot perform. The exact values live in NOTES.md; list them and ask Noah
-to confirm each. Never report this repo "set up" while any is unconfirmed.
+token cannot perform. Noah completed all four on 2026-07-30 and the live values
+are recorded in NOTES.md (three of them read back from the API, not taken on
+trust). Nothing is outstanding — do not re-ask. If the social tile is ever
+regenerated, its upload is a fresh manual step, because GitHub keeps its own copy
+and does not follow the file in the repo.
