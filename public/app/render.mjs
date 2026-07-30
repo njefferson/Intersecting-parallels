@@ -111,37 +111,80 @@ function groupSolids(scene, byId) {
   return out;
 }
 
-// Which faces of a solid can actually be seen.
+// D44 — which faces of a solid can be seen, INCLUDING when it is inside out.
 //
-// The two front faces meet at the near vertical edge, which is the nearest part
-// of the box by construction, so they are always visible. Top and bottom are
-// decided by EYE LEVEL, and that is not a shortcut — it is the lesson: you see
-// the top of a box that sits below your eye and the underside of one that sits
-// above it, and a box straddling your eye level shows you neither.
+// Noah, 2026-07-30: "Inverted boxes have normals reversed (I think...) - i guess
+// that because the sides do not resemble a solid."
+//
+// He diagnosed it correctly. D37 stored two vertical faces and asserted they were
+// always visible, on the reasoning that they meet at the near vertical edge and
+// that edge is nearest by construction. D39 then made depths signed so a box can
+// be pushed through its own origin — and the moment it inverts, the anchor is no
+// longer the nearest corner. The app kept shading the same two walls, which are
+// now the FAR two, so the fill sat behind the silhouette and the box stopped
+// reading as an object.
+//
+// The walls are not stored at all now. The base ring and the top ring are stored
+// (as the bottom and top faces, in matching order), and the four walls are read
+// off them every frame — so they cannot be stale, and an inverted box gets the
+// right pair for free. The visible pair is the two that meet at the base corner
+// LOWEST ON THE PAGE, which is the same "lowest is nearest" a ground plane
+// receding to a horizon already gives us and which solid ordering already uses.
+//
+// This also makes old drawings work unchanged: a box saved before this stored its
+// walls, and those are simply ignored in favour of the ring.
 function visibleFaces(solid, scene, byId) {
   const eye = scene.eyeLevel?.y;
+  const bottom = solid.faces.find(f => f.shade === "bottom");
+  const top = solid.faces.find(f => f.shade === "top");
   const out = [];
-  for (const f of solid.faces) {
-    if (f.shade === "left" || f.shade === "right") { out.push(f); continue; }
-    if (!Number.isFinite(eye)) continue;
+
+  if (bottom && top && bottom.loop.length === top.loop.length && bottom.loop.length >= 3) {
+    const b = bottom.loop, t = top.loop, n = b.length;
+    // The near corner: lowest on the page among the base ring.
+    let near = -1, bestY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const v = byId.get(b[i]);
+      if (v && Number.isFinite(v.y) && v.y > bestY) { bestY = v.y; near = i; }
+    }
+    if (near >= 0) {
+      // The two walls meeting at that corner: the one arriving and the one leaving.
+      const walls = [];
+      for (const i of [(near - 1 + n) % n, near]) {
+        const k = (i + 1) % n;
+        const loop = [b[i], b[k], t[k], t[i]];
+        const pts = loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.x));
+        if (pts.length < 3) continue;
+        walls.push({ loop, midX: pts.reduce((a, v) => a + v.x, 0) / pts.length });
+      }
+      // Lit from one side: the leftmost visible wall takes the darker tint. Decided
+      // by position rather than by which corner it came from, so the shading stays
+      // put when the box inverts instead of swapping brightness mid-drag.
+      walls.sort((p, q) => p.midX - q.midX);
+      walls.forEach((w, i) => out.push({ loop: w.loop, shade: i === 0 ? "left" : "right" }));
+    }
+  }
+
+  // Top and bottom are decided by EYE LEVEL, which is not a shortcut — it is the
+  // lesson: you see the top of a box that sits below your eye and the underside
+  // of one that sits above it, and a box straddling your eye shows neither.
+  for (const f of [top, bottom]) {
+    if (!f || !Number.isFinite(eye)) continue;
     const ys = f.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.y)).map(v => v.y);
     if (!ys.length) continue;
-    const mid = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const mid = ys.reduce((a, b2) => a + b2, 0) / ys.length;
     if (f.shade === "top" && mid > eye) out.push(f);
     if (f.shade === "bottom" && mid < eye) out.push(f);
   }
-  // Draw order inside a solid, and it is not arbitrary.
-  //
-  // The two walls go down first. The horizontal face goes LAST, because when it
-  // is visible it is the face NEAREST the eye: a box below you shows its top, a
-  // box above you shows its underside, and in both cases that face occludes the
-  // parts of the walls behind it. This matters for the underside specifically —
-  // the base parallelogram and the two walls share the near base edges and lie
-  // on the SAME side of them on screen, so painting the base first hid it
-  // completely. The top does not overlap the walls at all, so it is unaffected
-  // either way; one rule covers both.
+
+  // Draw order inside a solid, and it is not arbitrary. The walls go down first;
+  // the horizontal face goes LAST, because when it is visible it is the face
+  // nearest the eye and occludes the parts of the walls behind it. The underside
+  // needs this specifically: the base and the walls share the near base edges and
+  // lie on the SAME side of them on screen, so painting the base first hid it
+  // completely.
   const rank = { left: 0, right: 1, top: 2, bottom: 3 };
-  out.sort((a, b) => rank[a.shade] - rank[b.shade]);
+  out.sort((a, b2) => rank[a.shade] - rank[b2.shade]);
   return out;
 }
 
@@ -214,7 +257,19 @@ export function draw(ctx, view, viewport, opts = {}) {
   const byId = new Map(scene.vertices.map(v => [v.id, v]));
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, viewport.width, viewport.height);
+  // D43 — clear the WHOLE backing store, not the viewport rectangle.
+  //
+  // FOUND ON NOAH'S IPAD, 2026-07-30, on production 1.7.0: a band of squashed,
+  // streaky garbage along the bottom of the canvas that survived even a Clear.
+  //
+  // The canvas is sized to viewport x dpr when the stage resizes. Clearing the
+  // VIEWPORT rectangle is only the same thing while those two agree, and they
+  // stop agreeing the moment the stage gets SHORTER without a window resize —
+  // which is exactly what a wrapping toolbar does when a button changes width, or
+  // Safari does when its bars come back. The uncleared strip at the bottom of the
+  // buffer then keeps whatever was last drawn there, stretched by CSS into the
+  // shorter box. Clearing the buffer costs the same and cannot go stale.
+  ctx.clearRect(0, 0, ctx.canvas.width / dpr, ctx.canvas.height / dpr);
 
   // document paper — the drawable area is visibly bounded
   const o = toScreen(view, { x: 0, y: 0 });

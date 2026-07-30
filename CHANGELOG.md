@@ -8,6 +8,26 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.7.1 — ITERATION · 2026-07-30
+
+**Two things Noah photographed on 1.7.0.**
+
+- **The band of streaky rubbish along the bottom of the paper is gone.** The
+  drawing surface was being wiped over the area the window currently occupies
+  rather than over the whole surface, so whenever the toolbar wrapped to a
+  different height — or Safari's bars came back — the strip at the bottom kept
+  whatever had last been drawn there and would not clear, even with Clear. The
+  whole surface is wiped now, and it resizes when the drawing area changes rather
+  than only when the window does.
+- **An inverted box reads as a solid again.** Pushing a depth through zero turns
+  the box inside out, and the corner nearest you stops being the one you started
+  from — but the shading carried on filling the two sides that were nearest
+  before, which are now the far ones. The sides are worked out from the box's own
+  shape each time it is drawn, so the pair facing you is always the pair that is
+  shaded.
+
+---
+
 ## 1.7.0 — CAPABILITY · 2026-07-30
 
 **Square, cube, skyscraper — and a dial that exaggerates the lot.**

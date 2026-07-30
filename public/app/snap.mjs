@@ -559,10 +559,11 @@ export function buildBox(scene, { at, height, depth, depthL, depthR }) {
   // Top and bottom are stored but their visibility is decided at draw time by
   // eye level, because that IS the lesson: you see the top of a box whose top is
   // below your eye, and the underside of one whose base is above it.
+  // D44 — store the two RINGS and nothing else. The four walls are read off them
+  // at draw time, in matching order, so an inverted box gets the right pair
+  // without anything stored needing to know that it inverted.
   const solid = `box${scene.nextId}`;
   const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
-  F([nearBottom, nearTop, leftTop, leftBottom], "left");
-  F([nearBottom, nearTop, rightTop, rightBottom], "right");
   F([nearTop, leftTop, backTop, rightTop], "top");
   F([nearBottom, leftBottom, backBottom, rightBottom], "bottom");
 

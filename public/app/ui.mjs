@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.7.0";
+const VERSION = "1.7.1";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1817,6 +1817,13 @@ if (el.build) el.build.textContent = VERSION;
 const autosaver = makeAutosaver(() => scene, () => prefs);
 
 window.addEventListener("resize", sizeCanvas);
+// D43 — the stage changes size WITHOUT a window resize: the toolbar wraps to a
+// different number of rows when a button's text changes width, and Safari's bars
+// come and go. A resize listener alone leaves the canvas the wrong size until
+// something else happens to fire one.
+if (typeof ResizeObserver === "function") {
+  new ResizeObserver(() => sizeCanvas()).observe(el.stage);
+}
 window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", render);
 document.addEventListener("visibilitychange", () => { if (document.hidden) autosaver.flush(); });
 

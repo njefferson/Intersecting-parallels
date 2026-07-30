@@ -668,6 +668,49 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D43/D44 — the canvas artifact and reversed normals (FIXED 1.7.1, staging)
+
+**Both found by Noah on PRODUCTION 1.7.0, with photographs.**
+
+**D43 — a band of stale pixels along the bottom of the canvas**, surviving even a
+Clear. `sizeCanvas` sets the backing store to `viewport x dpr`; `draw` cleared the
+VIEWPORT RECTANGLE. Those are the same thing only while the two agree, and they
+stop agreeing the moment the stage gets SHORTER without a window resize — which is
+exactly what a wrapping toolbar does when a button's text changes width, and what
+Safari does when its bars return. The uncleared strip keeps the last thing drawn
+there and CSS stretches it into the shorter box, which is the streaky band in the
+photograph. 1.7.0 made this much more likely by adding nine toolbar buttons.
+
+Two fixes, both needed: `draw` clears the whole backing store (same cost, cannot
+go stale), and a `ResizeObserver` on the stage, because a `resize` listener never
+hears about a toolbar that wrapped.
+
+**D44 — inverted boxes had the wrong pair of walls shaded.** Noah: *"Inverted
+boxes have normals reversed (I think...) - i guess that because the sides do not
+resemble a solid."* He was right.
+
+D37 STORED two vertical faces and asserted they were always visible, reasoning
+that they meet at the near vertical edge and that edge is nearest by construction.
+D39 then made depths signed so a box can be pushed through its own origin — and
+the instant it inverts, the anchor is no longer the nearest corner. The app kept
+shading the same two walls, now the far ones, so the fill sat behind the
+silhouette and the box stopped reading as an object. A new capability quietly
+invalidated an older one's assumption; nothing in the gates connected them.
+
+The walls are not stored any more. `buildBox` stores the two RINGS — base and top,
+in matching order — and the four walls are read off them every frame. The visible
+pair is the two meeting at the base corner LOWEST ON THE PAGE, which is the same
+"lowest is nearest" that solid ordering already assumes rather than a new rule.
+Derived state cannot go stale, and boxes saved before this work unchanged because
+their stored walls are simply ignored in favour of the ring.
+
+**Gated, each planted-failed:** a walk check that enlarges the backing store,
+paints magenta into the strip below the viewport rectangle, and asserts a redraw
+leaves **0** of it (planted: 143,280 pixels); a check that grows the HEADER and
+asserts the canvas follows with no window resize (planted: 797 -> 797); and a unit
+test that pushes a depth to -400 and asserts the near base corner CHANGES, which
+is what "which pair of walls faces you" comes down to.
+
 ### D42 — forced perspective, as an artist means it (SHIPPED 1.7.0, staging)
 
 **Noah, 2026-07-30, asked for "making a square into a cube into a skyscraper with

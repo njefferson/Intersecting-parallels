@@ -10,7 +10,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createScene, addVp, addAnchor, setEyeLevel, horizonLine, addFace, deleteVertex, clearDrawing,
+  createScene, addVp, addAnchor, setEyeLevel, horizonLine, addFace, deleteVertex, clearDrawing, solveScene,
 } from "../public/app/solver.mjs";
 import { buildBox } from "../public/app/snap.mjs";
 import { parseProjectJson } from "../public/app/state.mjs";
@@ -79,17 +79,29 @@ test("setEyeLevel refuses a non-number rather than poisoning the scene", () => {
   assert.equal(scene.eyeLevel.y, 540, "the old value survives a refused write");
 });
 
-test("a box brings its four shadeable faces, naming corners that exist", () => {
+test("D44: a box stores its two RINGS, in matching order, and nothing else", () => {
+  // The four walls used to be stored too. They are derived from these two rings
+  // at draw time now, because a stored wall cannot know that the box inverted.
   const { scene } = twoPointScene();
   const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 150, depthR: 150 });
   assert.equal(res.ok, true);
   const faces = scene.faces.filter(f => f.solid === res.solid);
-  assert.equal(faces.length, 4);
-  assert.deepEqual(faces.map(f => f.shade).sort(), ["bottom", "left", "right", "top"]);
+  assert.equal(faces.length, 2);
+  assert.deepEqual(faces.map(f => f.shade).sort(), ["bottom", "top"]);
   const ids = new Set(scene.vertices.map(v => v.id));
   for (const f of faces) {
     assert.equal(f.loop.length, 4);
     for (const id of f.loop) assert.ok(ids.has(id), `face names a missing corner ${id}`);
+  }
+  // Matching order is the whole contract: wall i is ring[i] -> ring[i+1] on both.
+  const top = faces.find(f => f.shade === "top").loop;
+  const bottom = faces.find(f => f.shade === "bottom").loop;
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  for (let i = 0; i < 4; i++) {
+    const b = byId.get(bottom[i]), t = byId.get(top[i]);
+    assert.ok(Math.abs(b.x - t.x) < 1e-6,
+      `ring position ${i} is not the same corner above and below (${b.x} vs ${t.x})`);
+    assert.ok(t.y < b.y, `ring position ${i}: the top ring must be above the base`);
   }
 });
 
@@ -137,7 +149,7 @@ test("a face cannot name a corner that is not there, and dies with the corner", 
 test("clearing the drawing clears its faces too", () => {
   const { scene } = twoPointScene();
   buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 150, depthR: 150 });
-  assert.equal(scene.faces.length, 4);
+  assert.equal(scene.faces.length, 2);
   clearDrawing(scene);
   assert.equal(scene.faces.length, 0);
   assert.equal(scene.vanishingPoints.length, 2, "the points are not the drawing");
@@ -179,4 +191,32 @@ test("a face naming a missing corner is dropped on load, and costs the drawing n
   assert.equal(res.ok, true, res.reason);
   assert.equal(res.scene.faces.length, 1, "the bad face went, the good one stayed");
   assert.equal(res.scene.vertices.length, scene.vertices.length, "no corner was harmed");
+});
+
+test("D44: inverting a box changes WHICH pair of walls faces you", () => {
+  // The defect Noah named: "Inverted boxes have normals reversed ... the sides do
+  // not resemble a solid." The near corner is the base corner lowest on the page;
+  // push a depth through zero and a DIFFERENT corner becomes the near one, so a
+  // different pair of walls must be the visible pair.
+  const { scene } = twoPointScene();
+  const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 150, depthR: 150 });
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  const ring = scene.faces.find(f => f.solid === res.solid && f.shade === "bottom").loop;
+
+  const nearIndex = () => {
+    let best = -1, y = -Infinity;
+    ring.forEach((id, i) => { const v = byId.get(id); if (v.y > y) { y = v.y; best = i; } });
+    return best;
+  };
+  const before = nearIndex();
+
+  // Push one depth through zero and well out the other side.
+  const left = scene.vertices.find(v => v.id === res.corners.leftBottom.id);
+  left.t = -400;
+  solveScene(scene);
+  const after = nearIndex();
+
+  assert.notEqual(after, before,
+    "the near corner did not change when the box inverted — the same two walls would still be shaded");
+  assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)));
 });

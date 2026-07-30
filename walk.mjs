@@ -1250,8 +1250,8 @@ try {
         .map(v => Math.round(Math.abs(v.t))).sort((x, y) => x - y),
     };
   });
-  check('one cube, equal on every axis, four faces (D37 setup)',
-    built.edges === 12 && built.faces === 4 && built.depths[0] === built.depths[1],
+  check('one cube, equal on every axis, both rings stored (D37 setup)',
+    built.edges === 12 && built.faces === 2 && built.depths[0] === built.depths[1],
     JSON.stringify(built));
 
   const wireframe = await faceCounts();
@@ -1520,7 +1520,7 @@ try {
     return { edges: s.edges.length, faces: s.faces.length, height: Math.round(Math.abs(riser.t)), depths };
   });
   check('Add cube builds a box equal along all three guides (D42)',
-    cube.edges === 12 && cube.faces === 4 && cube.depths.every(d => d === cube.height),
+    cube.edges === 12 && cube.faces === 2 && cube.depths.every(d => d === cube.height),
     `height ${cube.height}, depths ${JSON.stringify(cube.depths)}`);
 
   await cPg.click('#taller');
@@ -1606,6 +1606,70 @@ try {
     refused.closest >= refused.floor - 1 && refused.finite,
     `closest point ${refused.closest} from centre, floor ${refused.floor}`);
   await cubeCtx.close();
+
+  // D43 — the canvas artifact Noah photographed on production 1.7.0: a band of
+  // stale, squashed pixels along the bottom that survived a Clear. The backing
+  // store is cleared in full now, so SHRINKING the stage cannot strand a strip.
+  const shrinkCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'light' });
+  await seenWelcome(shrinkCtx);
+  const shPage = await shrinkCtx.newPage();
+  shPage.on('pageerror', e => pageErrors.push(`shrink page: ${e}`));
+  await shPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await shPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await shPage.focus('#add-cube');
+  await shPage.keyboard.press('Enter');
+  await shPage.waitForTimeout(200);
+
+  const stale = await shPage.evaluate(async () => {
+    const canvas = document.getElementById('canvas');
+    // Force the exact condition: a backing store TALLER than the element, with
+    // ink in the strip the viewport rectangle would not reach.
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const extra = 120;
+    canvas.height = canvas.height + Math.round(extra * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#FF00FF';
+    ctx.fillRect(0, canvas.height - Math.round(extra * dpr), canvas.width, Math.round(extra * dpr));
+    ctx.restore();
+    // Now ask the app to redraw, exactly as any interaction would.
+    document.getElementById('grid').click();
+    document.getElementById('grid').click();
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const d = new Uint32Array(ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+    const magenta = (255 << 24 | 255 << 16 | 0 << 8 | 255) >>> 0;
+    let left = 0;
+    for (let i = 0; i < d.length; i++) if (d[i] === magenta) left++;
+    return left;
+  });
+  check('a redraw clears the WHOLE backing store, so a shrunk stage cannot strand a stale strip (D43)',
+    stale === 0, `${stale} stale pixels left in the strip below the viewport rectangle`);
+
+  // And the stage is observed, not just the window: a toolbar that wraps to a
+  // different height resizes the canvas with no window resize event at all.
+  const observed = await shPage.evaluate(async () => {
+    // Shrink the stage the way the app really does it: by making the HEADER
+    // taller, which is what a toolbar wrapping to another row does. No window
+    // resize event fires, which is the whole point — the old listener would
+    // never have heard about it.
+    const canvas = document.getElementById('canvas');
+    const pad = document.createElement('div');
+    pad.style.height = '90px';
+    document.querySelector('header.bar').appendChild(pad);
+    await new Promise(r => setTimeout(r, 300));
+    const shrunk = canvas.height;
+    pad.remove();
+    await new Promise(r => setTimeout(r, 300));
+    // Compared against the height the app settles at AFTER, not before: the check
+    // above deliberately enlarges the backing store by hand, so a "before"
+    // reading here would be measuring that, not the app.
+    return { shrunk, restored: canvas.height };
+  });
+  check('the canvas follows the STAGE, not only the window (D43)',
+    observed.shrunk < observed.restored && observed.restored - observed.shrunk >= 20,
+    `backing height ${observed.shrunk} with a taller header, ${observed.restored} without — no window resize fired`);
+  await shrinkCtx.close();
 
   // D36a — BOOTING ON A DRAWING SAVED BY AN OLDER BUILD.
   //
