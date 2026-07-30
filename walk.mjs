@@ -883,6 +883,31 @@ try {
     afterFirst.edges === 12 && afterFirst.flag === 'true' && /drag anywhere/i.test(afterFirst.says),
     `${afterFirst.edges} edges, indicator ${afterFirst.flag}, says "${afterFirst.says.slice(0, 60)}"`);
 
+  // D33 — the strip says a step is happening; the arrow says WHICH WAY. It must
+  // sit ON the auto-selected corner and lie along that depth's own guide, so the
+  // direction is checked against the corner-to-VP line rather than taken on trust.
+  const aim = await ePage.evaluate(() => {
+    const s = window.__ip.scene;
+    const a = window.__ip.extrudeArrow();
+    if (!a) return { hint: false };
+    const ray = s.vertices.find(v => v.id === a.id);
+    const origin = s.vertices.find(v => v.id === ray.origin);
+    const vp = s.vanishingPoints.find(v => v.id === ray.binding.vpId);
+    const dx = vp.x - origin.x, dy = vp.y - origin.y;
+    const len = Math.hypot(dx, dy);
+    const e = { x: dx / len, y: dy / len };
+    return {
+      hint: true,
+      isSelectedRay: ray.id === a.id && ray.kind === 'ray',
+      offCorner: Math.hypot(a.x - ray.x, a.y - ray.y),
+      cross: Math.abs(a.u.x * e.y - a.u.y * e.x),      // 0 when parallel to the guide
+      unit: Math.abs(Math.hypot(a.u.x, a.u.y) - 1),
+    };
+  });
+  check('the second step shows a double-headed arrow on the auto-selected corner, along its guide (D33)',
+    aim.hint && aim.isSelectedRay && aim.offCorner < 0.001 && aim.cross < 0.001 && aim.unit < 0.001,
+    JSON.stringify(aim));
+
   // The very next drag — anywhere, no handle — sets the remaining depth.
   await ePage.mouse.move(430, 500);
   await ePage.mouse.down();
@@ -930,6 +955,76 @@ try {
   });
   check('switching tools ends the second step and keeps the box',
     escaped.flag === 'false', `indicator ${escaped.flag}`);
+
+  // D33, the part that matters: the arrow must be PAINTED, not merely computed.
+  // A fresh box re-arms the step; count selection-coloured pixels in a ring
+  // around the corner while it is live, then press Done — which moves nothing —
+  // and count the same ring again. The box and the still-selected corner marker
+  // are identical in both counts, so the difference IS the arrow. Delete the
+  // drawing block in render.mjs and the live count collapses to the ended one.
+  await ePage.mouse.move(330, 700);
+  await ePage.mouse.down();
+  for (let i = 1; i <= 12; i++) await ePage.mouse.move(330 + i * 6, 700 - i * 8);
+  await ePage.mouse.up();
+  await ePage.waitForTimeout(150);
+  const ringProbe = () => ePage.evaluate(() => {
+    const a = window.__ipRing;
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const dpr = canvas.width / canvas.getBoundingClientRect().width;
+    const at = window.__ip.toScreen(a);
+    const R = 60;
+    const x0 = Math.max(0, Math.round((at.x - R) * dpr)), y0 = Math.max(0, Math.round((at.y - R) * dpr));
+    const w = Math.min(canvas.width - x0, Math.round(2 * R * dpr));
+    const h = Math.min(canvas.height - y0, Math.round(2 * R * dpr));
+    if (w <= 0 || h <= 0) return -1;
+    const d = ctx.getImageData(x0, y0, w, h).data;
+    // The guide's direction in screen space, so the painted pixels can be tested
+    // against it — presence alone would pass an arrow pointing the wrong way.
+    const far = window.__ip.toScreen({ x: a.x + a.u.x * 100, y: a.y + a.u.y * 100 });
+    const gx = far.x - at.x, gy = far.y - at.y;
+    const gl = Math.hypot(gx, gy) || 1;
+    let n = 0, aligned = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const px = (i / 4) % w, py = Math.floor((i / 4) / w);
+      const dx = (x0 + px) / dpr - at.x, dy = (y0 + py) / dpr - at.y;
+      const r = Math.hypot(dx, dy);
+      if (r < 22 || r > 52) continue;          // clear of the corner marker, inside the arrow's reach
+      // #58C6E0 — the dark theme's selection colour; antialiasing allowed for
+      if (!(Math.abs(d[i] - 88) < 45 && Math.abs(d[i + 1] - 198) < 45 && Math.abs(d[i + 2] - 224) < 45 && d[i + 3] > 128)) continue;
+      n++;
+      // |cos| because the arrow is double-headed: both ways along the guide count
+      if (Math.abs((dx * gx + dy * gy) / (r * gl)) > 0.94) aligned++;   // within ~20°
+    }
+    return { n, aligned };
+  });
+  const rearmed = await ePage.evaluate(() => {
+    const a = window.__ip.extrudeArrow();
+    window.__ipRing = a ? { x: a.x, y: a.y, u: a.u } : null;
+    return !!a;
+  });
+  check('a fresh box re-arms the step, arrow and all (D33)', rearmed);
+  const inkLive = await ringProbe();
+  const endedAt = await ePage.evaluate(() => window.__ipRing);
+  await ePage.click('#extrude-done');
+  await ePage.waitForTimeout(150);
+  const inkEnded = await ringProbe();
+  check('the arrow is really drawn while the step is live, and gone when Done ends it (D33)',
+    inkLive.n > 80 && inkEnded.n * 4 < inkLive.n,
+    `${inkLive.n} selection-coloured px in the ring live, ${inkEnded.n} after Done`);
+  check('and every one of those pixels lies along the guide, both ways from the corner (D33)',
+    inkLive.n > 0 && inkLive.aligned / inkLive.n > 0.9,
+    `${inkLive.aligned}/${inkLive.n} within 20° of the guide at ${JSON.stringify(endedAt?.u)}`);
+
+  // Done ends the step without touching the drawing — nothing is lost by it.
+  const afterDone = await ePage.evaluate(() => ({
+    edges: window.__ip.scene.edges.length,
+    flag: document.getElementById('extrude-flag')?.dataset.on,
+    finite: window.__ip.scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+  }));
+  check('Done ends the step and keeps the box',
+    afterDone.edges === 24 && afterDone.flag === 'false' && afterDone.finite,
+    JSON.stringify(afterDone));
   await eCtx.close();
 
   // D29 — the four corners that did nothing. This is the defect class Noah

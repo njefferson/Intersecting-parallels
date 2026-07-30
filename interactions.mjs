@@ -68,7 +68,7 @@ export const INTERACTIONS = [
   {
     id: "extrude-box",
     kind: "drag",
-    what: "The second step (D31): the remaining depth is live under the finger the moment the first drag releases — drag anywhere, no handle to find",
+    what: "The second step (D31): the remaining depth is live under the finger the moment the first drag releases — drag anywhere, no handle to find. A double-headed arrow on the pre-selected corner shows which way it travels (D33)",
     alternatives: [
       { how: "The corner is pre-selected, so the arrow keys set that depth with no drag at all", selector: "canvas[tabindex]", keyboard: true },
       { how: "Its distance is a number field in the Points panel", selector: "#inspector", keyboard: true },

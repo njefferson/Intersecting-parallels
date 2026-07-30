@@ -54,6 +54,21 @@ Export dialog: `.dlg-head h2` `.dlg-body` `.dlg-body label` `.hint`
 Project dialog: `.dlg-head h2` `.dlg-body label` `.dlg-body h3`
 About dialog: `.dlg-head h2` `.dlg-body` `.dlg-body a` `.dlg-body li`
 
+### What the DOM gate cannot see: the canvas
+
+A canvas is one opaque element to a DOM walker, so every mark drawn on the
+drawing surface sits outside the registry above. `test/canvas-contrast.test.mjs`
+does that arithmetic instead, on `themeColors` from `render.mjs`, and runs with
+`npm test`. It covers the marks that ARE controls: the selection colour — which
+carries the selected corner, the selected edge, and D33's extrude arrow — at
+**8.68:1 dark / 5.83:1 light** on paper, plus committed ink and the vanishing
+point marks, all against a 3:1 floor (SC 1.4.11).
+
+The grid rule is **deliberately not asserted**: it measures **1.38:1** and would
+fail. It is decorative rather than a control, and it stays an open finding below
+rather than a threshold lowered until the current value fits — a test written to
+pass is not a gate.
+
 `.empty` is deliberately NOT registered: whether the saved-projects list is
 empty depends on whether autosave has fired, and a selector that matches only
 sometimes is a flaky gate. Its pair (`--muted` on `--surface`) is the one
@@ -292,3 +307,13 @@ at **2.92:1**. Fixed by narrowing the column rather than by deepening the wash,
 because a wash deep enough to cover the horizon also covers the building the
 picture is of. Both facts came from the printed pixel coordinates, which is why
 the script prints them.
+
+**2026-07-30, D33's arrow (1.3.2)** — four new checks, each planted-failed
+before being believed. Stubbing the drawing block to `if (false)` took the ring
+count from **176 selection-coloured pixels to 0** and reddened the "really
+drawn" check alone. Returning a fixed horizontal direction from the hint
+reddened the alignment-to-guide check alone (cross 0 → 0.179). Drawing the arrow
+**perpendicular** to the guide reddened the "every pixel lies along the guide"
+check (176/176 → 0/172) while the presence check stayed green — which is the
+point of having both. And dimming the dark theme's selection colour to `#1A2036`
+took `npm test` from 109 pass to 108 pass / 1 fail, naming the dark theme only.

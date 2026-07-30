@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.3.1";
+const VERSION = "1.3.2";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -107,6 +107,7 @@ function render() {
       dpr: Math.min(window.devicePixelRatio || 1, 3),
       showConstruction: prefs.showConstruction,
       ghost, selection, activeVpId,
+      extrudeHint: extrudeArrow(),
     });
     positionMarkers(vp);
   });
@@ -1158,12 +1159,31 @@ function beginExtrude(res) {
   renderPanel();
   showExtrude(true, `Box: now drag anywhere to set the depth toward ${extruding.label}`);
   say(`Box drawn. Drag anywhere — or use the arrow keys, this corner is already selected — to set its depth toward ${extruding.label}. Done keeps it as it is.`);
+  render();                 // D33: the arrow belongs to this state, so it paints with it
+}
+
+// D33 — "show a double headed arrow on the auto selected corner for the second
+// step, aligned with the axis movement direction, to indicate the expected user
+// input." The strip says a step is happening; this says WHICH WAY, on the corner
+// it is about. Derived from the live scene every frame rather than remembered, so
+// it cannot drift from the guide it claims to describe: move the VP mid-step and
+// the arrow turns with it. Returns null whenever there is nothing honest to draw.
+function extrudeArrow() {
+  if (!extruding) return null;
+  const ray = scene.vertices.find(v => v.id === extruding.rayId);
+  if (!ray || ray.degenerate) return null;
+  const origin = scene.vertices.find(v => v.id === ray.origin);
+  if (!origin) return null;
+  const u = bindingDirection(scene, { x: origin.x, y: origin.y }, ray.binding);
+  if (!u || !Number.isFinite(ray.x) || !Number.isFinite(ray.y)) return null;
+  return { id: ray.id, x: ray.x, y: ray.y, u };
 }
 
 function endExtrude(announce = true) {
   if (!extruding) return;
   extruding = null;
   showExtrude(false);
+  render();                 // D33: and it leaves with it — Escape and Done included
   if (announce) say("Box finished.");
 }
 $("extrude-done")?.addEventListener("click", () => endExtrude());
@@ -1618,6 +1638,9 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     // D29 — the walk drives the real manipulate path rather than a copy of it.
     manipulate: (id, target) => { const r = manipulate(scene, id, target); renderPanel({ structural: false }); render(); return r; },
     ancestors: id => ancestorParams(scene, id),
+    // D33 — the hint the renderer is given, so the walk can check the arrow
+    // points along the guide instead of trusting that it does.
+    extrudeArrow: () => extrudeArrow(),
     toScreen: p => toScreen(view, p),
     zoom: () => view.scale,
     buildSvg, renderPng,

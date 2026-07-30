@@ -8,6 +8,21 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.3.2 — ITERATION · 2026-07-30
+
+**The second step now shows you which way to drag.**
+
+- **A double-headed arrow sits on the corner the box is waiting on**, pointing
+  both ways along the line that corner travels. The strip at the top said a step
+  was happening; the arrow says what to do about it. It is drawn on the corner
+  itself, at the same size whatever the zoom, and it turns to follow the guide if
+  you move the vanishing point while the step is open.
+- It has arrowheads rather than just a colour, so it still reads as an
+  instruction in greyscale, and it disappears the moment the step ends — by Done,
+  by Escape, by finishing the drag, or by switching tools.
+
+---
+
 ## 1.3.1 — ITERATION · 2026-07-30
 
 **Two things that were in the wrong place.**

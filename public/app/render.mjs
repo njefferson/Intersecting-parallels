@@ -60,7 +60,10 @@ export function offscreenMarker(view, vp, viewport, inset = 30) {
   return { onScreen: false, x: cx + dx * k, y: cy + dy * k, angle: Math.atan2(dy, dx) };
 }
 
-function themeColors(theme) {
+// Exported so the canvas palette can be measured by a test rather than eyeballed
+// (§4, SC 1.4.11). The a11y gate walks the DOM and cannot see inside a canvas, so
+// the marks drawn here need their own arithmetic.
+export function themeColors(theme) {
   // Colour reinforces; weight and dash carry the meaning (D6).
   return theme === "light"
     ? { ink: "#171C2B", guide: "#586079", grid: "#D5DCEA", paper: "#FFFFFF",
@@ -73,6 +76,7 @@ export function draw(ctx, view, viewport, opts = {}) {
   const {
     theme = "dark", dpr = 1, showGrid = true, showConstruction = true,
     ghost = null, selection = null, activeVpId = null, hoverId = null,
+    extrudeHint = null,
   } = opts;
   const scene = view.scene;
   const c = themeColors(theme);
@@ -240,6 +244,47 @@ export function draw(ctx, view, viewport, opts = {}) {
       ctx.moveTo(p.x + 3, p.y - 3); ctx.lineTo(p.x - 3, p.y + 3);
       ctx.stroke();
     }
+  }
+
+  // 5a — D33: the axis the second step is waiting for.
+  //
+  // Noah, 2026-07-30: "it would be helpful to show a double headed arrow on the
+  // auto selected corner for the second step, aligned with the axis movement
+  // direction, to indicate the expected user input." A standing strip says a step
+  // is happening; this says WHICH WAY. Double-headed because the depth can grow or
+  // shrink, and drawn in SCREEN space so it stays the same legible size at any
+  // zoom — it is a pointer at the user, not part of the drawing.
+  if (extrudeHint && Number.isFinite(extrudeHint.x) && Number.isFinite(extrudeHint.y)) {
+    const at = toScreen(view, extrudeHint);
+    // The guide's direction in screen space: with a uniform zoom this is the same
+    // angle, but it is computed through the transform rather than assumed.
+    const far = toScreen(view, { x: extrudeHint.x + extrudeHint.u.x * 100, y: extrudeHint.y + extrudeHint.u.y * 100 });
+    const dx = far.x - at.x, dy = far.y - at.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const u = { x: dx / len, y: dy / len };
+    const REACH = 46, HEAD = 9;
+    ctx.save();
+    ctx.strokeStyle = c.sel;
+    ctx.fillStyle = c.sel;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    for (const s of [1, -1]) {
+      const tip = { x: at.x + u.x * REACH * s, y: at.y + u.y * REACH * s };
+      const base = { x: at.x + u.x * 14 * s, y: at.y + u.y * 14 * s };
+      ctx.beginPath();
+      ctx.moveTo(base.x, base.y);
+      ctx.lineTo(tip.x, tip.y);
+      ctx.stroke();
+      // an arrowhead: shape, so the meaning does not depend on colour (§4)
+      const n = { x: -u.y * s, y: u.x * s };
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y);
+      ctx.lineTo(tip.x - u.x * HEAD * s + n.x * HEAD * 0.6, tip.y - u.y * HEAD * s + n.y * HEAD * 0.6);
+      ctx.lineTo(tip.x - u.x * HEAD * s - n.x * HEAD * 0.6, tip.y - u.y * HEAD * s - n.y * HEAD * 0.6);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   // 5b — CANDIDATE guide rays, from the moment a stroke begins (D15).

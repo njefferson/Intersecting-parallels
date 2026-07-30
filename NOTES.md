@@ -596,6 +596,49 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D33 — the second step says WHICH WAY (SHIPPED 1.3.2, staging)
+
+**Noah, 2026-07-30:** *"When the box drawing switches to the third axis on
+release, it would be helpful to show a double headed arrow on the auto selected
+corner for the second step, aligned with the axis movement direction, to indicate
+the expected user input."*
+
+D31 gave the step a standing strip that says a step is happening. That is the
+announcement §3 asks for, and it is still not an instruction: it names the
+vanishing point but leaves the user to work out where on the canvas to push. The
+arrow closes that gap at the place the answer is needed — on the corner itself.
+
+- **Double-headed**, because the depth can grow or shrink and both are one drag
+  away. It carries **arrowheads**, not just the selection colour, so the meaning
+  survives a greyscale render (§4) — colour only reinforces.
+- **Screen space**, fixed reach (46px) and head (9px), so it stays legible at any
+  zoom. It is a pointer AT the user, not part of the drawing, and it is never
+  exported: `buildSvg`/`renderPng` do not see it.
+- **Derived from the live scene every frame**, never remembered. Move the
+  vanishing point while the step is open and the arrow turns with it, because it
+  reads the same `bindingDirection` the solver uses. It returns null — draws
+  nothing — the moment the corner is degenerate or non-finite, so a broken scene
+  gets no confident arrow pointing nowhere.
+- `beginExtrude`/`endExtrude` now render explicitly. They did not before, because
+  nothing on the canvas depended on the state; Escape would have left a stale
+  arrow on screen.
+
+**Gated four ways in the walk**, each proven to fail before being trusted (§6):
+the hint sits on the auto-selected corner and is parallel to that corner's own
+guide (checked against origin→VP, not taken on trust — a wrong direction reds it);
+selection-coloured pixels in a ring 22–52px around the corner go from 176 with the
+step live to 0 after Done (deleting the drawing block reds it); and every one of
+those 176 pixels lies within 20° of the guide (drawing it perpendicular reds it,
+while the presence check stays green). Plus: Done ends the step and keeps the box.
+
+**And the colour is now measured, not eyeballed.** `themeColors` is exported and
+`test/canvas-contrast.test.mjs` does the SC 1.4.11 arithmetic the a11y gate
+cannot: a canvas is one opaque element to a DOM walker, so every mark drawn on
+the drawing surface was ungated. Selection on paper is 8.68:1 dark / 5.83:1
+light; ink and VP marks are asserted too. The grid is deliberately NOT asserted —
+it measures 1.38:1 and stays an open finding rather than a threshold lowered to
+fit it.
+
 ### D30/D31 — three shapes, and the box's second step (SHIPPED 1.3.0, staging)
 
 **Noah, 2026-07-30:** *"Indicate the corner that is the anchor. It currently looks
