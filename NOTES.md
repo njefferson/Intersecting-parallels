@@ -596,6 +596,134 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### ULTRACODE ASSESSMENT, 2026-07-30 — the box interaction, and the plan for 1.2.0
+
+Noah, on the shipped 1.1.0: *"There is now no method to draw a box - it's really
+two connected squares because you have no way of reading the third dimension with
+a simple drag. The circled corners ... are the only corners that do anything when
+I drag on them."* Assessed under Fable 5 Ultracode: six investigators, three
+adversarial verifiers, one completeness critic; every load-bearing number below
+was reproduced by an independent implementation before being recorded. The
+IMPLEMENTING SESSION STARTS HERE.
+
+**Diagnosis, verified twice:**
+- Four of eight box corners — the intersect vertices leftTop, rightTop,
+  backBottom, backTop — are inert in EVERY path: the drag handler has branches
+  only for anchor and ray (ui.mjs vertex branch), the nudge dead-ends in a
+  sentence, the inspector offers nothing. Worse: dragging one silently pushes an
+  EMPTY undo step and announces "Corner at x, y" as if it moved — the UI lies.
+- The 1.1.0 regression is mine and is measured: splitBoxDepths' floor is a fixed
+  19.8px and toward() feeds only the dragged-toward side, so a straight-up drag
+  yields a slab whose near-to-back separation is 6.8px against a 200px height
+  (ratio 0.034 — "two connected squares" is literal), and NO single drag can
+  produce two substantial depths. 1.0.0's floor (height/2) had the mirror
+  failure (tall-thin impossible). Root cause: a 2-DOF drag cannot state three
+  numbers. Each floor choice fixes one report by causing the other.
+- Why Noah found 3 live corners when 4 respond in code (hypothesis, needs his
+  confirmation): nearTop keeps only the vertical component of a drag, so an
+  off-axis grab on it looks dead — and nothing visually distinguishes a
+  draggable corner from a derived one, which is the real discoverability defect.
+
+**The fix, measured (prototype scripts in the session scratchpad):**
+1. `manipulate(scene, vertexId, target)` in the solver — ONE entry for drag,
+   arrow keys and inspector fields. anchor → move; ray → project onto guide, set
+   t (STRICTLY single-parameter — the walk pins that the other side must not
+   move); intersect → damped Gauss-Newton over the RAY ANCESTORS found by
+   walking defs/origins (generic; handles the depth-2 backTop), minimum-norm
+   step when underdetermined, warm-started per frame.
+   Measured on the real solver: every reachable target converges in 1–3
+   iterations to sub-pixel error, the box stays a box (VP perpendicular miss
+   ~1e-13px), cost 1–4% of a 60Hz frame; independently reimplemented and
+   reproduced to 0.05. Straight-up on backTop moves mostly height with the two
+   depths symmetric — the min-norm step decomposes the gesture naturally, so it
+   FEELS like direct manipulation.
+   DECISION RECORDED: minimum-norm Gauss-Newton ships for all intersects; the
+   closed forms (leftTop↔(h,dL), rightTop↔(h,dR), backBottom↔(dL,dR), exact)
+   become TEST ORACLES, not the runtime path. The losing option — closed-form
+   with backTop's horizontal discarded — is rejected because it makes one corner
+   behave unlike its siblings.
+   NON-NEGOTIABLE GUARDS (adversarial findings): refuse to start a drag on any
+   corner with non-finite position or degenerate flag — a drag on a born-
+   degenerate corner NaN-POISONS the parameters irrecoverably (measured);
+   abort any iteration with non-finite residual/Jacobian/step; clamp every ray
+   |t| ≥ 1 AND ≤ ~0.95 of the origin-to-VP distance (kills the t=0 fold, which
+   is a permanent wall not a transient stall, and blocks corners converging
+   ONTO a vanishing point); on non-convergence keep the best theta (pin at the
+   reachable boundary). Consider tightening buildBox to refuse born-degenerate
+   boxes at birth.
+2. The BOX GESTURE becomes two-stage (D-amendment to write: base-then-height).
+   Stage 1: the drag lays the BASE — decompose the drag vector into components
+   along the two receding VP directions (2×2 solve, measured det 0.882 at a
+   typical start; straight-up gives a SQUARE plan by geometry, not by floor;
+   refuse near the horizon where det → 0, clamp negative components). One drag
+   states BOTH depths because the base is genuinely 2-DOF. Release commits
+   NOTHING: walls rise as a ghost, a standing strip appears (§3 mode rules)
+   with a live height FIELD, a Place button and a spaced 44px Cancel — the
+   typed path closes the box half of F-04. Stage 2: a drag anywhere sets height
+   from vertical travel; release ≥ ~6px commits the whole box in ONE
+   beginGesture through the existing buildBox({at, height, depthL, depthR}).
+   FIVE AMENDMENTS from adversarial review, all part of the design: (a)
+   pointercancel must NEVER commit — today ui.mjs routes pointercancel into the
+   committing endPointer, which is a live bug; (b) Esc and the Cancel button
+   both exit, announced via the live region; (c) the pending state NEVER
+   expires — anything that ends it, ends it by discarding; (d) stage-2 commit
+   requires the travel floor (tremor jitter must not commit); (e) the pending
+   base lives in its OWN state variable, never in gesture/ghost — the pinch
+   handler overwrites both and would silently destroy the base mid-navigation.
+   splitBoxDepths is SUPERSEDED by the stage-1 decomposition; the walk's D23
+   check (plan.right > plan.left*1.2) passes on the broken build and must be
+   replaced, not extended.
+3. HISTORY: open beginGesture at the moved=true transition of a vertex drag and
+   delete the restore/reapply dance — the current pattern is provably incomplete
+   for intersects and already produces EMPTY undo steps (tap a VP without
+   moving; drag a dead corner).
+4. AFFORDANCE, same commit as the drags (the F-05 rule — shipping the drag
+   without the visual/keyboard half recreates this exact report): draw
+   draggable corners as open square handles and derived corners differently
+   (shape, not hue, §4), hover/selected states, and keys+inspector parity for
+   intersects through the same manipulate() path.
+
+**Handoff checklist — same commits as the code, none of it optional:**
+- interactions.mjs + INTERACTIONS.md: corner-drag entry extended to intersects
+  with the keyboard/inspector alternative; box entry flips from declared gap to
+  declared alternative; check-interactions.mjs updated.
+- walk.mjs: drive a REAL intersect drag (backBottom: both depths change, box
+  stays sound, ONE undo restores); the two-stage flow (stage-1 release leaves 0
+  new edges and history unchanged; full flow yields 12 edges/8 verts; the
+  regression killer: a between-the-VPs base drag gives BOTH depths > 60px; the
+  previously-impossible tall-thin box and its mirror). Today the walk never
+  drags any vertex of any kind — the reported defect class is invisible to
+  every gate.
+- a11y-gate: registry entries for the standing strip; ghost styling passes the
+  hue-alone rule.
+- Welcome panel and Box-mode hint re-truthed (the panel currently makes THREE
+  false claims — intersect corners and selected lines do not answer arrow keys,
+  drawing has no keyboard path); CHANGELOG 1.2.0 CAPABILITY entry; sw.js cache
+  name bumped in the SAME commit or Noah's installed PWA keeps serving 1.1.0
+  and the whole fix reads as a no-op.
+- Staging only; Noah's iPad pass; no pushes while a deploy is in flight.
+
+**Full-app audit beyond the box (priority order):**
+P1 — F-04: drawing a line is still drag-only (the box half closes with stage
+2's typed path; the line half remains open). SC 1.4.11: canvas mark colours
+still undeclared and ungated — the GRID measures 1.38:1 against its background
+today. Snap radius is a hardcoded constant (§4 says ADJUSTABLE, never tuned to
+a steady hand) and there is no input smoothing. Clear sits 4px from Points and
+Export — §4 says a destructive control never sits beside a routine one, and the
+gate checks size, never spacing. The armed-Clear promise "anything else you
+touch cancels" is false for 8+ controls and the canvas. In Select mode a FINGER
+cannot select anything under default settings (touch pans; only pen selects) —
+the owner-facing report "dragging with my finger" may partly be THIS.
+P2 — Weld preference desyncs from its button on reload (restored pref, button
+shows pressed). The a11y gate never tests the 200%-text case (only the welcome
+walk block does). `.btn.danger` is not actually in the contrast registry while
+a CSS comment claims it is. rebindVertex silently accepts an intersect and
+writes a meaningless t. The canvas's accessible label is static rather than
+describing the drawing. One-finger pan has no alternative with touch-draws on.
+Stale NOTES claims ("nothing is staged").
+DEVICE CAVEAT: every number above is node-on-desktop; iPad Safari is unmeasured
+— the 60Hz margin (25x) makes feasibility safe, but feel needs Noah's hands.
+
 ### D26–D28, and the audit that should have come first
 
 **Noah, 2026-07-30, on the shipped 1.0.0:** five reports at once — off-screen VP
