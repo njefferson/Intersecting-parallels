@@ -183,6 +183,40 @@ export const TIGHT_CLUSTER = [
   { a: [0.04, 0.60], b: [-0.70, -0.08], h: 0.52 },
 ];
 
+/**
+ * A city block layout: towers set inside blocks, with streets between them.
+ * `heights` is keyed "i,j" in camera-height fractions; a missing or zero entry is
+ * an empty lot, which the eye needs — a fully built grid reads as one solid mass.
+ * Returns the boxes AND the kerb lines, because the streets are the same lines the
+ * blocks are laid out on rather than decoration drawn on afterwards.
+ */
+export function city({ module: m = 1.05, block = 0.67, i: iRange = [-1, 2], j: jRange = [-1, 1], heights = {}, pad = {} }) {
+  const boxes = [], kerbs = [];
+  const inset = (m - block) / 2;      // half a street each side, blocks centred
+  for (let i = iRange[0]; i <= iRange[1]; i++) {
+    for (let j = jRange[0]; j <= jRange[1]; j++) {
+      const h = heights[`${i},${j}`] ?? 0;
+      if (h <= 0) continue;
+      boxes.push({ id: `${i},${j}`, a: [i * m + inset, i * m + inset + block], b: [j * m + inset, j * m + inset + block], h });
+    }
+  }
+  // The streets may run FURTHER than the blocks do — usually toward the camera.
+  // Towers placed that close are grotesque under a wide three-point camera (the
+  // first attempt put two of them sprawling across the bottom of the frame), but
+  // the roads sweeping down into the foreground are exactly what fills it.
+  const span = {
+    aLo: iRange[0] * m + (pad.aLo ?? 0), aHi: iRange[1] * m + m + (pad.aHi ?? 0),
+    bLo: jRange[0] * m + (pad.bLo ?? 0), bHi: jRange[1] * m + m + (pad.bHi ?? 0),
+  };
+  for (let i = iRange[0]; i <= iRange[1] + 1; i++) {
+    kerbs.push({ along: "b", at: i * m - inset }, { along: "b", at: i * m + inset + block });
+  }
+  for (let j = jRange[0]; j <= jRange[1] + 1; j++) {
+    kerbs.push({ along: "a", at: j * m - inset }, { along: "a", at: j * m + inset + block });
+  }
+  return { boxes, kerbs, span };
+}
+
 const FACES = [
   // [normal axis, sign, four (a,b,c) corners in order]
   ["c", -1, box => [[box.a[0], box.b[0], -box.h], [box.a[1], box.b[0], -box.h], [box.a[1], box.b[1], -box.h], [box.a[0], box.b[1], -box.h]]], // top
@@ -220,6 +254,23 @@ export function buildScene(cam, O, opts = {}) {
     if (!seg) return;
     lines.push({ kind: "grid", vp, vpName, p: project(cam, seg[0]), q: project(cam, seg[1]) });
   };
+  // Roads first. A kerb running along b is a line of constant a, so it meets B —
+  // tagged like every other line, and verified like every other line.
+  if (opts.roads) {
+    const { kerbs, span } = opts.roads;
+    for (const k of kerbs) {
+      const [p3, q3] = k.along === "b"
+        ? [at(cam, O, k.at, span.bLo, 0), at(cam, O, k.at, span.bHi, 0)]
+        : [at(cam, O, span.aLo, k.at, 0), at(cam, O, span.aHi, k.at, 0)];
+      const seg = clipNear(p3, q3, zMin);
+      if (!seg) continue;
+      lines.push({
+        kind: "road", vp: k.along === "b" ? B : A, vpName: k.along === "b" ? "B" : "A",
+        p: project(cam, seg[0]), q: project(cam, seg[1]),
+      });
+    }
+  }
+
   const step = opts.step ?? 1;
   for (let b = gridB[0]; b <= gridB[1] + 1e-9; b += step) {
     gridLine(at(cam, O, gridA[0], b, 0), at(cam, O, gridA[1], b, 0), A, "A");
@@ -262,6 +313,7 @@ export function buildScene(cam, O, opts = {}) {
       const mid = pts3.reduce((m, q) => ({ x: m.x + q.x / 4, y: m.y + q.y / 4, z: m.z + q.z / 4 }), { x: 0, y: 0, z: 0 });
       if (s * dot3(n, mid) >= 0) continue;                 // facing away
       faces.push({
+        id: box.id,
         depth: boxNear,
         pts: pts3.map(q => project(cam, q)),
         edges: pts3.map((q, i) => [q, pts3[(i + 1) % 4]]),
@@ -282,13 +334,28 @@ export function buildScene(cam, O, opts = {}) {
 
   faces.sort((u, v) => v.depth - u.depth);                 // far first
 
+  // Is the third vanishing point hidden behind a building? The whole point of the
+  // picture is that all three points are visible, and which lot covers it is not
+  // something to squint at — it is a point-in-polygon test against the projected
+  // faces, reported by lot id so the layout can be changed by name.
+  const inside = (pt, poly) => {
+    let hit = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i], b = poly[j];
+      if ((a.y > pt.y) !== (b.y > pt.y) &&
+          pt.x < a.x + (b.x - a.x) * (pt.y - a.y) / (b.y - a.y)) hit = !hit;
+    }
+    return hit;
+  };
+  const covering = [...new Set(faces.filter(f => inside(C, f.pts)).map(f => f.id ?? "?"))];
+
   // Where the tallest tower's top actually lands. Composition is tuned against
   // this number, not against an impression: above the horizon by a little reads
   // as "taller than the camera"; off the top of the frame reads as a mistake.
   const tallest = cluster.reduce((m, b) => (b.h > m.h ? b : m), cluster[0]);
   const topY = Math.min(...tallest.a.flatMap(aa => tallest.b.map(bb => p(aa, bb, -tallest.h).y)));
   const baseY = Math.max(...tallest.a.flatMap(aa => tallest.b.map(bb => p(aa, bb, 0).y)));
-  return { lines, faces, camHeight, zMin, topY, baseY };
+  return { lines, faces, camHeight, zMin, topY, baseY, covering };
 }
 
 /**

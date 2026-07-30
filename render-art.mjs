@@ -16,7 +16,7 @@
 
 import { chromium } from "playwright-core";
 import { writeFileSync, existsSync } from "node:fs";
-import { cameraFrom, originAt, buildScene, verify, TIGHT_CLUSTER } from "./art/scene.mjs";
+import { cameraFrom, originAt, buildScene, verify, TIGHT_CLUSTER, city } from "./art/scene.mjs";
 
 const SANDBOX_CHROMIUM = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
 const launchOpts = { args: ["--no-sandbox"] };
@@ -32,6 +32,39 @@ const AMBER = "#F2A65A", AMBER_HI = "#F8D6A2", CYAN = "#58C6E0";
 //   wide-out  the horizon points stay near the edges, as he drew them, which
 //             forces the third point below the bottom of the frame — its rays
 //             still converge, visibly, on a point just off-picture.
+// The camera stays CLOSE and the lens stays wide. Noah: "Extreme perspective is
+// FINE! It's the point!" — pushing the city back to soften the near corner was
+// sanding off the subject of the app. What close framing costs is composure, not
+// correctness, so it is bought back by LAYOUT: the lots nearest the camera on the
+// nadir's side are left empty, which keeps the third vanishing point visible at
+// the end of an open street instead of buried under a foreground tower.
+const DOWNTOWN = city({
+  module: 1.05, block: 0.67, i: [-2, 2], j: [-2, 1],
+  pad: { aLo: -1.6, bLo: -1.7, aHi: 0.5, bHi: 0.5 },   // streets run on toward the camera
+  // Height runs with DISTANCE, and that is forced, not styled: a tower taller than
+  // the camera crosses the horizon, and a NEAR one doing that leaves the top of the
+  // frame entirely (measured at 440px above it). So the towers that break eye level
+  // stand mid-distance, and the near lots are low — which is exactly the
+  // arrangement in Noah's reference sketch.
+  heights: {
+    "-2,-2": 0.26,                "-2,0": 0.40, "-2,1": 0.30,   // -2,-1 empty
+                   "-1,-1": 0.46, "-1,0": 0.52, "-1,1": 0.34,   // -1,-2 empty: it covered the nadir
+                    "0,-1": 0.94,  "0,0": 1.34,  "0,1": 0.80,   // 0,-2 empty
+     "1,-2": 0.52,  "1,-1": 1.14,                "1,1": 1.06,   // 1,0 empty lot
+     "2,-2": 0.44,  "2,-1": 0.72,  "2,0": 1.22,  "2,1": 0.64,
+  },
+});
+
+const SKYLINE = city({
+  module: 1.05, block: 0.67, i: [0, 2], j: [0, 2],
+  pad: { aLo: -1.9, bLo: -1.6, aHi: 0.4, bHi: 0.4 },
+  heights: {
+     "0,0": 0.44,  "0,1": 0.86,  "0,2": 0.34,
+     "1,0": 0.70,  "1,1": 1.42,  "1,2": 0.58,
+     "2,0": 0.40,  "2,1": 1.02,  "2,2": 0.48,
+  },
+});
+
 const VARIANTS = [
   {
     name: "icon", out: "art/icon-asdrawn.svg", w: 1024, h: 1024,
@@ -42,8 +75,8 @@ const VARIANTS = [
   {
     name: "icon-tight", out: "art/icon-tight.svg", w: 1024, h: 1024,
     vps: { A: { x: 68, y: 168 }, B: { x: 950, y: 168 }, C: { x: 512, y: 940 } },
-    cluster: { x: 512, y: 520 }, unitPx: 152, hScale: 0.76, grid: [[-2, 3], [-2, 3]], step: 0.5,
-    strokeWidth: 3.8, dotR: 9, boxes: TIGHT_CLUSTER, raster: "art/icon-tight.png",
+    cluster: { x: 452, y: 592 }, unitPx: 124, hScale: 0.80, grid: [[-2, 3], [-2, 3]], step: 0.5,
+    strokeWidth: 3.8, dotR: 9, boxes: SKYLINE.boxes, roads: SKYLINE, raster: "art/icon-tight.png",
     note: "same layout and same camera, cluster framed to fill the square so it survives 48px",
   },
   {
@@ -55,10 +88,10 @@ const VARIANTS = [
   },
   {
     name: "wide-shift", out: "art/og-wide-shift.svg", w: 1200, h: 630,
-    vps: { A: { x: 404, y: 88 }, B: { x: 1120, y: 88 }, C: { x: 762, y: 594 } },
-    cluster: { x: 762, y: 366 }, unitPx: 92, hScale: 0.78, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5,
-    overshoot: 1.14,
-    note: "the same, shifted right so the left third stays clear for the wordmark",
+    vps: { A: { x: 431, y: 88 }, B: { x: 1093, y: 88 }, C: { x: 762, y: 556 } },
+    cluster: { x: 792, y: 336 }, unitPx: 104, hScale: 0.80, grid: [[-2.5, 3.5], [-2.5, 3]], step: 0.5,
+    overshoot: 1.14, roads: DOWNTOWN, boxes: DOWNTOWN.boxes,
+    note: "shifted right for the wordmark; nadir pulled up to 556 (s = d/sqrt2 keeps the focal length as long as the frame allows); city spread five blocks wide and run toward the camera so the lower frame carries roads",
   },
   {
     name: "wide-out", out: "art/og-wide-out.svg", w: 1200, h: 630,
@@ -69,13 +102,14 @@ const VARIANTS = [
   },
 ];
 
+let failures = 0;
 const fmt = n => n.toFixed(2);
 const line = (l, attrs) => `<line x1="${fmt(l.p.x)}" y1="${fmt(l.p.y)}" x2="${fmt(l.q.x)}" y2="${fmt(l.q.y)}" ${attrs}/>`;
 
 function svgFor(v) {
   const cam = cameraFrom(v.vps.A, v.vps.B, v.vps.C);
   const O = originAt(cam, v.cluster, v.unitPx);
-  const scene = buildScene(cam, O, { vps: v.vps, gridA: v.grid[0], gridB: v.grid[1], step: v.step, cluster: v.boxes, overshoot: v.overshoot, hScale: v.hScale });
+  const scene = buildScene(cam, O, { vps: v.vps, gridA: v.grid[0], gridB: v.grid[1], step: v.step, cluster: v.boxes, overshoot: v.overshoot, hScale: v.hScale, roads: v.roads });
   const checks = verify(scene);
 
   const { A, B, C } = v.vps;
@@ -84,7 +118,8 @@ function svgFor(v) {
   const t = (B.x - A.x) === 0 ? 0 : (B.y - A.y) / (B.x - A.x);
   const hz = { p: { x: -50, y: A.y + t * (-50 - A.x) }, q: { x: v.w + 50, y: A.y + t * (v.w + 50 - A.x) } };
 
-  const grid = scene.lines.filter(l => l.kind === "grid").map(l => line(l, `stroke="${CYAN}" stroke-opacity=".16" stroke-width="1"`)).join("");
+  const grid = scene.lines.filter(l => l.kind === "grid").map(l => line(l, `stroke="${CYAN}" stroke-opacity=".09" stroke-width="1"`)).join("");
+  const roads = scene.lines.filter(l => l.kind === "road").map(l => line(l, `stroke="${CYAN}" stroke-opacity=".34" stroke-width="1.3"`)).join("");
   const guides = scene.lines.filter(l => l.kind === "guide").map(l => line(l, `stroke="${AMBER}" stroke-opacity=".26" stroke-width="1"`)).join("");
   const nadir = scene.lines.filter(l => l.kind === "nadir").map(l => line(l, `stroke="${CYAN}" stroke-opacity=".40" stroke-width="1" stroke-dasharray="7 6"`)).join("");
 
@@ -111,6 +146,7 @@ function svgFor(v) {
 <rect width="${v.w}" height="${v.h}" fill="url(#glow)"/>
 <g id="art">
   <g id="grid">${grid}</g>
+  <g id="roads">${roads}</g>
   <g id="guides">${guides}</g>
   <g id="nadir-rays">${nadir}</g>
   ${line(hz, `stroke="${AMBER}" stroke-opacity=".70" stroke-width="1.2"`)}
@@ -121,7 +157,6 @@ function svgFor(v) {
   return { svg, cam, checks, scene };
 }
 
-let failures = 0;
 const rendered = [];
 for (const v of VARIANTS) {
   let built;
@@ -139,6 +174,10 @@ for (const v of VARIANTS) {
   const sc = built.scene;
   const over = v.vps.A.y - sc.topY;
   console.log(`  camera sits ${sc.camHeight.toFixed(2)} units above the ground plane`);
+  if (sc.covering.length) {
+    console.log(`  FAIL the third vanishing point is hidden behind lot(s) ${sc.covering.join(", ")} — empty them`);
+    failures++;
+  }
   console.log(`  tallest tower: base y=${sc.baseY.toFixed(0)}, top y=${sc.topY.toFixed(0)} — ` +
               `${over > 0 ? `${over.toFixed(0)}px ABOVE the horizon (y=${v.vps.A.y}), so no roof, as intended`
                           : `${(-over).toFixed(0)}px below the horizon`}` +
