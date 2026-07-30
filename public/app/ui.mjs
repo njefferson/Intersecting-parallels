@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene,
+  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.6.0";
+const VERSION = "1.7.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1313,6 +1313,74 @@ $("face-opacity")?.addEventListener("change", ev => {
 viewToggle("eye-level", "eyeLevel",
   "Eye level shown",
   "Eye level hidden — the horizon, where the points define one, is still drawn");
+
+// D42 — square, cube, skyscraper. The exercise Noah asked for, as three moves.
+//
+// A cube here is EQUAL DISTANCES ALONG EACH GUIDE, not a measuring-point
+// construction. That is deliberate and it is the difference between the two
+// requests: a true cube needs a fourth point on the horizon and gives you
+// geometry; this gives you a shape that READS as a cube and exaggerates as it
+// leaves the centre of the paper, which is what forced perspective is for.
+const CUBE_EDGE = 220;
+const STRETCH = 1.25;                  // and 1/1.25 the other way, so it is reversible
+const SPREAD_STEP = 0.8;               // in = stronger; 1/0.8 = out = gentler
+
+function addCube() {
+  endExtrude(false);
+  const at = viewCentre();
+  beginGesture(history, scene);
+  const res = buildBox(scene, { at, height: CUBE_EDGE, depthL: CUBE_EDGE, depthR: CUBE_EDGE });
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  selection = { type: "vertex", id: res.corners.nearTop.id };
+  el.canvas.focus({ preventScroll: true });
+  afterEdit("Cube drawn — equal along all three guides. Taller stretches it into a tower.");
+}
+
+// The solid to act on: the one the selection belongs to, else the last one made.
+function currentSolid() {
+  const faces = scene.faces ?? [];
+  if (!faces.length) return null;
+  if (selection && selection.type === "vertex") {
+    const owner = faces.find(f => f.loop.includes(selection.id));
+    if (owner) return owner.solid;
+  }
+  return faces[faces.length - 1].solid;
+}
+
+// A box's whole height hangs off ONE ray vertex — the near top corner, bound to
+// vertical. Every other upper corner is derived from it, so stretching the box
+// is stretching that single number and letting the solver do the rest.
+function stretchSolid(factor) {
+  const solid = currentSolid();
+  if (!solid) { toast("Draw a box first — there is nothing to stretch", "error"); return; }
+  const ids = new Set((scene.faces ?? []).filter(f => f.solid === solid).flatMap(f => f.loop));
+  const riser = scene.vertices.find(v => ids.has(v.id) && v.kind === "ray" && v.binding === "vertical");
+  if (!riser) { toast("That shape has no upright edge to stretch", "error"); return; }
+  beginGesture(history, scene);
+  riser.t *= factor;
+  solveScene(scene);
+  if (!scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y))) {
+    undoHistoryInPlace();
+    toast("That would push the shape past what this construction can hold", "error");
+    return;
+  }
+  afterEdit(`${factor > 1 ? "Taller" : "Shorter"} — height now ${Math.round(Math.abs(riser.t))}`);
+}
+
+function changeSpread(k) {
+  beginGesture(history, scene);
+  const res = scaleVpSpread(scene, k);
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  afterEdit(k < 1
+    ? "Stronger — the points came in, so everything converges harder"
+    : "Gentler — the points went out, so the perspective calms down", { structural: true });
+}
+
+$("add-cube")?.addEventListener("click", addCube);
+$("taller")?.addEventListener("click", () => stretchSolid(STRETCH));
+$("shorter")?.addEventListener("click", () => stretchSolid(1 / STRETCH));
+$("stronger")?.addEventListener("click", () => changeSpread(SPREAD_STEP));
+$("gentler")?.addEventListener("click", () => changeSpread(1 / SPREAD_STEP));
 
 $("add-line")?.addEventListener("click", addLineWithoutDragging);
 $("add-box")?.addEventListener("click", addBoxWithoutDragging);

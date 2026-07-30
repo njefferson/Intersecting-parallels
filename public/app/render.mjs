@@ -347,6 +347,12 @@ export function draw(ctx, view, viewport, opts = {}) {
   // about, and almost every edge shares one style — so the common case becomes
   // a single stroke. Same pixels, drawn once.
   ctx.setLineDash([]);
+  // Deliberately takes a plain array and no predicate. A version of this passed a
+  // `skip` callback so the common path could iterate scene.edges without
+  // allocating a filtered copy — which reads like an optimisation and MEASURED
+  // 27.3ms -> 35.1ms at the 2,000 edges §11 asks about. A callback in the hot
+  // loop cost far more than the allocation it saved. The framerate gate caught
+  // it; reasoning about it did not.
   const strokeEdges = list => {
     const batches = new Map();
     for (const edge of list) {

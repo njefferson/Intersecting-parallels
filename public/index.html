@@ -55,6 +55,7 @@
     <div class="bar-group" role="group" aria-label="Draw without dragging">
       <button class="btn" id="add-line" type="button">Add line</button>
       <button class="btn" id="add-box" type="button">Add box</button>
+      <button class="btn" id="add-cube" type="button">Add cube</button>
     </div>
 
     <!-- D37/D38: two ways of LOOKING at the drawing. Neither changes it. -->
@@ -71,6 +72,15 @@
       <button class="btn" id="rays" type="button" aria-pressed="false">Rays</button>
       <button class="btn" id="grid" type="button" aria-pressed="true">Grid</button>
       <button class="btn" id="eye-level" type="button" aria-pressed="true">Eye level</button>
+    </div>
+
+    <!-- D42 — forced perspective, as an artist means it: exaggerate, do not
+         measure. Every line is bound to a point, so the whole drawing follows. -->
+    <div class="bar-group" role="group" aria-label="Exaggerate">
+      <button class="btn" id="taller" type="button">Taller</button>
+      <button class="btn" id="shorter" type="button">Shorter</button>
+      <button class="btn" id="stronger" type="button">Stronger</button>
+      <button class="btn" id="gentler" type="button">Gentler</button>
     </div>
 
     <div class="bar-group" role="group" aria-label="Guides">

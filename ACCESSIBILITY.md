@@ -401,3 +401,28 @@ which reports "the app never came up at all", which is the actual symptom. That
 message only exists because the first version of the block ABORTED on the boot
 timeout and reported a Playwright error instead of the four broken things; a gate
 that dies tells you about itself, not about the app.
+
+**2026-07-30, gate instruments (1.7.0)** — three fixes to how gates MEASURE, none
+to what they require.
+
+The framerate gate was failing at random: the same code measured 27.3ms and
+37.6ms within minutes on a loaded machine against a 33ms bar. Proved rather than
+assumed — stash, run the committed build, 27.3ms; restore, 35.3ms; `git diff`
+showed six lines of changed COMMENT. The bar is unchanged and the measurement is
+best-of-three medians now, which still catches what the gate is for: a real
+regression is in every run, a load spike is not. It caught a real one the same
+afternoon, and that one was mine — a `skip` callback threaded into the edge loop
+to avoid a per-frame array allocation, which measured 27.3 -> 35.1ms and was
+reverted with the number recorded so it is not re-attempted.
+
+Boot budgets went 10s -> 30s in both this gate and the walk, for the same reason:
+they failed under load and a rerun cleared them, which teaches everyone to rerun a
+red gate. Nothing is skipped; the app must still boot.
+
+And a fixture, not a threshold: D37's eye-level checks measure face AREAS, and
+the box they used was dragged out by pixel coordinates with a top face that was a
+thin wedge — 263px against the walls' 11,700 — which passed until it did not. The
+fixture is a cube now, dropped below the horizon before the underside is measured,
+because a cube near the vanishing points' own line has an almost edge-on base.
+Lowering the threshold to fit the old fixture would have been a test written to
+pass.

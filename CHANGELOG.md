@@ -8,6 +8,27 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.7.0 — CAPABILITY · 2026-07-30
+
+**Square, cube, skyscraper — and a dial that exaggerates the lot.**
+
+- **Add cube** puts a box on the paper that is equal along all three guides. It
+  is not a measured cube: it is a shape that reads as one and exaggerates as it
+  moves away from the middle of the paper, which is what forced perspective is
+  for.
+- **Taller** and **Shorter** stretch the shape you are working on without
+  touching its footprint. Three taps of Taller turns a cube into a tower. They
+  are exact inverses, so the dial goes both ways.
+- **Stronger** and **Gentler** move every vanishing point in or out together.
+  Stronger converges harder — the cartoon look; Gentler calms it down. Because
+  every line in this app is bound to a point rather than baked, **your whole
+  drawing follows the dial**, live. It refuses before a point would end up
+  inside the drawing, and says which point.
+- Each of the five is a single undo, and every one is a plain button — nothing
+  here needs a drag.
+
+---
+
 ## 1.6.0 — CAPABILITY · 2026-07-30
 
 **A box can turn inside out, and a solid is actually solid.**

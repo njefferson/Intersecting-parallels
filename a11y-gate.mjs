@@ -130,8 +130,13 @@ try {
       await page.goto(origin + pageDef.url, { waitUntil: 'networkidle' });
       // The app boots asynchronously (it reads IndexedDB first), so wait for
       // the surface to actually exist before measuring anything about it.
-      await page.waitForFunction(() => document.querySelectorAll('.vp-row').length > 0, null, { timeout: 10000 })
-        .catch(() => fail(where, 'the app did not finish booting within 10s — nothing below was measured against a working page'));
+      // 30s, not 10. The gate still REQUIRES the app to boot — nothing is
+      // skipped and nothing is measured against a dead page. The budget was
+      // simply too tight for a loaded machine, and reported flakes that a rerun
+      // cleared, which teaches everyone to rerun a red gate. A gate that cries
+      // wolf is worse than a slow one.
+      await page.waitForFunction(() => document.querySelectorAll('.vp-row').length > 0, null, { timeout: 30000 })
+        .catch(() => fail(where, 'the app did not finish booting within 30s — nothing below was measured against a working page'));
       if (state.firstRun) {
         await page.waitForFunction(() => !!document.querySelector('#dlg-welcome[open]'), null, { timeout: 5000 })
           .catch(() => fail(where, 'the first-run panel did not open on a clean slate'));

@@ -630,6 +630,60 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D42 — forced perspective, as an artist means it (SHIPPED 1.7.0, staging)
+
+**Noah, 2026-07-30, asked for "making a square into a cube into a skyscraper with
+forced perspective". Asked which kind, he said:** *"It means exaggerating for an
+artist's reference, sometimes in cartoons rather than reality."*
+
+That answer picks between two different tools, and it matters. The measured cube
+— a measuring-point construction, a fourth point on the horizon, provably equal
+depths — is the OTHER request, and it is not this one. This one is a dial.
+
+- **Add cube**: a box equal along all three guides. Not measured, and the notes
+  say so out loud: it reads as a cube and exaggerates as it leaves the middle of
+  the paper. For a reference drawing that is the feature, not the compromise.
+- **Taller / Shorter**: a box's whole height hangs off ONE ray vertex bound to
+  vertical — every upper corner is derived from it — so stretching a box is
+  multiplying a single number and letting the solver do the rest. The footprint
+  is untouched, and the two are exact inverses.
+- **Stronger / Gentler**: scale every unlocked point's distance from the CENTRE
+  OF THE PAPER. Not the centroid of the points, which would drift the composition
+  sideways each time it was used. Because every line is bound rather than baked,
+  the whole drawing follows the dial live — the one thing this app can do that a
+  sheet of paper cannot, for about fifteen lines. It refuses as a whole, naming
+  the point, before any point would land inside the drawing.
+
+**Three instrument fixes came out of gating this, and two were my own mistakes.**
+
+**The framerate gate was failing at random.** Same code measured 27.3ms and
+37.6ms within minutes on a loaded machine, against a 33ms bar. Proved rather than
+assumed: `git stash`, run the committed build, 27.3ms; restore, 35.3ms; and then
+`git diff` showed render.mjs differed by six lines of COMMENT. The bar is
+unchanged; the measurement is now best-of-three medians. A real regression is
+present in every run, a load spike is not — and the same gate caught a real one
+that afternoon.
+
+**That real one was mine.** I replaced a per-frame `scene.edges.filter(...)` with
+a `skip` callback threaded into the edge loop, reasoning that avoiding a
+2,000-element allocation per frame must be faster. It measured **27.3 → 35.1ms**.
+A callback in the hot loop cost far more than the allocation it saved. Reverted,
+with the number in the comment so nobody re-optimises it the same way.
+
+**And the eye-level fixture was badly conditioned.** The D37 checks measured face
+AREAS on a box dragged out by pixel coordinates, whose top face was a thin wedge —
+263px against the walls' 11,700, and one run later it dipped under the threshold
+and went red against working code. The fixture is `Add cube` now, dropped below
+the horizon before the underside is measured, because a cube sitting near the
+vanishing points' own line has a base that is nearly edge-on: "you can see
+underneath it" is true and invisible. Lowering the threshold to fit the old
+fixture would have been a test written to pass.
+
+**Boot budgets went from 10s to 30s** in both the a11y gate and the walk, for the
+same reason as the framerate change: they were failing on a loaded machine and a
+rerun cleared them, which teaches everyone to rerun a red gate. Nothing is
+skipped — the app must still boot.
+
 ### D39/D40/D41 — inversion, hidden lines, the point cap (SHIPPED 1.6.0, staging)
 
 **Noah, 2026-07-30, on 1.5.1.**

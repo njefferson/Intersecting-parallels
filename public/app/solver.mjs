@@ -585,6 +585,50 @@ export function moveVp(scene, vpId, { x, y }) {
 // D36 — eye level is authored and moves nothing else. It used to drag every
 // on-horizon vanishing point with it, which made "the point is above eye level"
 // unrepresentable; that state is exactly what the tutorial has to show.
+// D42 — FORCED PERSPECTIVE, as an artist means it.
+//
+// Noah, 2026-07-30: "It means exaggerating for an artist's reference, sometimes
+// in cartoons rather than reality."
+//
+// So the control is not a measuring-point construction that guarantees a true
+// cube — that is the other request, the honest-geometry one, and it is not this.
+// This is the dial a cartoonist reaches for: bring the vanishing points IN and
+// everything converges harder; push them OUT and it calms down. Because every
+// line in this app is bound to a point rather than baked, the whole drawing
+// follows the dial live. That is the one thing this app can do that a sheet of
+// paper cannot, and it costs about fifteen lines.
+//
+// Scaling is about the CENTRE OF THE PAPER, not the centroid of the points: the
+// paper is what the drawing sits on and what the artist is composing within, and
+// scaling about a moving centroid would drift the composition sideways every
+// time it was used.
+const SPREAD_MIN = 0.15;   // as a fraction of the paper's diagonal
+
+export function scaleVpSpread(scene, k) {
+  if (!Number.isFinite(k) || k <= 0) return { ok: false, reason: "that is not a scale" };
+  const movable = scene.vanishingPoints.filter(v => !v.locked);
+  if (!movable.length) {
+    return { ok: false, reason: "every vanishing point is locked — unlock one to change the perspective" };
+  }
+  const cx = scene.canvas.width / 2, cy = scene.canvas.height / 2;
+  const floor = Math.hypot(scene.canvas.width, scene.canvas.height) * SPREAD_MIN;
+  // Refuse as a whole rather than moving some and stopping: a point dragged in
+  // this far is inside the drawing, where it stops being a vanishing point and
+  // starts being a hole every line runs into.
+  for (const vp of movable) {
+    const d = Math.hypot((vp.x - cx) * k, (vp.y - cy) * k);
+    if (d < floor) {
+      return { ok: false, reason: `any stronger and ${vp.label} would be inside the drawing` };
+    }
+  }
+  for (const vp of movable) {
+    vp.x = cx + (vp.x - cx) * k;
+    vp.y = cy + (vp.y - cy) * k;
+  }
+  solveScene(scene);
+  return { ok: true, moved: movable.length };
+}
+
 export function setEyeLevel(scene, y) {
   if (!Number.isFinite(y)) return { ok: false, reason: "eye level needs a number" };
   scene.eyeLevel.y = y;
