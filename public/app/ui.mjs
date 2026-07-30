@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.3.0";
+const VERSION = "1.3.1";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1403,6 +1403,25 @@ const clearButtons = () => [
   ["pr-clear-all", "Clear everything, points too"],
   ["clear-drawing", "Clear"],                 // the toolbar one: label stays put
 ];
+// D32 — put the confirmation where the question was asked. `fixed` positioning
+// against the button's own rect, clamped into the viewport, so it lands under the
+// button on any width instead of at the bottom of the screen.
+function showArmPrompt(buttonId, text) {
+  const node = $("arm-prompt"), btn = $(buttonId);
+  if (!node || !btn) return;
+  node.textContent = text;
+  node.dataset.on = "true";
+  const r = btn.getBoundingClientRect();
+  const w = node.getBoundingClientRect().width;
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+  node.style.left = `${left}px`;
+  node.style.top = `${Math.min(r.bottom + 8, window.innerHeight - node.getBoundingClientRect().height - 8)}px`;
+}
+function hideArmPrompt() {
+  const node = $("arm-prompt");
+  if (node) { node.dataset.on = "false"; node.textContent = ""; }
+}
+
 function disarmClears(except = null) {
   for (const [id, label] of clearButtons()) {
     if (id === except) continue;
@@ -1416,6 +1435,7 @@ function disarmClears(except = null) {
     }
   }
   if (armedTimer) { clearTimeout(armedTimer); armedTimer = null; }
+  if (!except) hideArmPrompt();
   if (armedClear !== except) armedClear = except;
 }
 
@@ -1428,11 +1448,13 @@ function wireClear(id, describe, run) {
       disarmClears(id);                             // the others go back to their labels
       b.dataset.armed = "true";
       if (id === "clear-drawing") {
-        // No room to grow a label in the toolbar, so the COUNT goes to the toast
-        // and to the button's accessible name — the number is still read from the
-        // drawing either way, which is the part that matters.
+        // No room to grow a label in a toolbar, so the count goes to the button's
+        // accessible name and to a prompt anchored UNDER the button (D32). It used
+        // to go to the toast at the bottom of the screen, which asks a question in
+        // one corner and answers it in another.
         b.setAttribute("aria-label", `Clear. Armed: tap again to ${what.action}.`);
-        toast(`Tap Clear again to ${what.action}.`);
+        showArmPrompt(id, `Tap Clear again to ${what.action}.`);
+        say(`${what.action}. Tap Clear again to confirm.`);
       } else {
         b.textContent = `Tap again to ${what.action}`;
         say(`${what.action}. Tap the same button again to confirm, or anything else to cancel.`);

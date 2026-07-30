@@ -26,6 +26,15 @@ html,body{margin:0;height:100%}
 body{
   background:var(--bg);
   color:var(--text);
+  /* D32 — a long press on a drawing surface must not start an iOS text
+     selection. Noah, 2026-07-30: "Long pressing highlights the canvas as an
+     iPhone select." touch-action:none already stopped scrolling and zooming, but
+     selection and the callout menu are a separate mechanism, and a tremor-slow
+     press is a NORMAL way to start a stroke — §4 says nothing may require a
+     quick gesture, so the slow one must not be punished. */
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-touch-callout:none;
   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased;
   overflow:hidden;
@@ -126,6 +135,24 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
   display:inline-block;font-size:.9rem;line-height:1;
   /* the glyph points right at 0rad, which is what offscreenMarker's angle assumes */
 }
+
+/* D32 — the confirmation for an armed destructive button, anchored UNDER that
+   button. It used to be the toast at the bottom of the screen: Noah, 2026-07-30,
+   "the prompt to press clear a second time appears at the bottom of the screen
+   and not near the button causing it." A prompt about a control belongs beside
+   the control, or the eye has to hunt for the answer to a question it just
+   asked. Colours are the pair `.btn` already registers — no new pair. */
+.armprompt{
+  position:fixed;z-index:40;
+  max-width:min(22rem,calc(100vw - 1.5rem));
+  padding:.5rem .75rem;border-radius:.625rem;
+  background:var(--surface);color:var(--text);
+  border:2px solid var(--danger);
+  font-size:.8125rem;line-height:1.4;
+  box-shadow:0 6px 20px rgba(0,0,0,.35);
+  display:none;
+}
+.armprompt[data-on="true"]{display:block}
 
 .toast{
   position:absolute;left:50%;transform:translateX(-50%);bottom:.75rem;

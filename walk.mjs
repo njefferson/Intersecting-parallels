@@ -691,11 +691,37 @@ try {
   check('its accessible name carries the count it read',
     /2 lines/.test(tbArmed.aria), `aria-label "${tbArmed.aria}"`);
 
+  // D32 — the prompt must be AT the button, not at the bottom of the screen.
+  const promptPlace = await cPage.evaluate(() => {
+    const b = document.getElementById('clear-drawing').getBoundingClientRect();
+    const n = document.getElementById('arm-prompt');
+    const p = n.getBoundingClientRect();
+    return {
+      on: n.dataset.on, text: n.textContent,
+      // Overlap, not edge-alignment: near the right of a toolbar the prompt is
+      // clamped to stay on screen, which is correct — what must hold is that it
+      // sits UNDER the button it belongs to and is nowhere near the bottom of the
+      // screen. (The first version of this check demanded aligned left edges and
+      // failed at 61px on a correctly clamped prompt.)
+      overlaps: Math.min(p.right, b.right) - Math.max(p.left, b.left) > 20,
+      dy: Math.round(p.top - b.bottom),
+      viewportBottomGap: Math.round(window.innerHeight - p.bottom),
+    };
+  });
+  check('the confirmation appears AT the Clear button, not at the bottom of the screen (D32)',
+    promptPlace.on === 'true' && promptPlace.overlaps && promptPlace.dy >= 0 && promptPlace.dy < 60
+      && promptPlace.viewportBottomGap > 200,
+    `overlapping the button: ${promptPlace.overlaps}, ${promptPlace.dy}px below it, ` +
+    `${promptPlace.viewportBottomGap}px clear of the screen bottom; says "${promptPlace.text.slice(0, 50)}"`);
+
+
   // Touching something else disarms it — an armed destructive button must never be
   // found still armed later.
   await cPage.click('#mode-select');
   const tbDisarmed = await cPage.evaluate(() => document.getElementById('clear-drawing').dataset.armed);
   check('and another toolbar tap cancels the arm', tbDisarmed === 'false', `armed=${tbDisarmed}`);
+  const promptGone = await cPage.evaluate(() => document.getElementById('arm-prompt').dataset.on);
+  check('and the prompt goes with it', promptGone === 'false', `prompt on=${promptGone}`);
   await cPage.click('#mode-draw');
 
   await cPage.click('#clear-drawing');
@@ -805,6 +831,25 @@ try {
   check('the cleared sheet is still usable — a point can be added and it numbers from 1',
     afterWipe.points === 1 && afterWipe.label === 'VP1',
     `${afterWipe.points} point, labelled ${afterWipe.label}`);
+  // D32 — a long press on the canvas must not start a text selection. On iOS that
+  // shows the blue highlight and the callout menu; a slow press is a NORMAL way to
+  // begin a stroke for a hand that does not move quickly (§4), so it must not be
+  // punished. Asserted as the computed properties, which is what the browser acts
+  // on, rather than by trying to reproduce a platform gesture headlessly.
+  const selectable = await cPage.evaluate(() => {
+    const c = document.getElementById('canvas');
+    const cs = getComputedStyle(c), bs = getComputedStyle(document.body);
+    const val = o => o.webkitUserSelect || o.userSelect;
+    return {
+      canvas: val(cs), body: val(bs),
+      callout: bs.webkitTouchCallout || cs.webkitTouchCallout || '(unsupported here)',
+      touchAction: cs.touchAction || bs.touchAction,
+    };
+  });
+  check('a long press on the canvas cannot start a text selection (D32)',
+    selectable.canvas === 'none' && selectable.body === 'none',
+    `user-select: canvas ${selectable.canvas}, body ${selectable.body}; callout ${selectable.callout}; touch-action ${selectable.touchAction}`);
+
   await cCtx.close();
 
   // D31 — a box is two steps and the second is automatic: after the first drag

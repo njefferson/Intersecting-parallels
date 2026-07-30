@@ -232,6 +232,37 @@ corner through real pointer events, and asserts the geometry afterwards.
 **Status:** FIXED 1.2.0. It found a real regression on its first run — a deleted
 box-release branch that produced 0 edges — before that reached staging.
 
+### F-08 · A long press started an iOS text selection on the drawing surface
+**Found:** 2026-07-30 · by Noah, on 1.3.0
+**Rule:** Doctrine §4 (tremor is a supported condition; no gesture may require
+speed) / WCAG 2.5.2
+**Detail:** `touch-action: none` stopped scrolling and pinch-zoom on the canvas,
+but text selection and the callout menu are a separate mechanism and were never
+disabled. A press held longer than iOS's selection delay produced a highlight and
+a menu over the drawing — and a slow press is exactly how a hand that does not
+move quickly begins a stroke.
+**Fix (1.3.1):** `-webkit-user-select`/`user-select: none` and
+`-webkit-touch-callout: none` on the app surface. Gated in the walk by asserting
+the computed values, which is what the browser acts on, rather than trying to
+reproduce a platform gesture headlessly.
+**Status:** FIXED 1.3.1.
+
+### F-09 · A destructive confirmation appeared far from the control it was about
+**Found:** 2026-07-30 · by Noah, on 1.3.0
+**Rule:** Doctrine §4 (a control's meaning must be findable) and §3 (modes
+announce themselves where they are)
+**Detail:** Arming the toolbar Clear put its confirmation — "Tap Clear again to
+clear 2 lines and keep 2 points" — in the toast at the BOTTOM of the screen,
+several hundred pixels from the button that had just changed state. The eye has
+to hunt for the answer to a question it just asked, and on a wide iPad that is a
+long way to hunt.
+**Fix (1.3.1):** an anchored prompt positioned under the button itself, clamped to
+stay on screen. Colours are the pair `.btn` already registers, so no new
+foreground/background pair enters the app. Gated: the walk asserts the prompt
+overlaps the button horizontally, sits within 60px below it, and is more than
+200px clear of the bottom of the screen.
+**Status:** FIXED 1.3.1.
+
 ### Gate verification (Doctrine §6: made to fail once before it is trusted)
 
 **2026-07-29** — before the first commit, `--muted` was deliberately darkened

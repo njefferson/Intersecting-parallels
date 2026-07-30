@@ -8,6 +8,21 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.3.1 — ITERATION · 2026-07-30
+
+**Two things that were in the wrong place.**
+
+- **A long press on the canvas no longer starts a text selection.** iOS was
+  treating a slow press as "select this", complete with the blue highlight and the
+  callout menu. A slow press is a normal way to begin a stroke, so it must not be
+  punished.
+- **The "tap Clear again" confirmation now appears under the Clear button**, not
+  at the bottom of the screen. A question asked in one corner should not be
+  answered in another. It still says exactly what it counted, it still disappears
+  the moment you touch anything else, and it still expires by itself.
+
+---
+
 ## 1.3.0 — CAPABILITY · 2026-07-30
 
 **A box is two steps now, and the second one comes to you.**

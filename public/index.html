@@ -128,6 +128,11 @@
 
 <p class="sr-only" id="live" role="status" aria-live="polite"></p>
 
+<!-- D32 — anchored under whichever destructive button is armed. role=status so it
+     is announced, but the sentence a screen reader gets is the button's own
+     accessible name, which is where it belongs for someone not looking at it. -->
+<div class="armprompt" id="arm-prompt" data-on="false" role="status"></div>
+
 <!-- D28 — the first-run explanation. Doctrine §4 expects these and is exacting
      about the way out: visible in the first frame without scrolling, reachable
      from anywhere in it, present at the bottom as well, working before anything
