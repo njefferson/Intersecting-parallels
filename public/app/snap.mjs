@@ -381,7 +381,13 @@ export function effectiveBinding(scene, edge) {
 //   3. Otherwise end on the guide where the finger left it.
 // A stroke's START may always merge, because the guide is computed THROUGH the
 // start point: joining there cannot change any direction.
-export function resolveStrokeEnd(scene, startPos, binding, u, p, r = SNAP_RADIUS) {
+// D22 adds `weld`. With welding OFF the end lands on its guide exactly where the
+// finger left it and joins nothing — which is the 0.2.0 behaviour Noah asked for
+// and then found broke his adjustments. It is a choice now rather than a verdict:
+// the guide still decides direction either way, so turning welding off can never
+// bring back a line that belongs to nothing (D18).
+export function resolveStrokeEnd(scene, startPos, binding, u, p, r = SNAP_RADIUS, { weld = true } = {}) {
+  if (!weld) return { type: "plain", at: { x: p.x, y: p.y } };
   if (binding === "free" || !u) {
     const v = nearestVertex(scene, p, r);
     return v ? { type: "merge", vertexId: v.id, at: { x: v.x, y: v.y } }
@@ -434,16 +440,53 @@ export function resolveStrokeEnd(scene, startPos, binding, u, p, r = SNAP_RADIUS
 // drag — or a corner drag — moves the whole box and it stays a box. That is the
 // property his hand-drawn cube could not have.
 //
-// One drag: it starts at the near bottom corner, its vertical extent is the
-// height, and its horizontal extent is the depth along each vanishing point.
-// A square plan is the default because a single drag cannot say two depths;
-// the corners are draggable afterwards precisely because they are constrained.
-export function buildBox(scene, { at, height, depth }) {
+// One drag: it starts at the near bottom corner and its vertical extent is the
+// height. D23 replaced the square plan: the two base depths are taken separately
+// from the drag, `depthL` and `depthR`, so the direction of the drag proportions
+// the plan. `depth` is still accepted and means both, which is what the box did
+// before and what a straight-up drag still falls back to.
+//
+// Why one drag cannot simply state both: a box needs three numbers — height and
+// two depths — and a gesture carries two. So the drag sets height and the SHARE
+// between the two axes, and each depth is then settable exactly, because D23 also
+// made a base corner's distance along its guide editable. That is the part NOTES
+// used to claim was already possible.
+// D23 — turn one drag into a height and TWO depths.
+//
+// A gesture carries two numbers and a box needs three, so the drag sets the
+// height and the SHARE between the two base axes: the axis you drag toward gets
+// the sideways distance added to it, the other keeps a floor proportional to the
+// height. Straight up is therefore still a square plan — the old behaviour, now
+// the special case rather than the only case — and up-and-right makes a box that
+// runs further to the right. Monotone in the drag, which is what makes it
+// learnable: further right is always deeper right.
+//
+// Pure, and exported, so the mapping is pinned by tests rather than only visible
+// through a gesture.
+export function splitBoxDepths(scene, at, to) {
+  const height = Math.abs(to.y - at.y);
+  const hx = to.x - at.x;
+  const floor = Math.max(6, height * 0.5);
+  const vps = scene.vanishingPoints.filter(v => !v.locked).slice(0, 2);
+  if (vps.length < 2) return { height, depthL: floor, depthR: floor };
+  const sideOf = vp => {
+    const dx = vp.x - at.x, dy = vp.y - at.y;
+    const L = Math.hypot(dx, dy) || 1;
+    return dx / L;                                   // horizontal component of that guide
+  };
+  const [sL, sR] = vps.map(sideOf);
+  const toward = s => (Math.sign(hx) === Math.sign(s) && s !== 0 ? Math.abs(hx) : 0);
+  return { height, depthL: floor + toward(sL), depthR: floor + toward(sR) };
+}
+
+export function buildBox(scene, { at, height, depth, depthL, depthR }) {
   const vps = scene.vanishingPoints.filter(v => !v.locked);
   if (vps.length < 2) return { ok: false, reason: "a box needs two vanishing points — add one, or unlock one" };
   const [vpL, vpR] = vps;
   const h = Math.abs(height) < 1 ? 1 : height;
-  const d = Math.abs(depth) < 1 ? 1 : Math.abs(depth);
+  const fallback = Math.abs(depth ?? 0) < 1 ? 1 : Math.abs(depth);
+  const dL = Math.abs(depthL ?? fallback) < 1 ? 1 : Math.abs(depthL ?? fallback);
+  const dR = Math.abs(depthR ?? fallback) < 1 ? 1 : Math.abs(depthR ?? fallback);
 
   const made = { vertices: [], edges: [] };
   const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
@@ -455,8 +498,8 @@ export function buildBox(scene, { at, height, depth }) {
   const nearBottom = V(addAnchor(scene, { x: at.x, y: at.y }));
   const nearTop = V(addRayVertex(scene, { origin: nearBottom.id, binding: "vertical", t: -h }));
   if (!nearTop) return { ok: false, reason: "could not raise the near edge" };
-  const leftBottom = V(addRayVertex(scene, { origin: nearBottom.id, binding: { vpId: vpL.id }, t: d }));
-  const rightBottom = V(addRayVertex(scene, { origin: nearBottom.id, binding: { vpId: vpR.id }, t: d }));
+  const leftBottom = V(addRayVertex(scene, { origin: nearBottom.id, binding: { vpId: vpL.id }, t: dL }));
+  const rightBottom = V(addRayVertex(scene, { origin: nearBottom.id, binding: { vpId: vpR.id }, t: dR }));
   if (!leftBottom || !rightBottom) return { ok: false, reason: "could not run the base edges to the vanishing points" };
 
   // Every corner above or behind is where two guides meet.

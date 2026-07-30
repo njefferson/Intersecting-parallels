@@ -11,9 +11,9 @@
 
 import {
   createScene, addVp, moveVp, setHorizon, solveScene, SNAP_RADIUS, bindingDirection,
-  deleteVp as deleteVpFromScene, deleteVertex,
+  deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
 } from "./solver.mjs";
-import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
+import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
   createView, fitView, toCanvas, toScreen, zoomAt, draw, vpAt, offscreenMarker, HANDLE_HIT,
 } from "./render.mjs";
@@ -25,7 +25,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "0.5.2";
+const VERSION = "0.6.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -45,7 +45,7 @@ const ctx = el.canvas.getContext("2d");
 let scene = createScene({ name: "untitled", width: 1600, height: 1200 });
 let view = createView(scene);
 let history = createHistory();
-let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true, snap45: false };
+let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true, snap45: false, weld: true };
 let selection = null;
 let ghost = null;
 let activeVpId = null;
@@ -305,6 +305,32 @@ function deleteVp(point) {
   afterEdit(null, { structural: true });
 }
 
+// Same markup as the VP panel's coordinate boxes, deliberately: it inherits the
+// `.coord label` contrast pair the a11y registry already covers and the 44px
+// target the class already carries, instead of introducing a second styling of
+// the same idea.
+function numberField(id, label, value, commit) {
+  const wrap = document.createElement("span");
+  wrap.className = "coord";
+  const lab = document.createElement("label");
+  lab.htmlFor = id;
+  lab.textContent = label;
+  const input = document.createElement("input");
+  input.type = "number";
+  input.id = id;
+  input.step = "1";
+  input.value = String(value);
+  const apply = () => {
+    const n = Number(input.value);
+    if (!Number.isFinite(n)) { input.value = String(value); return; }
+    commit(n);
+  };
+  input.addEventListener("change", apply);
+  input.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); apply(); } });
+  wrap.append(lab, input);
+  return wrap;
+}
+
 function renderInspector() {
   el.inspector.textContent = "";
   if (!selection) return;
@@ -340,6 +366,50 @@ function renderInspector() {
         : "Point deleted. Undo puts it back.");
       afterEdit(null);
     });
+
+    // D23 — a corner is editable, not just deletable. NOTES claimed a box's
+    // corners were "adjustable afterwards precisely because they are
+    // constrained"; they were adjustable in the data model and unreachable in
+    // the app, which made the claim untrue. Which control appears depends on
+    // what holds the point, because that IS the honest answer:
+    //   · anchor    — free in the plane, so x and y
+    //   · ray       — rides one guide, so a DISTANCE along it. On a box's base
+    //                 corner that distance is the depth, which is how each depth
+    //                 is now set separately.
+    //   · intersect — where two guides cross. Nothing to set: it is wherever they
+    //                 meet, and saying so is better than offering a control that
+    //                 would have to move something else behind the user's back.
+    if (v.kind === "anchor") {
+      box.appendChild(numberField(`vtx-${v.id}-x`, "x", Math.round(v.x), value => {
+        beginGesture(history, scene);
+        const r = moveAnchor(scene, v.id, { x: value, y: v.y });
+        if (!r.ok) { toast(r.reason, "error"); return; }
+        afterEdit(`Corner at ${Math.round(v.x)}, ${Math.round(v.y)}`);
+      }));
+      box.appendChild(numberField(`vtx-${v.id}-y`, "y", Math.round(v.y), value => {
+        beginGesture(history, scene);
+        const r = moveAnchor(scene, v.id, { x: v.x, y: value });
+        if (!r.ok) { toast(r.reason, "error"); return; }
+        afterEdit(`Corner at ${Math.round(v.x)}, ${Math.round(v.y)}`);
+      }));
+    } else if (v.kind === "ray") {
+      const along = bindingName(scene, v.binding);
+      box.appendChild(numberField(`vtx-${v.id}-t`, "distance", Math.round(v.t), value => {
+        beginGesture(history, scene);
+        const r = rebindVertex(scene, v.id, { t: value });
+        if (!r.ok) { toast(r.reason, "error"); return; }
+        afterEdit(`${Math.round(value)} along ${along}`);
+      }));
+      const note = document.createElement("p");
+      note.className = "hint";
+      note.textContent = `Rides ${along}. Distance is signed — a negative number goes the other way along the same guide.`;
+      box.appendChild(note);
+    } else {
+      const note = document.createElement("p");
+      note.className = "hint";
+      note.textContent = "Held where two guides cross, so it has no coordinates of its own — move either guide and it follows.";
+      box.appendChild(note);
+    }
     box.appendChild(delPoint);
   } else {
     const e = scene.edges.find(x => x.id === selection.id);
@@ -532,8 +602,8 @@ el.canvas.addEventListener("pointerdown", ev => {
     // D21: one drag builds the whole box. Its start is the near bottom corner,
     // which may join an existing end like any other start (D20).
     const c0 = toCanvas(view, p);
-    const startDesc = resolveEndpoint(scene, c0, SNAP_RADIUS / view.scale, { join: true });
-    gesture = { kind: "box", at: startDesc.at, height: 0, depth: 0, last: c0 };
+    const startDesc = resolveEndpoint(scene, c0, SNAP_RADIUS / view.scale, { join: prefs.weld });
+    gesture = { kind: "box", at: startDesc.at, height: 0, depthL: 0, depthR: 0, last: c0 };
     render();
     return;
   }
@@ -544,7 +614,7 @@ el.canvas.addEventListener("pointerdown", ev => {
   // any direction, because the guide is computed THROUGH the start point — and
   // starting a new line exactly on an existing corner is most of what "connect
   // line ends" means.
-  const startDesc = resolveEndpoint(scene, c, SNAP_RADIUS / view.scale, { join: true });
+  const startDesc = resolveEndpoint(scene, c, SNAP_RADIUS / view.scale, { join: prefs.weld });
   gesture = {
     kind: "draw",
     startDesc,
@@ -606,9 +676,11 @@ el.canvas.addEventListener("pointermove", ev => {
   if (gesture.kind === "box") {
     const c = toCanvas(view, p);
     gesture.last = c;
-    gesture.height = Math.abs(c.y - gesture.at.y);
-    gesture.depth = Math.abs(c.x - gesture.at.x) || gesture.height;
-    ghost = { origin: gesture.at, u: null, box: { at: gesture.at, height: gesture.height, depth: gesture.depth } };
+    const split = splitBoxDepths(scene, gesture.at, c);      // D23
+    gesture.height = split.height;
+    gesture.depthL = split.depthL;
+    gesture.depthR = split.depthR;
+    ghost = { origin: gesture.at, u: null, box: { at: gesture.at, height: split.height, depthL: split.depthL, depthR: split.depthR } };
     render();
     return;
   }
@@ -686,9 +758,12 @@ function endPointer(ev) {
     ghost = null;
     if (wasGesture.height < 4) { render(); return; }        // a tap, not a box
     beginGesture(history, scene);                            // D7: one gesture, one undo
-    const res = buildBox(scene, { at: wasGesture.at, height: wasGesture.height, depth: wasGesture.depth });
+    const res = buildBox(scene, {
+      at: wasGesture.at, height: wasGesture.height,
+      depthL: wasGesture.depthL, depthR: wasGesture.depthR,
+    });
     if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
-    afterEdit(`Box drawn — ${res.edges.length} lines, every corner held by two guides`);
+    afterEdit(`Box drawn — ${res.edges.length} lines, every corner held by two guides. Select a corner to set its distance exactly.`);
     return;
   }
 
@@ -719,7 +794,7 @@ function endPointer(ev) {
     const endU = wasGesture.u
       ?? (binding === "free" ? null : bindingDirection(scene, wasGesture.startCanvas, binding));
     const endDesc = resolveStrokeEnd(scene, wasGesture.startCanvas, binding, endU,
-      end, SNAP_RADIUS / view.scale);
+      end, SNAP_RADIUS / view.scale, { weld: prefs.weld });   // D22
     const res = commitStroke(scene, wasGesture.startDesc, endDesc, binding);
     if (!res.ok) {
       undoHistoryInPlace();
@@ -831,6 +906,19 @@ $("assist").addEventListener("click", () => {
 });
 
 // D16: the 45° pair is the ONE optional extra Noah allowed, and it starts off.
+// D22 — welding, as a toggle rather than a verdict. Default ON: that is 0.5.0's
+// behaviour, and the reason it exists is that Noah's cube fell apart without it.
+// Off is the 0.2.0 behaviour he originally asked for, and it is a legitimate
+// choice — the guide still decides direction either way (D18), so this can never
+// hand back a line that belongs to nothing.
+$("weld")?.addEventListener("click", () => {
+  prefs.weld = !prefs.weld;
+  $("weld")?.setAttribute("aria-pressed", String(prefs.weld));
+  toast(prefs.weld
+    ? "Weld on — a line end that lands on its guide joins the corner it finds there, so shapes hold together when you move a point"
+    : "Weld off — every end stops exactly where you lift, joining nothing. Guides still decide direction.");
+});
+
 $("snap45")?.addEventListener("click", () => {
   prefs.snap45 = !prefs.snap45;
   $("snap45")?.setAttribute("aria-pressed", String(prefs.snap45));
@@ -1076,6 +1164,10 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     // screenshot taken after a scripted move never shows stale coordinates
     // beside fresh geometry.
     moveVp: (id, p) => { const r = moveVp(scene, id, p); renderPanel({ structural: false }); render(); return r; },
+    // D23: the walk drives the inspector's own controls, so it needs to be able
+    // to select a corner the way a tap does — same path, same refresh, so what it
+    // measures is the real control and not a rebuilt copy of it.
+    select: sel => { selection = sel; renderInspector(); render(); return selection; },
     toScreen: p => toScreen(view, p),
     buildSvg, renderPng,
     flush: () => autosaver.flush(),

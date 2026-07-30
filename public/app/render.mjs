@@ -234,12 +234,16 @@ export function draw(ctx, view, viewport, opts = {}) {
   // 5c — the box being dragged (D21): its near edge and the two receding base
   // edges, enough to see the size and depth before letting go.
   if (ghost && ghost.box) {
-    const { at, height, depth } = ghost.box;
+    // D23: the two base edges may now be different lengths, so the preview shows
+    // each at its own depth — otherwise the drag would promise a square plan and
+    // deliver something else.
+    const { at, height, depth, depthL, depthR } = ghost.box;
+    const each = [depthL ?? depth, depthR ?? depth];
     const pts = [{ x: at.x, y: at.y - height }];
-    for (const vp of scene.vanishingPoints.filter(v => !v.locked).slice(0, 2)) {
+    scene.vanishingPoints.filter(v => !v.locked).slice(0, 2).forEach((vp, i) => {
       const dx = vp.x - at.x, dy = vp.y - at.y, L = Math.hypot(dx, dy) || 1;
-      pts.push({ x: at.x + dx / L * depth, y: at.y + dy / L * depth });
-    }
+      pts.push({ x: at.x + dx / L * each[i], y: at.y + dy / L * each[i] });
+    });
     ctx.save();
     ctx.strokeStyle = c.ink;
     ctx.lineWidth = 2;

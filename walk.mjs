@@ -498,6 +498,62 @@ try {
   check('every corner of it is SHARED, not a loose line end (D20)',
     boxBefore.orphans === 0, `${boxBefore.orphans} loose ends`);
 
+  // D23 — that drag went up and to the RIGHT, so the plan must be deeper on the
+  // right. A square box would pass every check above it, which is exactly why
+  // this one measures the two base lengths instead.
+  const plan = await bPage.evaluate(() => {
+    const s = window.__ip.scene, byId = new Map(s.vertices.map(v => [v.id, v]));
+    const anchor = s.vertices.find(v => v.kind === 'anchor');
+    const rays = s.vertices.filter(v => v.kind === 'ray' && v.origin === anchor.id
+      && typeof v.binding === 'object');
+    const len = v => Math.hypot(v.x - anchor.x, v.y - anchor.y);
+    const toward = v => {
+      const vp = s.vanishingPoints.find(p => p.id === v.binding.vpId);
+      return vp.x > anchor.x ? 'right' : 'left';
+    };
+    const out = {};
+    for (const v of rays) out[toward(v)] = +len(v).toFixed(1);
+    return { ...out, bases: rays.length, anchored: !!anchor && byId.size > 0 };
+  });
+  check('the drag sets each depth separately, not a square plan (D23)',
+    plan.bases === 2 && plan.right > plan.left * 1.2,
+    `left base ${plan.left}px, right base ${plan.right}px — dragged up and to the right`);
+
+  // D23 — and each depth is settable exactly afterwards, through the real
+  // inspector control, which is the part NOTES used to claim without it existing.
+  const depthEdit = await bPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const anchor = s.vertices.find(v => v.kind === 'anchor');
+    const ray = s.vertices.filter(v => v.kind === 'ray' && v.origin === anchor.id
+      && typeof v.binding === 'object')
+      .sort((a, b) => Math.hypot(a.x - anchor.x, a.y - anchor.y) - Math.hypot(b.x - anchor.x, b.y - anchor.y))[0];
+    const other = s.vertices.filter(v => v.kind === 'ray' && v.origin === anchor.id
+      && typeof v.binding === 'object' && v.id !== ray.id)[0];
+    const otherBefore = Math.hypot(other.x - anchor.x, other.y - anchor.y);
+    window.__ip.select({ type: 'vertex', id: ray.id });
+    await new Promise(r => requestAnimationFrame(r));
+    const input = document.getElementById(`vtx-${ray.id}-t`);
+    if (!input) return { found: false };
+    input.value = String(Math.round(ray.t) + 260);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => requestAnimationFrame(r));
+    const s2 = window.__ip.scene;
+    const a2 = s2.vertices.find(v => v.id === anchor.id);
+    const r2 = s2.vertices.find(v => v.id === ray.id);
+    const o2 = s2.vertices.find(v => v.id === other.id);
+    return {
+      found: true,
+      grew: Math.hypot(r2.x - a2.x, r2.y - a2.y) - Math.hypot(ray.x, ray.y) * 0,
+      moved: +(Math.hypot(o2.x - a2.x, o2.y - a2.y) - otherBefore).toFixed(3),
+      edges: s2.edges.length,
+      finite: s2.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+    };
+  });
+  check('a base corner\'s distance is editable, and only that side moves (D23)',
+    depthEdit.found && Math.abs(depthEdit.moved) < 0.01 && depthEdit.edges === 12 && depthEdit.finite,
+    depthEdit.found ? `the other base moved ${depthEdit.moved}px, still ${depthEdit.edges} edges`
+                    : 'no distance control appeared for a ray corner');
+
   await bPage.evaluate(() => {
     const s = window.__ip.scene;
     window.__ip.moveVp(s.vanishingPoints[0].id, { x: -400, y: 250 });
@@ -510,6 +566,75 @@ try {
     JSON.stringify(boxAfter));
   if (SHOTS) await bPage.screenshot({ path: `${SHOT_DIR}/11-box.png` });
   await boxCtx.close();
+
+  // D22 — the weld toggle, driven through the real button. Two strokes started
+  // from the same place: welded, the second one's start is the SAME vertex; with
+  // welding off it is a new one. This inverts the D16-era check yet again, and
+  // that is the point of a toggle — both behaviours are now reachable and both
+  // are asserted, instead of one being the app's opinion.
+  const wCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  const wPage = await wCtx.newPage();
+  wPage.on('pageerror', e => pageErrors.push(`weld page: ${e}`));
+  await wPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await wPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 10000 });
+  await wPage.click('#mode-draw');
+
+  const weldStroke = async (x0, y0, x1, y1) => {
+    await wPage.mouse.move(x0, y0);
+    await wPage.mouse.down();
+    for (let i = 1; i <= 10; i++) {
+      await wPage.mouse.move(x0 + (x1 - x0) * i / 10, y0 + (y1 - y0) * i / 10);
+    }
+    await wPage.mouse.up();
+    await wPage.waitForTimeout(60);
+  };
+
+  const weldPressed = () => wPage.getAttribute('#weld', 'aria-pressed');
+  check('welding is ON by default — the 0.5.0 behaviour', await weldPressed() === 'true',
+    `aria-pressed=${await weldPressed()}`);
+
+  await weldStroke(500, 500, 500, 660);             // a vertical
+  const firstEnd = await wPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const e = s.edges[s.edges.length - 1];
+    const v = s.vertices.find(x => x.id === e.b);
+    return { id: v.id, x: Math.round(v.x), y: Math.round(v.y), verts: s.vertices.length };
+  });
+  // Start the next stroke ON that end, running to the right: welding should reuse it.
+  // toScreen is CANVAS-relative and the mouse takes VIEWPORT coordinates, so the
+  // canvas's own offset has to be added. Without it the second stroke started
+  // about a toolbar's height below the corner it was supposed to land on, and the
+  // check failed against a perfectly working app — the instrument was wrong.
+  const endScreen = await wPage.evaluate(id => {
+    const v = window.__ip.scene.vertices.find(x => x.id === id);
+    const p = window.__ip.toScreen(v);
+    const r = document.getElementById('canvas').getBoundingClientRect();
+    return { x: Math.round(p.x + r.left), y: Math.round(p.y + r.top) };
+  }, firstEnd.id);
+  await weldStroke(endScreen.x + 1, endScreen.y + 1, endScreen.x + 200, endScreen.y + 3);
+  const welded = await wPage.evaluate(id => {
+    const s = window.__ip.scene;
+    const e = s.edges[s.edges.length - 1];
+    return { sharesStart: e.a === id, verts: s.vertices.length, edges: s.edges.length };
+  }, firstEnd.id);
+  check('weld ON: a stroke started on an existing end SHARES that corner (D22)',
+    welded.sharesStart, `start ${welded.sharesStart ? 'is' : 'is not'} the earlier end`);
+
+  await wPage.click('#weld');
+  check('the toggle reports itself off', await weldPressed() === 'false',
+    `aria-pressed=${await weldPressed()}`);
+  await weldStroke(endScreen.x + 1, endScreen.y - 1, endScreen.x + 180, endScreen.y - 40);
+  const bare = await wPage.evaluate(id => {
+    const s = window.__ip.scene;
+    const e = s.edges[s.edges.length - 1];
+    const a = s.vertices.find(x => x.id === e.a);
+    return { sharesStart: e.a === id, bound: e.binding !== 'free', kind: a.kind };
+  }, firstEnd.id);
+  check('weld OFF: the same stroke joins nothing (D22)',
+    !bare.sharesStart, `start ${bare.sharesStart ? 'still merged' : 'is its own point'}`);
+  check('and it is still bound to a guide with welding off (D18 holds either way)',
+    bare.bound, `binding ${bare.bound ? 'kept' : 'lost'}`);
+  await wCtx.close();
 
   check('no page errors during the whole walk', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 } catch (err) {

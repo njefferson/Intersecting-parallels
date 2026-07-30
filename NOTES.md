@@ -159,13 +159,12 @@ bootstrap order.
 
 **Next candidate work — nothing is staged, the roadmap is honestly empty.** What
 is known to be open, in his words, not invented:
-- The welding toggle. D16 removed endpoint joining entirely at his instruction;
-  the machinery is intact behind `resolveEndpoint`'s `join` option and tested,
-  so restoring it as a toggle is small if he wants shapes to hold together
-  under a VP drag.
-- The icon's white rounded corners, cosmetic: iOS rounds again on top, so a
-  hair of white can show on the home screen. Bleeding the navy to the edge is
-  a one-line change to the crop.
+- ~~The welding toggle.~~ **DONE 2026-07-30 as D22** — and note the item was
+  stale: D20 had already restored joining, so what was actually missing was the
+  CHOICE. It is a toolbar button now, default on.
+- ~~The icon's white rounded corners.~~ **DONE 2026-07-30** — fixed as a side
+  effect of 0.5.2: the maskable icon is a wider window on the same scene instead
+  of the art shrunk onto a flat pad, so there is no pad left to show white.
 - `SNAP_THRESHOLD` against a real Apple Pencil (§12 asks for exactly this and
   nothing in this sandbox can do it).
 
@@ -543,10 +542,56 @@ box and it stays a box — asserted over five different VP positions in the unit
 tests and once more through the real UI in the walk.
 
 One drag: start at the near bottom corner, vertical extent is the height,
-horizontal extent is the depth along each point. A square plan is the default
-because one drag cannot state two depths; the corners are adjustable afterwards
-precisely because they are constrained. It refuses with a plain reason when
+horizontal extent is the depth along each point. A square plan was the default
+because one drag cannot state two depths.
+
+**Superseded by D23 on 2026-07-30, including a correction.** The sentence that
+used to end this amendment — "the corners are adjustable afterwards precisely
+because they are constrained" — was true of the data model and false of the app:
+there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
+
+### D22. Welding is a toggle, not a verdict
+
+**Noah, 2026-07-30:** *"Add those two things"* — the two items this file listed as
+open. The first was recorded as "restore endpoint joining as a toggle", which was
+stale: D20 had already restored joining. What was missing was the CHOICE between
+0.2.0's behaviour (an end stops exactly where you lift) and 0.5.0's (an end that
+lands on its guide joins the corner it finds there, which is what holds a shape
+together under a VP drag).
+
+`Weld` in the toolbar, `aria-pressed`, default ON. It threads through
+`resolveEndpoint`'s `join` and a new `weld` option on `resolveStrokeEnd`. The
+property that makes it safe to offer: **welding decides only WHERE a line stops,
+never what it follows** — D18 holds with welding off, so the toggle can never
+hand back a line that belongs to nothing. Both directions are asserted, in the
+unit tests and through the real button in the walk; the walk's D16-era check that
+strokes do NOT share a vertex has now been inverted a third time, and this time
+both behaviours are checked rather than one being the app's opinion.
+
+### D23. Two depths from one drag, and corners you can actually set
+
+**The second of the two.** A box needs three numbers — height and two depths —
+and a drag carries two. So the drag sets the height and the SHARE between the
+axes: `splitBoxDepths` gives the axis you drag toward the sideways distance and
+the other a floor proportional to the height. Straight up is still a square plan,
+now the special case rather than the only case. Monotone in the drag, so further
+right is always deeper right, which is what makes it learnable.
+
+Then each depth is settable exactly, because the inspector now offers the control
+that matches what holds a corner:
+- anchor → `x` and `y`, via a new `moveAnchor` in the solver. `rebindVertex`
+  refuses anchors and `moveVp` only takes vanishing points, so a box's one
+  anchored corner previously could not be moved at all.
+- ray → a signed DISTANCE along its guide. On a base corner that distance IS
+  that side's depth, and changing one leaves the other alone.
+- intersect → no control, and it says why: it is wherever two guides meet, so
+  offering coordinates would mean moving something else behind the user's back
+  (Doctrine §14).
+
+This is also the fix for a claim this file had been making since D21 — that box
+corners were "adjustable afterwards". They were adjustable in the data model and
+unreachable in the app. Corrected at D21 as well, where it was written.
 
 ### D18. There is no plain line
 

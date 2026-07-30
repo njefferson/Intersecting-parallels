@@ -8,6 +8,32 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 0.6.0 — CAPABILITY · 2026-07-30
+
+**Welding is yours to switch, and a box no longer has to be square.**
+
+- **Weld, in the toolbar.** On, a line end that lands on its guide joins the
+  corner it finds there — that is what makes a shape hold together when you move
+  a vanishing point, and it stays the default. Off, every end stops exactly where
+  you lift and joins nothing, which is what you asked for back in 0.2.0. Both are
+  now a switch instead of the app's opinion. Either way the guide still decides
+  direction, so turning it off can never hand you back a line that belongs to
+  nothing.
+- **One box drag now sets both depths.** Drag up and to the right and the box
+  runs further to the right; up and to the left, further left. Straight up still
+  gives a square plan — that is the one case, not the only case. A box needs three
+  numbers and a drag carries two, so the drag sets the height and the share, and
+  then:
+- **A corner can be set exactly.** Select one and the panel offers the control
+  that fits what holds it: an anchored corner gets x and y, a corner riding a
+  guide gets its distance along that guide — which on a base corner is that side's
+  depth — and a corner where two guides cross says so, because it has no
+  coordinates of its own. Changing one depth leaves the other alone. Previously
+  a corner could only be deleted; the notes claimed it was adjustable, and it
+  was not.
+
+---
+
 ## 0.5.2 — ITERATION · 2026-07-30
 
 **New icon and link preview, drawn in real three-point perspective.**

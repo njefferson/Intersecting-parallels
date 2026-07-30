@@ -298,6 +298,24 @@ export function solveScene(scene) {
 
 // ---- VP and horizon mutations -------------------------------------------
 
+// D23 — move an ANCHOR. `rebindVertex` refuses anchors (they have no binding to
+// change) and `moveVp` only takes vanishing points, so until now a box's near
+// bottom corner — its one anchored vertex — could not be moved at all after it
+// was drawn. NOTES claimed the corners were "adjustable afterwards"; they were
+// adjustable in principle and unreachable in the app, which is the gap this
+// closes. Every dependent vertex re-solves, so the box follows.
+export function moveAnchor(scene, vertexId, { x, y }) {
+  const v = vertexById(scene, vertexId);
+  if (!v) return { ok: false, reason: `vertex "${vertexId}" does not exist` };
+  if (v.kind !== "anchor") {
+    return { ok: false, reason: `${v.kind === "ray" ? "this point rides a guide — set its distance along it instead" : "this point is where two guides cross — move what defines it"}` };
+  }
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { ok: false, reason: "x and y must be numbers" };
+  v.x = x; v.y = y;
+  solveScene(scene);
+  return { ok: true, vertex: v };
+}
+
 export function moveVp(scene, vpId, { x, y }) {
   const vp = scene.vanishingPoints.find(v => v.id === vpId);
   if (!vp) return { ok: false, reason: `vanishing point "${vpId}" does not exist` };
