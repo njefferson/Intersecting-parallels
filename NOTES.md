@@ -630,6 +630,67 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D39/D40/D41 — inversion, hidden lines, the point cap (SHIPPED 1.6.0, staging)
+
+**Noah, 2026-07-30, on 1.5.1.**
+
+**D39 — signed depth; the box can invert.** *"Pulling/pushing only moves the front
+left point away from the user, it never crosses over and comes on the other side
+inverting the box."*
+
+He was hitting D3's fold, which the Ultracode assessment had already named as a
+permanent wall. D3 solved a ray as `origin + s·|t|·u` with `s` chosen to MINIMISE
+DISPLACEMENT from the last solve. That rule exists for a real reason — when a
+vanishing point crosses its own origin, `u` reverses and every dependent corner
+would otherwise leap across — but it cannot tell "the user pushed this through
+zero" from "the guide flipped underneath it", so it undid the first along with
+the second.
+
+The fix separates the two cases instead of conflating them. `t` is plainly signed
+and applied as-is. The guide-reversal case is handled where it happens: the last
+solved unit direction is remembered on the vertex, and if the new one is opposite,
+`t` is negated ONCE so the corner holds position. Displacement is still minimised
+when the guide flips; it is no longer minimised when the user is the one moving
+the corner. `T_FLOOR` is deleted — it only existed to keep `|t|` off the fold, and
+with the fold gone a floor would be the same wall one layer up. `clampT` is now
+symmetric and allows zero. `buildBox` keeps the SIGN of its depths, which was the
+other half of the same wall.
+
+**D40 — a solid covers its own far side.** *"You can see the internals of the
+boxes with no way to erase or cover the lines, otherwise. The box is too
+translucent with no way to adjust opacity."*
+
+D37 filled the faces and then stroked all twelve of the solid's edges over the
+top, including the three behind it. That is a wireframe with a grey wash. An edge
+is drawn now only when it lies on a face you can see — adjacent corners in a
+visible face's loop — which falls out of the same eye-level rule that picks the
+faces, so hidden-line removal adds no geometry and cannot disagree with the
+shading. Shading strength is a SELECT, not a slider: a slider is a drag (SC
+2.5.7). Below full opacity the hidden edges come back faintly, because a
+see-through object with no far side would be a lie. `Hidden lines` shows them
+outright.
+
+**D41 — the point count belongs to the scene.** *"Adding or removing VPs has no
+effect on existing geometry. Scenes should be scoped to the number of vanishing
+points on the screen, and there should likely be a limit ... that number probably
+should not be changed, unless you can redraw the drawing."*
+
+Right twice. A new point cannot retro-fit itself to lines built without it, so
+offering the button once there is a drawing offers a change the app cannot honour.
+And a single rectilinear object has at most three vanishing points, one per axis;
+a fourth is a point nothing can bind to. So: cap of three, and the button is
+DISABLED once anything is drawn, with an aria-label that says which reason
+applies. Changing the count means a new drawing, from Project.
+
+This is also how he ended up with a screenful of points: on the broken 1.5.0 the
+app was dead but `#add-vp` still mutated the scene, so every hopeful tap added one
+more and autosave kept them. The cap would have stopped it at three.
+
+**Also:** a `Grid` toggle. D35 raised the grid from 1.33:1 to 3.21:1 to meet
+SC 1.4.11, which was right, and the side effect is a much louder lattice — Noah
+saw "MANY canvases" at the bottom of the sheet. The contrast rule stays; the grid
+can now be switched off, which is the answer that does not weaken a gate.
+
 ### D36a — the migration door I missed (FIXED 1.5.1, staging)
 
 **Noah, 2026-07-30, on 1.5.0:** *"There are no VPs on the page and I cannot add

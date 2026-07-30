@@ -8,6 +8,29 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.6.0 — CAPABILITY · 2026-07-30
+
+**A box can turn inside out, and a solid is actually solid.**
+
+- **Depths pass through zero now.** Pushing a corner toward its own near corner
+  used to stop dead just before it got there and slide back out the same side.
+  It goes through and out the other side, inverting the box, and keeps going.
+  That wall was a floor left over from an older way of solving; it is gone.
+- **Solid removes a box's hidden lines** instead of washing grey over them, so it
+  reads as an object rather than a wireframe with a tint. **Hidden lines** puts
+  the far side back when you want to see the construction.
+- **Shading strength** — 100, 75, 50 or 25 per cent. Below full, the far side
+  comes back faintly, because a see-through object with no far side would be a
+  lie.
+- **Grid** can be turned off. The paper is plain then.
+- **The number of vanishing points is now part of the drawing.** Three is the
+  limit — one per axis is all a box has — and once you have drawn anything the
+  count is fixed, because a new point cannot reach back into lines built without
+  it. Start a new drawing from Project to work in one, two or three points. The
+  button says why it is unavailable rather than doing nothing.
+
+---
+
 ## 1.5.1 — ITERATION · 2026-07-30
 
 **Fix: 1.5.0 could not open a drawing you had already saved.**

@@ -490,10 +490,14 @@ export function buildBox(scene, { at, height, depth, depthL, depthR }) {
   const vps = scene.vanishingPoints.filter(v => !v.locked);
   if (vps.length < 2) return { ok: false, reason: "a box needs two vanishing points — add one, or unlock one" };
   const [vpL, vpR] = vps;
+  // D39: depths keep their SIGN. Forcing them positive was the other half of the
+  // fold — a box could only ever be built on one side of its near corner, and no
+  // amount of dragging afterwards could bring it round.
   const h = Math.abs(height) < 1 ? 1 : height;
-  const fallback = Math.abs(depth ?? 0) < 1 ? 1 : Math.abs(depth);
-  const dL = Math.abs(depthL ?? fallback) < 1 ? 1 : Math.abs(depthL ?? fallback);
-  const dR = Math.abs(depthR ?? fallback) < 1 ? 1 : Math.abs(depthR ?? fallback);
+  const fallback = depth ?? 0;
+  const keep = d => (Math.abs(d) < 1 ? (d < 0 ? -1 : 1) : d);
+  const dL = keep(depthL ?? fallback);
+  const dR = keep(depthR ?? fallback);
 
   const made = { vertices: [], edges: [] };
   const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };

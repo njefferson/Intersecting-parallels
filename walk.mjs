@@ -1329,6 +1329,135 @@ try {
     `${untouched.edges} edges, ${untouched.verts} corners`);
   await nodragCtx.close();
 
+  // D39/D40/D41 — inversion, hidden lines, and the point cap.
+  const solidCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(solidCtx);
+  const sPage = await solidCtx.newPage();
+  sPage.on('pageerror', e => pageErrors.push(`solid page: ${e}`));
+  await sPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await sPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 20000 });
+
+  // D41 — the cap, and the rule that the count is fixed once anything is drawn.
+  const vpRules = await sPage.evaluate(() => {
+    const before = window.__ip.scene.vanishingPoints.length;
+    document.getElementById('add-vp').click();            // empty scene: allowed
+    const afterEmpty = window.__ip.scene.vanishingPoints.length;
+    document.getElementById('add-vp').click();            // now at three: refused
+    const atCap = window.__ip.scene.vanishingPoints.length;
+    return { before, afterEmpty, atCap, disabled: document.getElementById('add-vp').disabled };
+  });
+  check('a third vanishing point is allowed on an empty sheet, a fourth never is (D41)',
+    vpRules.afterEmpty === 3 && vpRules.atCap === 3 && vpRules.disabled === true,
+    `${vpRules.before} -> ${vpRules.afterEmpty} -> ${vpRules.atCap}, button disabled ${vpRules.disabled}`);
+
+  await sPage.click('#mode-box');
+  await sPage.mouse.move(600, 660);
+  await sPage.mouse.down();
+  for (let i = 1; i <= 14; i++) await sPage.mouse.move(600 + i * 7, 660 - i * 9);
+  await sPage.mouse.up();
+  await sPage.waitForTimeout(150);
+  await sPage.mouse.move(430, 500);
+  await sPage.mouse.down();
+  for (let i = 1; i <= 10; i++) await sPage.mouse.move(430 - i * 9, 500 - i * 5);
+  await sPage.mouse.up();
+  await sPage.waitForTimeout(150);
+
+  const lockedOnce = await sPage.evaluate(() => ({
+    disabled: document.getElementById('add-vp').disabled,
+    label: document.getElementById('add-vp').getAttribute('aria-label') || '',
+  }));
+  check('and once there IS a drawing, the count is fixed and the button says so (D41)',
+    lockedOnce.disabled && /new drawing|limit/i.test(lockedOnce.label),
+    `disabled ${lockedOnce.disabled}, "${lockedOnce.label.slice(0, 70)}"`);
+
+  // D39 — a depth driven through its own origin comes out the other side.
+  const inverted = await sPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    const ray = s.vertices.filter(v => v.kind === 'ray' && v.origin === a.id && typeof v.binding === 'object')[0];
+    const start = ray.t;
+    const o = s.vertices.find(v => v.id === ray.origin);
+    const len = Math.hypot(ray.x - o.x, ray.y - o.y) || 1;
+    const u = { x: (ray.x - o.x) / len, y: (ray.y - o.y) / len };
+    const sign = start < 0 ? -1 : 1;
+    for (let k = 1; k <= 20; k++) {
+      const d = sign * (Math.abs(start) - k * (Math.abs(start) / 5));
+      window.__ip.manipulate(ray.id, { x: o.x + u.x * d * sign, y: o.y + u.y * d * sign });
+    }
+    return {
+      start: Math.round(start), end: Math.round(ray.t),
+      crossed: Math.sign(ray.t) === -Math.sign(start),
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+      degenerate: s.vertices.filter(v => v.degenerate).length,
+      edges: s.edges.length,
+    };
+  });
+  check('a depth can be pushed THROUGH zero and out the other side, inverting the box (D39)',
+    inverted.crossed && inverted.finite && inverted.degenerate === 0 && inverted.edges === 12,
+    `t ${inverted.start} -> ${inverted.end}, sound ${inverted.finite && inverted.degenerate === 0}`);
+
+  // D40 — a solid covers its own far side.
+  const inkOnScanline = () => sPage.evaluate(() => {
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (Math.abs(d[i] - 234) < 12 && Math.abs(d[i + 1] - 236) < 12 && Math.abs(d[i + 2] - 245) < 12) n++;
+    }
+    return n;
+  });
+  const wireInk = await inkOnScanline();
+  await sPage.click('#solid');
+  await sPage.waitForTimeout(200);
+  const solidInk = await inkOnScanline();
+  check('turning a box solid REMOVES its hidden lines rather than washing over them (D40)',
+    solidInk < wireInk * 0.92, `${wireInk} ink pixels wireframe -> ${solidInk} solid`);
+
+  await sPage.click('#show-hidden');
+  await sPage.waitForTimeout(200);
+  const hiddenBack = await inkOnScanline();
+  check('and Hidden lines brings the far side back when you want it',
+    hiddenBack > solidInk, `${solidInk} -> ${hiddenBack} ink pixels`);
+  await sPage.click('#show-hidden');
+  await sPage.waitForTimeout(150);
+
+  // D40 — opacity is a real control, not a label.
+  const dim = await sPage.evaluate(async () => {
+    const before = (() => {
+      const c = document.getElementById('canvas');
+      const d = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+      return d.slice();
+    })();
+    const sel = document.getElementById('face-opacity');
+    sel.value = '0.25';
+    sel.dispatchEvent(new Event('change'));
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const c = document.getElementById('canvas');
+    const now = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+    let changed = 0;
+    for (let i = 0; i < now.length; i++) if (now[i] !== before[i]) changed++;
+    return changed;
+  });
+  check('the shading strength control actually changes the shading (D40)',
+    dim > 500, `${dim} pixels changed at 25 per cent`);
+
+  // The Grid toggle — the answer to a paper that reads as many boxes.
+  const gridOff = await sPage.evaluate(async () => {
+    const c = document.getElementById('canvas');
+    const before = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer).slice();
+    document.getElementById('grid').click();
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const now = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+    let changed = 0;
+    for (let i = 0; i < now.length; i++) if (now[i] !== before[i]) changed++;
+    return { changed, pressed: document.getElementById('grid').getAttribute('aria-pressed') };
+  });
+  check('the Grid can be turned off',
+    gridOff.changed > 500 && gridOff.pressed === 'false',
+    `${gridOff.changed} pixels changed, aria-pressed ${gridOff.pressed}`);
+  await solidCtx.close();
+
   // D36a — BOOTING ON A DRAWING SAVED BY AN OLDER BUILD.
   //
   // Noah, on 1.5.0: "There are no VPs on the page and I cannot add any, now."

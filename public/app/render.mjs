@@ -145,6 +145,34 @@ function visibleFaces(solid, scene, byId) {
   return out;
 }
 
+
+// D40 — the edges a solid actually SHOWS.
+//
+// Noah, 2026-07-30: "You can see the internals of the boxes with no way to erase
+// or cover the lines, otherwise."
+//
+// A solid was filling its faces and then stroking ALL TWELVE of its own edges
+// over the top, including the three that are behind it. Filling a shape and then
+// drawing its hidden edges on top of the fill is a wireframe with a grey wash,
+// not a solid.
+//
+// An edge is shown when it lies on a face you can see — both its ends on the same
+// visible face, adjacent in that face's loop. That falls out of the same eye-level
+// rule that decides the faces, so hidden-line removal costs no new geometry and
+// cannot disagree with the shading.
+function visibleEdgeKeys(faces) {
+  const keys = new Set();
+  for (const f of faces) {
+    for (let i = 0; i < f.loop.length; i++) {
+      const a = f.loop[i], b = f.loop[(i + 1) % f.loop.length];
+      keys.add(a < b ? `${a}|${b}` : `${b}|${a}`);
+    }
+  }
+  return keys;
+}
+
+const edgeKey = e => (e.a < e.b ? `${e.a}|${e.b}` : `${e.b}|${e.a}`);
+
 const FACE_COLOUR = { top: "faceTop", right: "faceRight", left: "faceLeft", bottom: "faceBottom" };
 
 function fillFace(ctx, view, face, byId, c) {
@@ -179,6 +207,7 @@ export function draw(ctx, view, viewport, opts = {}) {
     ghost = null, selection = null, activeVpId = null, hoverId = null,
     extrudeHint = null,
     showSolid = false, showRays = false, showEyeLevel = true,
+    faceOpacity = 1, showHidden = false,
   } = opts;
   const scene = view.scene;
   const c = themeColors(theme);
@@ -360,8 +389,23 @@ export function draw(ctx, view, viewport, opts = {}) {
       if (oa && oa === ob) mine.get(oa).push(e); else loose.push(e);
     }
     for (const g of solids) {
-      for (const face of visibleFaces(g, scene, byId)) fillFace(ctx, view, face, byId, c);
-      strokeEdges(mine.get(g.id));
+      const shown = visibleFaces(g, scene, byId);
+      ctx.save();
+      ctx.globalAlpha = faceOpacity;
+      for (const face of shown) fillFace(ctx, view, face, byId, c);
+      ctx.restore();
+      // D40 — hidden lines. At full opacity they are simply not drawn; below it
+      // the solid is see-through on purpose, so drawing them back is the honest
+      // thing rather than pretending a translucent object has no far side.
+      const visible = visibleEdgeKeys(shown);
+      const own = mine.get(g.id);
+      strokeEdges(own.filter(e => visible.has(edgeKey(e))));
+      if (showHidden || faceOpacity < 1) {
+        ctx.save();
+        ctx.globalAlpha = showHidden ? 1 : Math.max(0.25, 1 - faceOpacity);
+        strokeEdges(own.filter(e => !visible.has(edgeKey(e))));
+        ctx.restore();
+      }
     }
     strokeEdges(loose);
   } else {

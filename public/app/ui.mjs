@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.5.1";
+const VERSION = "1.6.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -47,7 +47,7 @@ const ctx = el.canvas.getContext("2d");
 let scene = createScene({ name: "untitled", width: 1600, height: 1200 });
 let view = createView(scene);
 let history = createHistory();
-let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true, snap45: false, weld: true, solid: false, rays: false, eyeLevel: true };
+let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true, snap45: false, weld: true, solid: false, rays: false, eyeLevel: true, grid: true, faceOpacity: 1, showHidden: false };
 let selection = null;
 let ghost = null;
 let activeVpId = null;
@@ -107,6 +107,7 @@ function render() {
       dpr: Math.min(window.devicePixelRatio || 1, 3),
       showConstruction: prefs.showConstruction,
       showSolid: prefs.solid, showRays: prefs.rays, showEyeLevel: prefs.eyeLevel,
+      showGrid: prefs.grid, faceOpacity: prefs.faceOpacity, showHidden: prefs.showHidden,
       ghost, selection, activeVpId,
       extrudeHint: extrudeArrow(),
     });
@@ -566,6 +567,7 @@ function afterEdit(message, { structural = false } = {}) {
 function refreshHistoryButtons() {
   el.undo.disabled = !canUndo(history);
   el.redo.disabled = !canRedo(history);
+  refreshAddVp();          // D41: same refresh, so it can never lag the scene
 }
 
 // ---- pointer input (§3.3 + D5) -------------------------------------------
@@ -1291,6 +1293,23 @@ viewToggle("solid", "solid",
 viewToggle("rays", "rays",
   "Rays on — lines run out to every vanishing point from the selected corner, or from every corner you placed",
   "Rays off");
+viewToggle("grid", "grid",
+  "Grid shown",
+  "Grid hidden — the paper is plain now");
+viewToggle("show-hidden", "showHidden",
+  "Hidden lines shown — you can see the far side of a solid",
+  "Hidden lines removed — a solid covers its own far side");
+// D40 — a select rather than a slider. A slider IS a drag (SC 2.5.7), and this
+// app's whole argument is that nothing should require one.
+$("face-opacity")?.addEventListener("change", ev => {
+  const n = Number(ev.target.value);
+  if (!Number.isFinite(n)) return;
+  prefs.faceOpacity = Math.max(0, Math.min(1, n));
+  say(`Shading ${Math.round(prefs.faceOpacity * 100)} per cent`);
+  render();
+  autosaver.poke();
+});
+
 viewToggle("eye-level", "eyeLevel",
   "Eye level shown",
   "Eye level hidden — the horizon, where the points define one, is still drawn");
@@ -1364,12 +1383,51 @@ $("redo").addEventListener("click", () => {
   autosaver.poke();
 });
 
+// D41 — the number of vanishing points is a property of the SCENE, not a button
+// you can lean on.
+//
+// Noah, 2026-07-30: "Adding or removing VPs has no effect on existing geometry.
+// Scenes should be scoped to the number of vanishing points on the screen ...
+// that number probably should not be changed, unless you can redraw the drawing."
+//
+// He is right twice over. A new point cannot retro-fit itself to lines that were
+// built without it, so offering the button once there is a drawing offers a
+// change the app cannot honour. And a single rectilinear object has at most three
+// vanishing points — one per axis — so a fourth is not a stricter setting, it is
+// a point nothing can ever bind to.
+//
+// It is also how he ended up with a screen full of them: on 1.5.0 the app was
+// dead but this button still worked, so every hopeful tap added one more.
+const MAX_VPS = 3;
+
 $("add-vp").addEventListener("click", () => {
+  if (scene.vanishingPoints.length >= MAX_VPS) {
+    toast(`Three is the limit: one vanishing point per axis is all a box has. A fourth would have nothing to bind to.`, "error");
+    return;
+  }
+  if (scene.edges.length || scene.vertices.length) {
+    toast("There is already a drawing here, and a new point cannot reach back into lines that were built without it. Start a new drawing from Project to change the number of points.", "error");
+    return;
+  }
   beginGesture(history, scene);
   const centre = toCanvas(view, { x: viewport().width / 2, y: viewport().height / 2 });
   const res = addVp(scene, { label: `VP${scene.vanishingPoints.length + 1}`, x: Math.round(centre.x), y: Math.round(centre.y), axis: "z", onHorizon: false });
   afterEdit(`${res.vp.label} added at ${Math.round(res.vp.x)}, ${Math.round(res.vp.y)}`, { structural: true });
 });
+
+// The button says so before it is pressed, rather than only after (§3).
+function refreshAddVp() {
+  const b = $("add-vp");
+  if (!b) return;
+  const full = scene.vanishingPoints.length >= MAX_VPS;
+  const drawn = scene.edges.length > 0 || scene.vertices.length > 0;
+  b.disabled = full || drawn;
+  b.setAttribute("aria-label", full
+    ? "Add a vanishing point — unavailable, three is the limit"
+    : drawn
+      ? "Add a vanishing point — unavailable once there is a drawing; start a new drawing to change the number of points"
+      : "Add a vanishing point");
+}
 
 // §4 / SC 2.5.1 — pinch and two-finger pan are accelerators; these are the door.
 // Zoom about the CENTRE of the viewport, which is where someone looking at the

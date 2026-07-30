@@ -244,23 +244,35 @@ function solveRay(scene, v, index) {
     v.y = origin.y + v.t * u.y;
     return;
   }
-  // D3: position = origin + s·|t|·unit(VP − origin), s minimising displacement
-  // from the previous solve; sign(t) decides on a cold start.
-  const mag = Math.abs(v.t);
-  const plus = { x: origin.x + mag * u.x, y: origin.y + mag * u.y };
-  const minus = { x: origin.x - mag * u.x, y: origin.y - mag * u.y };
-  let s;
-  if (Number.isFinite(v.x) && Number.isFinite(v.y)) {
-    const dPlus = Math.hypot(plus.x - v.x, plus.y - v.y);
-    const dMinus = Math.hypot(minus.x - v.x, minus.y - v.y);
-    s = dPlus <= dMinus ? 1 : -1;
-  } else {
-    s = v.t < 0 ? -1 : 1;
+  // D39 — SIGNED t, so a depth can be pushed THROUGH its origin and out the
+  // other side. This is the amendment that lets a box invert.
+  //
+  // Noah, 2026-07-30: "Pulling/pushing only moves the front left point away from
+  // the user, it never crosses over and comes on the other side inverting the
+  // box."
+  //
+  // He was hitting D3's fold. D3 solved position as origin + s·|t|·u with `s`
+  // chosen to MINIMISE DISPLACEMENT from the last solve, which exists for a real
+  // reason: when a vanishing point crosses its own origin, `u` reverses, and
+  // without that rule every dependent corner would leap to the far side. But the
+  // rule cannot tell "the user pushed this corner through zero" from "the guide
+  // flipped underneath it", so it undid the first along with the second. |t| can
+  // approach zero and never pass it. A permanent wall.
+  //
+  // The fix separates the two cases instead of conflating them. `t` is plainly
+  // signed and applied as-is, so pushing through zero works and keeps going. The
+  // guide-reversal case is handled where it actually happens: the last solved
+  // direction is remembered, and if the new one is opposite, `t` is negated ONCE
+  // so the corner stays exactly where it sat. Displacement is still minimised
+  // when the guide flips; it is no longer minimised when the user is the one
+  // moving the corner.
+  if (Number.isFinite(v.ux) && Number.isFinite(v.uy) && (v.ux * u.x + v.uy * u.y) < 0) {
+    v.t = -v.t;                       // the guide reversed under it — hold position
   }
-  const p = s === 1 ? plus : minus;
-  v.x = p.x;
-  v.y = p.y;
-  v.t = s * mag; // stored signed so reload is deterministic (D3)
+  v.ux = u.x;
+  v.uy = u.y;
+  v.x = origin.x + v.t * u.x;
+  v.y = origin.y + v.t * u.y;
 }
 
 function solveIntersect(scene, v, index) {
@@ -391,8 +403,10 @@ const GN_MAX_ITERATIONS = 8;
 const GN_TOLERANCE = 0.5;          // px — half a pixel is past what a finger means
 const GN_EPS = 0.01;               // px — finite-difference step on t
 const GN_STEP_CAP = 600;           // px — no single iteration may leap further
-const T_FLOOR = 1;                 // |t| >= 1: solveRay folds at t = 0 (see below)
-const T_VP_FRACTION = 0.95;        // and never let a corner reach its own VP
+// D39 removed T_FLOOR. It existed only because solveRay used to fold at t = 0,
+// so a corner had to be kept off it; with signed t there is nothing to protect
+// against and a floor would be the wall itself, re-imposed one layer up.
+const T_VP_FRACTION = 0.95;        // still never let a corner reach its own VP
 
 /**
  * The ray vertices whose `t` determines where `vertexId` sits. Walks the
@@ -425,10 +439,12 @@ function tLimit(scene, ray) {
 }
 
 function clampT(scene, ray, t) {
+  // Bounded on BOTH sides now, and zero is allowed: a corner may sit on its own
+  // origin on the way through to the other side. The only thing still forbidden
+  // is reaching the vanishing point itself, where the construction stops meaning
+  // anything.
   const limit = tLimit(scene, ray);
-  const sign = t < 0 ? -1 : 1;
-  const mag = Math.min(Math.max(Math.abs(t), T_FLOOR), limit);
-  return sign * mag;
+  return Math.max(-limit, Math.min(limit, t));
 }
 
 const finitePoint = v => v && Number.isFinite(v.x) && Number.isFinite(v.y);

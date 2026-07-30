@@ -168,17 +168,59 @@ test("no corner may converge onto its own vanishing point", () => {
   assert.ok(sound(scene, box));
 });
 
-test("depths never fold through zero, where the solver's side-choice is undefined", () => {
+test("D39: a depth passes THROUGH zero and out the other side, inverting the box", () => {
+  // This test used to assert the opposite. It guarded T_FLOOR, which kept |t|
+  // above 1 because solveRay folded at zero — and that floor was the wall Noah
+  // hit: "it never crosses over and comes on the other side inverting the box."
   const { scene, box } = boxScene({ dL: 40, dR: 40 });
-  const { backBottom, leftBottom } = box.corners;
-  // Drag hard toward the near corner: without the floor this walks t to 0, where
-  // solveRay's |t| fold makes the derivative meaningless and the solve stalls.
-  for (let i = 0; i < 12; i++) {
-    manipulate(scene, backBottom.id, { x: box.corners.nearBottom.x, y: box.corners.nearBottom.y });
-    assert.ok(Math.abs(leftBottom.t) >= 1, `a depth reached ${leftBottom.t}`);
-    assert.ok(Number.isFinite(leftBottom.t));
+  const { leftBottom } = box.corners;
+  const startT = leftBottom.t;
+  assert.ok(startT > 0, "starts on the positive side");
+
+  // Walk the corner steadily past its own origin, the way a finger would.
+  const origin = scene.vertices.find(v => v.id === leftBottom.origin);
+  const u = { x: leftBottom.x - origin.x, y: leftBottom.y - origin.y };
+  const len = Math.hypot(u.x, u.y);
+  u.x /= len; u.y /= len;
+  let crossedZero = false;
+  for (let step = 1; step <= 24; step++) {
+    const d = startT - step * (startT / 6);        // walks well past zero
+    manipulate(scene, leftBottom.id, { x: origin.x + u.x * d, y: origin.y + u.y * d });
+    assert.ok(Number.isFinite(leftBottom.t), `t went non-finite at step ${step}`);
+    assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+      `a corner went non-finite at step ${step}`);
+    if (leftBottom.t < 0) crossedZero = true;
   }
-  assert.ok(sound(scene, box));
+  assert.ok(crossedZero, `the depth never went negative — it stalled at ${leftBottom.t}`);
+  assert.ok(sound(scene, box), "the box stopped being a box on the far side");
+});
+
+test("D39: zero itself is allowed, and is not a trap", () => {
+  const { scene, box } = boxScene({ dL: 40, dR: 40 });
+  const { leftBottom } = box.corners;
+  const origin = scene.vertices.find(v => v.id === leftBottom.origin);
+  manipulate(scene, leftBottom.id, { x: origin.x, y: origin.y });
+  assert.ok(Number.isFinite(leftBottom.t));
+  assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)));
+  // and it can still be driven back out afterwards, in either direction
+  manipulate(scene, leftBottom.id, { x: box.corners.leftBottom.x, y: box.corners.leftBottom.y });
+  const out = leftBottom.t;
+  assert.ok(Number.isFinite(out), "a corner parked on its origin could not be moved again");
+});
+
+test("D39: a corner still holds position when its GUIDE reverses under it", () => {
+  // The behaviour D3's fold existed to protect, kept by handling the two cases
+  // separately: when the vanishing point crosses the origin, `u` flips and `t` is
+  // negated once so the corner does not leap to the far side.
+  const { scene, l, box } = boxScene({ dL: 120, dR: 120 });
+  const { leftBottom } = box.corners;
+  const origin = scene.vertices.find(v => v.id === leftBottom.origin);
+  const before = { x: leftBottom.x, y: leftBottom.y };
+  // Put the point on the OTHER side of the origin, reversing the guide direction.
+  const dx = origin.x - l.x, dy = origin.y - l.y;
+  moveVp(scene, l.id, { x: origin.x + dx, y: origin.y + dy });
+  const moved = Math.hypot(leftBottom.x - before.x, leftBottom.y - before.y);
+  assert.ok(moved < 1, `the corner leapt ${moved.toFixed(1)}px when its guide reversed`);
 });
 
 test("the box still holds together after a vanishing point moves under it", () => {
