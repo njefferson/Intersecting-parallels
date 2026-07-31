@@ -705,6 +705,46 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D47 — the toolbar (SHIPPED 1.8.0, staging)
+
+**Noah, 2026-07-30, with a photograph of four toolbar rows:** *"Can you clean up
+the menus now?"*
+
+Thirty-three controls in four rows, taking about a third of an iPad's height away
+from the thing the app is for. Every one of them was added for a good reason and
+the sum was indefensible.
+
+**The rule used to sort them:** does this get REACHED FOR mid-drawing, or SET?
+Reached-for stays on the bar; set moves into a panel.
+
+- **Bar (19):** the four modes; Add line / Add box / Add cube (the non-drag path
+  to the primary act — burying it would make the accessible route the slow route,
+  §4); the guide picker, which forces the NEXT stroke and so is used mid-drawing;
+  Undo/Redo; zoom; Setup, Points, Clear, Export, Project, About.
+- **Setup panel (13):** Solid + strength, Hidden lines, Rays, Grid, Eye level /
+  Taller, Shorter, Stronger, Gentler / Assist, 45°, Weld, Touch draws.
+- **Add VP** moved into the Points panel head, where the points are. That is
+  placement, not hiding: since D41 it is disabled unless the sheet is empty.
+
+A PANEL, not a menu or a dialog: Taller and Stronger are used while composing, so
+a trip through a modal each time would be worse than the crowded bar. It docks
+LEFT, opposite Points, so both can be open without either covering the other, and
+its state is a saved preference like the Points panel's.
+
+Measured: header 107px, 19 controls, the stage gets **87%** of the window.
+
+**Three things this broke, all caught by gates rather than by looking:**
+- The walk drives real controls, and a control inside a closed panel is not
+  clickable. `tapSetup(page, id)` opens the panel and presses the real button; it
+  skips only Playwright's actionability wait, and the a11y and interactions gates
+  are where "44px and reachable" is actually asserted.
+- The a11y gate assumed every surface it opens is a `dialog[open]`. A docked panel
+  is not, so a surface now names what opening it looks like.
+- Off-screen markers stepped clear of the Points panel only, and always leftwards
+  — which would push a marker off the screen for a left-docked panel. They step
+  away from whichever panel they hit, in the direction that has room. `renderSetup`
+  has to re-render for that to happen, which the first version did not.
+
 ### D46 — a vanishing point belongs on the paper (FIXED 1.7.3, staging)
 
 **Noah, 2026-07-30:** *"You are dead wrong when you tell the user that putting a

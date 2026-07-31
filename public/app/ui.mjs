@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.7.3";
+const VERSION = "1.8.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -39,7 +39,7 @@ const el = {
   stage: $("stage"), canvas: $("canvas"), panel: $("panel"), vpList: $("vp-list"),
   inspector: $("inspector"), horizonY: $("horizon-y"), toast: $("toast"), live: $("live"),
   touchFlag: $("touch-flag"), force: $("force"), build: $("build-stamp"),
-  extrudeFlag: $("extrude-flag"), extrudeSay: $("extrude-say"),
+  extrudeFlag: $("extrude-flag"), extrudeSay: $("extrude-say"), setup: $("setup"),
   undo: $("undo"), redo: $("redo"),
 };
 
@@ -47,7 +47,7 @@ const ctx = el.canvas.getContext("2d");
 let scene = createScene({ name: "untitled", width: 1600, height: 1200 });
 let view = createView(scene);
 let history = createHistory();
-let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true, snap45: false, weld: true, solid: false, rays: false, eyeLevel: true, grid: true, faceOpacity: 1, showHidden: false };
+let prefs = { mode: "place", assist: true, touchDraws: false, forced: "", panel: true, showConstruction: true, snap45: false, weld: true, solid: false, rays: false, eyeLevel: true, grid: true, faceOpacity: 1, showHidden: false, setup: false };
 let selection = null;
 let ghost = null;
 let activeVpId = null;
@@ -164,13 +164,18 @@ function positionMarkers(vp) {
     // it covers the very row that controls the same point. Step it clear
     // instead: the panel keeps its content, the marker keeps its edge.
     let { x, y } = m;
-    if (prefs.panel) {
-      const stageBox = el.stage.getBoundingClientRect();
-      const panelBox = el.panel.getBoundingClientRect();
-      const left = panelBox.left - stageBox.left, right = panelBox.right - stageBox.left;
-      const top = panelBox.top - stageBox.top, bottom = panelBox.bottom - stageBox.top;
-      if (x > left - 28 && x < right && y > top - 24 && y < bottom + 24) {
-        x = Math.max(28, left - 32);
+    // D47 — there are two panels now, and the Setup one docks on the LEFT, so a
+    // marker gets stepped away from whichever side it collides with rather than
+    // always leftwards. Stepping a left-docked panel's marker further left would
+    // push it off the screen entirely.
+    const stageBox = el.stage.getBoundingClientRect();
+    for (const [on, node2, pushLeft] of [[prefs.panel, el.panel, true], [prefs.setup, el.setup, false]]) {
+      if (!on || !node2) continue;
+      const box = node2.getBoundingClientRect();
+      const left = box.left - stageBox.left, right = box.right - stageBox.left;
+      const top = box.top - stageBox.top, bottom = box.bottom - stageBox.top;
+      if (x > left - 28 && x < right + 28 && y > top - 24 && y < bottom + 24) {
+        x = pushLeft ? Math.max(28, left - 32) : Math.min(stageBox.width - 28, right + 32);
       }
     }
     node.style.left = `${x}px`;
@@ -1540,6 +1545,26 @@ $("zoom-fit")?.addEventListener("click", () => {
 });
 
 $("show-panel").addEventListener("click", () => { prefs.panel = !prefs.panel; renderPanel(); autosaver.poke(); });
+
+// D47 — the Setup panel. Same shape as the points panel: a preference, saved,
+// with its own way out (§3), and it never covers the points list because it docks
+// on the other side.
+function renderSetup() {
+  if (el.setup) el.setup.dataset.on = String(!!prefs.setup);
+  $("show-setup")?.setAttribute("aria-pressed", String(!!prefs.setup));
+  render();          // the off-screen markers step clear of whichever panel is open
+}
+$("show-setup")?.addEventListener("click", () => {
+  prefs.setup = !prefs.setup;
+  renderSetup();
+  say(prefs.setup ? "Setup panel shown" : "Setup panel hidden");
+  autosaver.poke();
+});
+$("setup-close")?.addEventListener("click", () => {
+  prefs.setup = false;
+  renderSetup();
+  $("show-setup")?.focus();
+});
 $("panel-close").addEventListener("click", () => { prefs.panel = false; renderPanel(); $("show-panel").focus(); });
 
 el.horizonY.addEventListener("change", () => {
@@ -1877,6 +1902,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
   $("touch-draws").setAttribute("aria-pressed", String(prefs.touchDraws));
   refreshHistoryButtons();
   renderPanel();
+  renderSetup();
   render();
 
   try { pngCeiling = probeCanvasCeiling(); } catch { pngCeiling = 2048; }

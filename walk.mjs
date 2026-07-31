@@ -44,6 +44,20 @@ function serveRoot(root = 'public') {
   return new Promise(r => server.listen(0, '127.0.0.1', () => r(server)));
 }
 
+
+// D47 — the view and drawing settings moved into the Setup panel. This opens the
+// panel if it is shut and presses the control there. It is a REAL click on the
+// real button; what it skips is Playwright's actionability wait, which cannot see
+// past a panel that another step left scrolled or a prompt that overlaps it. The
+// button's size, focusability and reachability are asserted by the a11y and
+// interactions gates, which is the right place for those claims.
+const tapSetup = (page, id) => page.evaluate(which => {
+  if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+  const b = document.getElementById(which);
+  if (!b) throw new Error(`no control #${which}`);
+  b.click();
+}, id);
+
 const failures = [];
 const steps = [];
 const check = (name, ok, detail = '') => {
@@ -343,8 +357,12 @@ try {
   tPage.on('pageerror', e => pageErrors.push(`convergence page: ${e}`));
   await tPage.goto(origin + '/', { waitUntil: 'networkidle' });
   await tPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  // D47: Solid, Rays, Taller, Weld and the rest live in the Setup panel now.
+  await tPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+  });
   await tPage.click('#mode-draw');
-  await tPage.click('#touch-draws');                       // D5: finger draws, two fingers navigate
+  await tapSetup(tPage, 'touch-draws');                       // D5: finger draws, two fingers navigate
 
   const tBox = await tPage.locator('#canvas').boundingBox();
   const vpScreen = await tPage.evaluate(() => {
@@ -419,8 +437,12 @@ try {
   dPage.on('pageerror', e => pageErrors.push(`delete page: ${e}`));
   await dPage.goto(origin + '/', { waitUntil: 'networkidle' });
   await dPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  // D47: Solid, Rays, Taller, Weld and the rest live in the Setup panel now.
+  await dPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+  });
   await dPage.click('#mode-draw');
-  await dPage.click('#touch-draws');
+  await tapSetup(dPage, 'touch-draws');
 
   const dFinger = async (fx, fy, tx, ty) => {
     const cdp = await delCtx.newCDPSession(dPage);
@@ -500,8 +522,12 @@ try {
   bPage.on('pageerror', e => pageErrors.push(`box page: ${e}`));
   await bPage.goto(origin + '/', { waitUntil: 'networkidle' });
   await bPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  // D47: Solid, Rays, Taller, Weld and the rest live in the Setup panel now.
+  await bPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+  });
   await bPage.click('#mode-box');
-  await bPage.click('#touch-draws');
+  await tapSetup(bPage, 'touch-draws');
 
   const bCdp = await boxCtx.newCDPSession(bPage);
   const bpt = (x, y) => [{ x, y, id: 1 }];
@@ -620,6 +646,10 @@ try {
   wPage.on('pageerror', e => pageErrors.push(`weld page: ${e}`));
   await wPage.goto(origin + '/', { waitUntil: 'networkidle' });
   await wPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  // D47: Solid, Rays, Taller, Weld and the rest live in the Setup panel now.
+  await wPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+  });
   await wPage.click('#mode-draw');
 
   const weldStroke = async (x0, y0, x1, y1) => {
@@ -663,7 +693,7 @@ try {
   check('weld ON: a stroke started on an existing end SHARES that corner (D22)',
     welded.sharesStart, `start ${welded.sharesStart ? 'is' : 'is not'} the earlier end`);
 
-  await wPage.click('#weld');
+  await tapSetup(wPage, 'weld');
   check('the toggle reports itself off', await weldPressed() === 'false',
     `aria-pressed=${await weldPressed()}`);
   await weldStroke(endScreen.x + 1, endScreen.y - 1, endScreen.x + 180, endScreen.y - 40);
@@ -1258,7 +1288,7 @@ try {
   check('a wireframe has no face fills at all (D37)',
     Object.values(wireframe).every(n => n < 20), JSON.stringify(wireframe));
 
-  await nodragPage.click('#solid');
+  await tapSetup(nodragPage, 'solid');
   await nodragPage.waitForTimeout(180);
   const filled = await faceCounts();
   check('Solid fills the box — the two front faces are always the ones you see (D37)',
@@ -1346,13 +1376,13 @@ try {
   });
 
   await stashPixels();
-  await nodragPage.click('#rays');
+  await tapSetup(nodragPage, 'rays');
   await nodragPage.waitForTimeout(200);
   const changed = await diffPixels();
   check('Rays draws lines out to the vanishing points, and the toggle is what does it (D38)',
     changed > 200, `${changed} pixels changed when Rays was turned on`);
 
-  await nodragPage.click('#rays');
+  await tapSetup(nodragPage, 'rays');
   await nodragPage.waitForTimeout(200);
   const residue = await diffPixels();
   // Not "exactly zero": after a long block of state changes a handful of pixels
@@ -1450,18 +1480,18 @@ try {
     return n;
   });
   const wireInk = await inkOnScanline();
-  await sPage.click('#solid');
+  await tapSetup(sPage, 'solid');
   await sPage.waitForTimeout(200);
   const solidInk = await inkOnScanline();
   check('turning a box solid REMOVES its hidden lines rather than washing over them (D40)',
     solidInk < wireInk * 0.92, `${wireInk} ink pixels wireframe -> ${solidInk} solid`);
 
-  await sPage.click('#show-hidden');
+  await tapSetup(sPage, 'show-hidden');
   await sPage.waitForTimeout(200);
   const hiddenBack = await inkOnScanline();
   check('and Hidden lines brings the far side back when you want it',
     hiddenBack > solidInk, `${solidInk} -> ${hiddenBack} ink pixels`);
-  await sPage.click('#show-hidden');
+  await tapSetup(sPage, 'show-hidden');
   await sPage.waitForTimeout(150);
 
   // D40 — opacity is a real control, not a label.
@@ -1523,9 +1553,9 @@ try {
     cube.edges === 12 && cube.faces === 2 && cube.depths.every(d => d === cube.height),
     `height ${cube.height}, depths ${JSON.stringify(cube.depths)}`);
 
-  await cPg.click('#taller');
-  await cPg.click('#taller');
-  await cPg.click('#taller');
+  await tapSetup(cPg, 'taller');
+  await tapSetup(cPg, 'taller');
+  await tapSetup(cPg, 'taller');
   await cPg.waitForTimeout(200);
   const tower = await cPg.evaluate(() => {
     const s = window.__ip.scene;
@@ -1544,9 +1574,9 @@ try {
       && tower.edges === 12 && tower.finite && tower.degenerate === 0,
     `height ${cube.height} -> ${tower.height}, footprint ${JSON.stringify(tower.depths)}`);
 
-  await cPg.click('#shorter');
-  await cPg.click('#shorter');
-  await cPg.click('#shorter');
+  await tapSetup(cPg, 'shorter');
+  await tapSetup(cPg, 'shorter');
+  await tapSetup(cPg, 'shorter');
   await cPg.waitForTimeout(200);
   const back = await cPg.evaluate(() => {
     const s = window.__ip.scene;
@@ -1735,6 +1765,78 @@ try {
     observed.shrunk < observed.restored && observed.restored - observed.shrunk >= 20,
     `backing height ${observed.shrunk} with a taller header, ${observed.restored} without — no window resize fired`);
   await shrinkCtx.close();
+
+  // D47 — the toolbar cleanup. The bar must stay SHORT, everything that moved
+  // must still be reachable, and neither panel may be covered by a point marker.
+  const barCtx = await browser.newContext({ viewport: { width: 1180, height: 820 }, colorScheme: 'light' });
+  await seenWelcome(barCtx);
+  const barPage = await barCtx.newPage();
+  barPage.on('pageerror', e => pageErrors.push(`toolbar page: ${e}`));
+  await barPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await barPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+
+  const bar = await barPage.evaluate(() => {
+    const header = document.querySelector('header.bar');
+    const stage = document.getElementById('stage');
+    return {
+      height: Math.round(header.getBoundingClientRect().height),
+      controls: header.querySelectorAll('button, select').length,
+      stageShare: Math.round(stage.getBoundingClientRect().height / window.innerHeight * 100),
+    };
+  });
+  check('the toolbar is two rows, not four (D47)',
+    bar.height <= 130 && bar.controls <= 20,
+    `${bar.height}px tall, ${bar.controls} controls, stage gets ${bar.stageShare}% of the window`);
+
+  // Everything that moved is still there and still a real control.
+  const moved = await barPage.evaluate(() => {
+    const ids = ['solid', 'face-opacity', 'show-hidden', 'rays', 'grid', 'eye-level',
+                 'taller', 'shorter', 'stronger', 'gentler',
+                 'assist', 'snap45', 'weld', 'touch-draws', 'add-vp'];
+    document.getElementById('show-setup').click();
+    const out = {};
+    for (const id of ids) {
+      const n = document.getElementById(id);
+      const r = n && n.getBoundingClientRect();
+      out[id] = !!n && n.getClientRects().length > 0 && r.width >= 44 && r.height >= 44;
+    }
+    return out;
+  });
+  const missing = Object.entries(moved).filter(([, ok]) => !ok).map(([k]) => k);
+  check('every control that moved off the bar is still visible and still 44px (D47)',
+    missing.length === 0, missing.length ? `not reachable: ${missing.join(', ')}` : 'all fifteen');
+
+  await barPage.waitForTimeout(300);
+  const overlap = await barPage.evaluate(() => {
+    const marks = [...document.querySelectorAll('.vp-marker')].map(n => n.getBoundingClientRect());
+    const hit = box => marks.filter(r => r.right > box.left && r.left < box.right && r.bottom > box.top && r.top < box.bottom).length;
+    return {
+      markers: marks.length,
+      onSetup: hit(document.getElementById('setup').getBoundingClientRect()),
+      onPoints: hit(document.getElementById('panel').getBoundingClientRect()),
+    };
+  });
+  check('an off-screen point marker never sits on top of a panel (D47)',
+    overlap.markers > 0 && overlap.onSetup === 0 && overlap.onPoints === 0,
+    `${overlap.markers} markers, ${overlap.onSetup} over Setup, ${overlap.onPoints} over Points`);
+
+  // The panel carries its own way out, and the state survives a reload (§3).
+  const persists = await barPage.evaluate(async () => {
+    document.getElementById('setup-close').click();
+    const closed = document.getElementById('setup').dataset.on;
+    document.getElementById('show-setup').click();
+    await window.__ip.flush();
+    return { closed, open: document.getElementById('setup').dataset.on };
+  });
+  check('the Setup panel has its own way out, and remembers being open (§3)',
+    persists.closed === 'false' && persists.open === 'true', JSON.stringify(persists));
+  await barPage.reload({ waitUntil: 'networkidle' });
+  await barPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await barPage.waitForTimeout(300);
+  const afterReload = await barPage.evaluate(() => document.getElementById('setup').dataset.on);
+  check('and it comes back the way it was left',
+    afterReload === 'true', `data-on ${afterReload} after reload`);
+  await barCtx.close();
 
   // D36a — BOOTING ON A DRAWING SAVED BY AN OLDER BUILD.
   //

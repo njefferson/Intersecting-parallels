@@ -8,6 +8,27 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.8.0 — CAPABILITY · 2026-07-30
+
+**The toolbar was eating a third of the iPad. It is two rows now.**
+
+- Thirty-three controls across four rows became **nineteen across two**, and the
+  drawing gets 87 per cent of the window instead of two thirds.
+- Everything that is **set** rather than **reached for** moved into a new
+  **Setup** panel: Solid and its strength, Hidden lines, Rays, Grid, Eye level,
+  Taller, Shorter, Stronger, Gentler, Assist, 45°, Weld and Touch draws. It is a
+  panel and not a menu on purpose — Taller and Stronger are used while composing,
+  so it stays open beside your drawing. It docks on the left, opposite Points, so
+  both can be open at once, and it comes back the way you left it.
+- **Add VP** moved into the Points panel, where the points are.
+- What stays on the bar is what you reach for mid-drawing: the four modes, Add
+  line / box / cube, the guide picker, Undo and Redo, zoom, and the way into each
+  panel.
+- An off-screen vanishing point marker now steps clear of whichever panel it
+  would land on, rather than only the Points one.
+
+---
+
 ## 1.7.3 — ITERATION · 2026-07-30
 
 **A vanishing point belongs on the paper whenever you want it there.**

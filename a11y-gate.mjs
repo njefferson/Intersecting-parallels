@@ -73,6 +73,11 @@ const PAGES = [
       { name: 'welcome', open: null, firstRun: true,
         registry: ['.dlg-head h2', '.dlg-body', '.dlg-body li', '.dlg-body .hint'] },
       { name: 'canvas', open: null },
+      // D47 — the Setup panel is a surface in its own right: nine controls that
+      // used to be on the toolbar and were measured there. Opened here so they
+      // keep their 44px and their contrast rather than quietly leaving coverage
+      // when they moved.
+      { name: 'setup', open: '#show-setup', opened: '#setup[data-on="true"]', registry: ['.panel-head h2', '.panel-sec', '.btn'] },
       { name: 'export', open: '#open-export', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body label', '.hint'] },
       // Not '.empty' here: whether the saved-projects list is empty depends on
       // whether autosave has fired yet, and a registry entry that matches only
@@ -143,8 +148,12 @@ try {
       }
       if (state.open) {
         await page.click(state.open);
-        await page.waitForFunction(() => !!document.querySelector('dialog[open]'), null, { timeout: 5000 })
-          .catch(() => fail(where, `clicking ${state.open} opened no dialog`));
+        // D47 — a surface is not always a dialog. The Setup panel is a docked
+        // panel, so what is waited for is "something opened", named by the
+        // surface itself, rather than assuming every one of them is modal.
+        const openedSelector = state.opened ?? 'dialog[open]';
+        await page.waitForFunction(sel => !!document.querySelector(sel), openedSelector, { timeout: 5000 })
+          .catch(() => fail(where, `clicking ${state.open} opened no ${openedSelector}`));
       }
       await page.addScriptTag({ content: axeSrc });
 

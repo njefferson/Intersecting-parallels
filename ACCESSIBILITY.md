@@ -50,6 +50,9 @@ a renamed class must not silently drop out of coverage.
 
 Always present: `h1.title` `.btn` `.hint` `.vp-name` `.coord label`
 `.panel-head h2`
+Setup panel: `.panel-head h2` `.panel-sec` `.btn` — opened by the gate since
+1.8.0, because thirteen controls moved there off the toolbar and would otherwise
+have left coverage when they moved
 Export dialog: `.dlg-head h2` `.dlg-body` `.dlg-body label` `.hint`
 Project dialog: `.dlg-head h2` `.dlg-body label` `.dlg-body h3`
 About dialog: `.dlg-head h2` `.dlg-body` `.dlg-body a` `.dlg-body li`

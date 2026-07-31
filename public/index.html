@@ -48,56 +48,18 @@
       <button class="btn" id="mode-select" type="button" aria-pressed="false">Select</button>
     </div>
 
-    <!-- D34 / §4 (SC 2.5.1, 2.5.7): drawing without a drag. Each button puts the
-         shape on the paper at the middle of the view and hands it straight to
-         the keyboard — a line's far end is selected, a box goes into its second
-         step — so no pointer travel is ever required to draw. -->
+    <!-- D34 / §4 (SC 2.5.1, 2.5.7): drawing without a drag. These stay on the bar
+         because they are the non-drag path to the app's primary act — putting one
+         behind a panel would make the accessible route the slower route. -->
     <div class="bar-group" role="group" aria-label="Draw without dragging">
       <button class="btn" id="add-line" type="button">Add line</button>
       <button class="btn" id="add-box" type="button">Add box</button>
       <button class="btn" id="add-cube" type="button">Add cube</button>
     </div>
 
-    <!-- D37/D38: two ways of LOOKING at the drawing. Neither changes it. -->
-    <div class="bar-group" role="group" aria-label="How the drawing is shown">
-      <button class="btn" id="solid" type="button" aria-pressed="false">Solid</button>
-      <label class="sr-only" for="face-opacity">How solid the shading is</label>
-      <select class="btn" id="face-opacity">
-        <option value="1" selected>Solid 100%</option>
-        <option value="0.75">Solid 75%</option>
-        <option value="0.5">Solid 50%</option>
-        <option value="0.25">Solid 25%</option>
-      </select>
-      <button class="btn" id="show-hidden" type="button" aria-pressed="false">Hidden lines</button>
-      <button class="btn" id="rays" type="button" aria-pressed="false">Rays</button>
-      <button class="btn" id="grid" type="button" aria-pressed="true">Grid</button>
-      <button class="btn" id="eye-level" type="button" aria-pressed="true">Eye level</button>
-    </div>
-
-    <!-- D42 — forced perspective, as an artist means it: exaggerate, do not
-         measure. Every line is bound to a point, so the whole drawing follows. -->
-    <div class="bar-group" role="group" aria-label="Exaggerate">
-      <button class="btn" id="taller" type="button">Taller</button>
-      <button class="btn" id="shorter" type="button">Shorter</button>
-      <button class="btn" id="stronger" type="button">Stronger</button>
-      <button class="btn" id="gentler" type="button">Gentler</button>
-    </div>
-
-    <div class="bar-group" role="group" aria-label="Guides">
-      <button class="btn" id="assist" type="button" aria-pressed="true">Assist</button>
+    <div class="bar-group" role="group" aria-label="Guide for the next stroke">
       <label class="sr-only" for="force">Force this stroke onto</label>
       <select class="btn" id="force"></select>
-      <button class="btn" id="snap45" type="button" aria-pressed="false">45°</button>
-      <button class="btn" id="weld" type="button" aria-pressed="true">Weld</button>
-      <button class="btn" id="touch-draws" type="button" aria-pressed="false">Touch draws</button>
-    </div>
-
-    <!-- Single-pointer alternatives to pinch and two-finger pan (§4, SC 2.5.1).
-         A gesture is an accelerator, never the only door. -->
-    <div class="bar-group" role="group" aria-label="View">
-      <button class="btn" id="zoom-out" type="button" aria-label="Zoom out">&minus;</button>
-      <button class="btn" id="zoom-in" type="button" aria-label="Zoom in">+</button>
-      <button class="btn" id="zoom-fit" type="button">Fit</button>
     </div>
 
     <div class="bar-group" role="group" aria-label="History">
@@ -105,15 +67,20 @@
       <button class="btn" id="redo" type="button" disabled>Redo</button>
     </div>
 
+    <!-- Single-pointer alternatives to pinch and two-finger pan (§4, SC 2.5.1). -->
+    <div class="bar-group" role="group" aria-label="View">
+      <button class="btn" id="zoom-out" type="button" aria-label="Zoom out">&minus;</button>
+      <button class="btn" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+      <button class="btn" id="zoom-fit" type="button">Fit</button>
+    </div>
+
     <span class="spacer"></span>
 
     <div class="bar-group">
-      <button class="btn" id="add-vp" type="button">Add VP</button>
+      <button class="btn" id="show-setup" type="button" aria-pressed="false" aria-controls="setup">Setup</button>
       <button class="btn" id="show-panel" type="button" aria-pressed="true" aria-controls="panel">Points</button>
       <!-- Clear is here rather than beside Undo on purpose: a destructive tap does
-           not belong next to the control people reach for after a mistake. It
-           clears the DRAWING and keeps the vanishing points; wiping the points too
-           stays one level down, in Project. -->
+           not belong next to the control people reach for after a mistake. -->
       <button class="btn danger" id="clear-drawing" type="button" data-armed="false">Clear</button>
       <button class="btn" id="open-export" type="button">Export</button>
       <button class="btn" id="open-project" type="button">Project</button>
@@ -137,9 +104,55 @@
       <button class="btn" id="touch-exit" type="button">Turn off</button>
     </div>
 
+    <!-- D47 — the toolbar was four rows of thirty-three controls on an iPad,
+         eating a third of the drawing surface. Everything that is SET rather than
+         REACHED FOR moved here. It is a panel and not a dialog on purpose: Taller
+         and Stronger are used while composing, so they have to stay open beside
+         the drawing rather than being a trip each time. -->
+    <section class="panel left" id="setup" data-on="false" aria-labelledby="setup-title">
+      <div class="panel-head">
+        <h2 id="setup-title">Setup</h2>
+        <button class="btn" id="setup-close" type="button" aria-label="Hide the setup panel">Hide</button>
+      </div>
+      <div class="panel-body">
+        <h3 class="panel-sec">How it looks</h3>
+        <div class="setup-row">
+          <button class="btn" id="solid" type="button" aria-pressed="false">Solid</button>
+          <label class="sr-only" for="face-opacity">How solid the shading is</label>
+          <select class="btn" id="face-opacity">
+            <option value="1" selected>Solid 100%</option>
+            <option value="0.75">Solid 75%</option>
+            <option value="0.5">Solid 50%</option>
+            <option value="0.25">Solid 25%</option>
+          </select>
+          <button class="btn" id="show-hidden" type="button" aria-pressed="false">Hidden lines</button>
+          <button class="btn" id="rays" type="button" aria-pressed="false">Rays</button>
+          <button class="btn" id="grid" type="button" aria-pressed="true">Grid</button>
+          <button class="btn" id="eye-level" type="button" aria-pressed="true">Eye level</button>
+        </div>
+
+        <h3 class="panel-sec">Exaggerate</h3>
+        <div class="setup-row">
+          <button class="btn" id="taller" type="button">Taller</button>
+          <button class="btn" id="shorter" type="button">Shorter</button>
+          <button class="btn" id="stronger" type="button">Stronger</button>
+          <button class="btn" id="gentler" type="button">Gentler</button>
+        </div>
+
+        <h3 class="panel-sec">While drawing</h3>
+        <div class="setup-row">
+          <button class="btn" id="assist" type="button" aria-pressed="true">Assist</button>
+          <button class="btn" id="snap45" type="button" aria-pressed="false">45&deg;</button>
+          <button class="btn" id="weld" type="button" aria-pressed="true">Weld</button>
+          <button class="btn" id="touch-draws" type="button" aria-pressed="false">Touch draws</button>
+        </div>
+      </div>
+    </section>
+
     <section class="panel" id="panel" data-on="true" aria-labelledby="panel-title">
       <div class="panel-head">
         <h2 id="panel-title">Vanishing points</h2>
+        <button class="btn" id="add-vp" type="button">Add VP</button>
         <button class="btn" id="panel-close" type="button" aria-label="Hide the vanishing points panel">Hide</button>
       </div>
       <div class="panel-body" id="panel-body">
