@@ -106,6 +106,43 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-07-30 — 1.7.2.** Eighth promote, and the first one
+that is purely defect repair — every line of it came from Noah's photographs of
+the build promoted an hour earlier. `main` fast-forwarded `7eff04a` -> `2c7a42f`,
+no merge commit, remote diff empty afterwards.
+
+- **1.7.1** — D43, the band of stale pixels along the bottom of the canvas that
+  survived a Clear: `draw` cleared the viewport RECTANGLE while `sizeCanvas` sized
+  the BACKING STORE, and 1.7.0's nine new toolbar buttons made the toolbar re-wrap
+  often enough to expose it. Plus D44, inverted boxes shading the far pair of
+  walls — the walls are derived from the two rings now instead of stored.
+- **1.7.2** — D45, three defects in the D42 dial shipped the same afternoon: a
+  cube sized in fixed units rather than as a fraction of the distance to the
+  points; Stronger sliding the horizon off eye level by scaling y as well as x;
+  and a guard that measured distance from the paper's CENTRE, which let a point
+  settle on the paper and clamp every corner near it.
+
+All four workflows verified green on `2c7a42f` on `staging` BEFORE the merge and
+again on `main` after it. The record was held until every run on `main` reached
+`completed / success`, for the fourth promote running.
+
+Gates at 1.7.2: **153 unit tests**, a11y PASS, **143 walk checks**, 7 declared
+interactions with no gaps.
+
+**The pattern worth naming, because it happened twice today.** D39 made depths
+signed, which silently invalidated D37's assumption that the two stored walls are
+always the visible ones. D42's dial silently invalidated D45's three assumptions
+about scale. In both cases every gate stayed green because each amendment was
+gated against ITSELF. Nothing in the harness asks "what did this new capability
+just make untrue?" — and Noah found both in minutes on a real device. The cheap
+mitigation is to treat any new capability that changes a QUANTITY the renderer
+reasons about (a sign, a distance, a position) as a reason to re-read the
+amendments that reason about it.
+
+**Still not reproduced:** "only manipulatable with the out-of-sight corners". D45
+(3) is the best explanation, not a confirmed one — see the D45 entry for
+everything that was tried.
+
 **PROMOTED TO PRODUCTION 2026-07-30 — 1.7.0.** Seventh promote. `main`
 fast-forwarded `d32ae72` -> `401877d`, no merge commit, and
 `git diff origin/main origin/staging` empty on the remote afterwards. Five
