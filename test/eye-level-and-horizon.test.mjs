@@ -244,16 +244,34 @@ test("D45: the third point IS exaggerated in y — it is the one with a height t
   assert.ok(nadir.y < 2600, "the point below the drawing did not come closer");
 });
 
-test("D45: a point is never scaled onto the paper", () => {
+test("D46: a vanishing point is allowed to sit ON the paper — that is one-point perspective", () => {
+  // D45 refused this, and D45 was wrong. Noah: "What the fuck do you think a
+  // train track is?" The track, the corridor, the road running away from you all
+  // put the point in the middle of the picture. Forbidding it forbade a whole
+  // class of drawing.
+  const scene = createScene({ name: "t", width: 1000, height: 800 });
+  setEyeLevel(scene, 400);
+  const l = addVp(scene, { label: "VP1", x: -900, y: 400, onHorizon: true }).vp;
+  addVp(scene, { label: "VP2", x: 1900, y: 400, onHorizon: true });
+  let guard = 0, landedOnPaper = false;
+  while (scaleVpSpread(scene, 0.8).ok && guard++ < 200) {
+    if (l.x > 0 && l.x < 1000 && l.y > 0 && l.y < 800) landedOnPaper = true;
+  }
+  assert.ok(landedOnPaper, "a point was never allowed onto the paper");
+});
+
+test("D46: what IS refused is two points arriving at the same place", () => {
   const scene = createScene({ name: "t", width: 1000, height: 800 });
   setEyeLevel(scene, 400);
   addVp(scene, { label: "VP1", x: -900, y: 400, onHorizon: true });
   addVp(scene, { label: "VP2", x: 1900, y: 400, onHorizon: true });
-  let guard = 0;
-  while (scaleVpSpread(scene, 0.8).ok && guard++ < 60) { /* keep pressing Stronger */ }
-  assert.ok(guard < 60, "it never refused");
-  for (const vp of scene.vanishingPoints) {
-    const onPaper = vp.x > -250 && vp.x < 1250 && vp.y > -200 && vp.y < 1000;
-    assert.ok(!onPaper, `${vp.label} ended up at ${Math.round(vp.x)},${Math.round(vp.y)} — on the paper`);
-  }
+  let guard = 0, last = { ok: true };
+  while ((last = scaleVpSpread(scene, 0.8)).ok && guard++ < 200) { /* keep pressing */ }
+  assert.ok(guard < 200, "it never refused at all");
+  assert.match(last.reason, /the same point/);
+  const floor = Math.hypot(1000, 800) * 0.02;
+  const [a, b] = scene.vanishingPoints;
+  assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= floor,
+    `the two points collapsed onto each other at ${Math.round(a.x)},${Math.round(a.y)}`);
+  assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)));
 });

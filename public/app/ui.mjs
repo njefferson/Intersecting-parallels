@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.7.2";
+const VERSION = "1.7.3";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1340,7 +1340,12 @@ function cubeEdge(at) {
   if (!usable.length) return CUBE_MIN * 4;
   const nearest = Math.min(...usable.map(v => Math.hypot(v.x - at.x, v.y - at.y)));
   if (!Number.isFinite(nearest)) return CUBE_MIN * 4;
-  return Math.round(Math.max(CUBE_MIN, Math.min(CUBE_MAX, nearest * CUBE_FRACTION)));
+  // The floor never wins over the geometry: with the points driven very close, a
+  // 40-unit minimum could exceed the distance to the point the edge runs toward,
+  // which is past where the construction means anything (a corner cannot reach its
+  // own vanishing point). Half that distance is the hard ceiling.
+  const ceiling = Math.min(CUBE_MAX, nearest * 0.5);
+  return Math.round(Math.max(Math.min(CUBE_MIN, ceiling), Math.min(ceiling, nearest * CUBE_FRACTION)));
 }
 
 function addCube() {

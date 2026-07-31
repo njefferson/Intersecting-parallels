@@ -705,6 +705,44 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D46 — a vanishing point belongs on the paper (FIXED 1.7.3, staging)
+
+**Noah, 2026-07-30:** *"You are dead wrong when you tell the user that putting a
+vanishing point on the paper makes it cease being a vanishing point. What the fuck
+do you think a train track is?"*
+
+He is right, and this is a correction of substance, not of a threshold. **D45's
+guard forbade one-point perspective.** The point in the middle of the picture —
+the track, the corridor, the road running away from you — is the most ordinary
+construction in perspective drawing, and I shipped a rule that refused it and a
+message that told the user it was invalid. Being confidently wrong in a toast is
+worse than the missing feature, because it teaches the user something false about
+their own craft.
+
+Where the reasoning went wrong: I saw corners clamping near a close point, found
+`tLimit = 0.95 x distance to the point`, and inferred that a point on the paper
+"collapses the depth limits of everything near it". The premise is true and the
+conclusion is a non-sequitur. A corner cannot reach its own vanishing point,
+because that distance is infinity in the world being drawn — that limit is CORRECT
+wherever the point sits, and has nothing whatever to do with the sheet. I turned a
+correct rule about depth into a false rule about composition.
+
+**What is refused now:** two points arriving at the same place, and nothing else.
+Then the two guides through any corner are one line and a crossing defines
+nothing. Everything else — including a point dead centre — is allowed.
+
+Also corrected here: the collapse guard I first wrote for this measured distance
+from the CENTRE, which never fires for horizon points, because D45 pins their y
+and so they keep a fixed offset from it forever. Caught by the walk refusing to
+stop after sixty presses. And `Add cube` now keeps its edge under half the
+distance to the nearest point, so a fixed 40-unit minimum cannot exceed the
+distance to the point that edge runs toward.
+
+**The lesson to carry:** the app may state a limit, but it must never state a
+FACT about perspective that it has not been taught. When a guard needs a
+justification in prose, that prose is a claim, and a wrong one ships to the user's
+screen.
+
 ### D45 — a cube that stays a cube, and a dial that stops in time (FIXED 1.7.2, staging)
 
 **Noah, 2026-07-30, with a photograph:** *"Placed a cube with the button, and it
@@ -725,15 +763,11 @@ screen edges — so the points had been pulled well in with Stronger first.
    little further off it with every press. Points flagged `onHorizon` keep their y
    now; only the third point has a height worth exaggerating.
 
-3. **The guard measured the wrong thing.** It refused when a point came within
-   15% of the paper's diagonal OF THE CENTRE, which happily allowed a point to sit
-   ON the sheet as long as it was far enough sideways. A vanishing point inside the
-   drawing collapses `tLimit` for every corner near it — `0.95 x distance to the
-   point` — so those corners are already clamped and stop responding to dragging.
-   It refuses while every point is still a quarter of a page clear of the sheet.
+3. **The guard measured the wrong thing** — and the replacement I wrote for it
+   was WRONG ON THE FACTS. **Superseded by D46; read that instead.**
 
-**On the manipulation report specifically: I could not reproduce it, and (3) is
-the best explanation I have rather than a confirmed one.** What was tried, all on
+**On the manipulation report specifically: I could not reproduce it, and the
+explanation I offered in (3) was wrong — see D46. I still do not have one.** What was tried, all on
 a cube: `manipulate` on all eight corners through the API (all moved, 40-72px); a
 mouse tap on each corner's exact screen position (all eight selected the right
 corner); and a ONE-FINGER CDP touch drag on each corner with Touch draws ON in

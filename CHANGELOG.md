@@ -8,6 +8,22 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.7.3 — ITERATION · 2026-07-30
+
+**A vanishing point belongs on the paper whenever you want it there.**
+
+- 1.7.2 stopped **Stronger** from bringing a point onto the sheet, on the claim
+  that a point on the paper stops being a vanishing point. That is simply wrong.
+  **One-point perspective puts the point in the middle of the picture** — the
+  railway track, the corridor, the road running away from you. Refusing it ruled
+  out a whole class of drawing this app exists to make. The restriction is gone.
+- The only thing Stronger refuses now is bringing **two points onto the same
+  spot**, because two guides that are one line cannot define a corner.
+- **Add cube** also stops growing past what the construction can hold when the
+  points are very close, rather than clamping to a fixed minimum.
+
+---
+
 ## 1.7.2 — ITERATION · 2026-07-30
 
 **Add cube now makes a cube whatever the perspective is set to.**
@@ -20,11 +36,8 @@ Noah decides what counts as a version — the first slot, what the app IS.
 - **Stronger no longer slides the horizon away from eye level.** Points that sit
   on the horizon keep their height now; only the third point, the one above or
   below, has a height worth exaggerating.
-- **Stronger stops sooner, and for the right reason.** It used to measure whether
-  a point was far enough from the middle of the paper, which let one settle on the
-  paper as long as it was off to one side. A vanishing point on the paper collapses
-  the depth limits of everything near it, so corners stop responding to dragging.
-  It now refuses while every point is still clear of the sheet.
+- **Stronger stops sooner.** *(Corrected in 1.7.3 — the rule shipped here was
+  wrong; see below.)*
 
 ---
 

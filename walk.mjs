@@ -1595,20 +1595,51 @@ try {
 
   // It refuses rather than dragging a point into the middle of the drawing.
   const refused = await cPg.evaluate(() => {
-    for (let i = 0; i < 14; i++) document.getElementById('stronger').click();
+    // Press Stronger until it will not go further, watching for a point landing
+    // on the paper on the way — which must be ALLOWED (D46).
+    // Read the scene FRESH every time: a refusal calls undoHistoryInPlace, which
+    // adopts a restored scene object, so a captured reference goes stale and the
+    // loop would compare a scene the app has already replaced.
+    const S = () => window.__ip.scene;
+    const onPaper = () => S().vanishingPoints.some(v =>
+      v.x > 0 && v.x < S().canvas.width && v.y > 0 && v.y < S().canvas.height);
+    window.__everOnPaper = false;
+    window.__stoppedShort = false;
+    window.__lastRefusal = '';
+    for (let i = 0; i < 60; i++) {
+      const before = S().vanishingPoints.map(v => v.x + ',' + v.y).join('|');
+      document.getElementById('stronger').click();
+      if (onPaper()) window.__everOnPaper = true;
+      const after = S().vanishingPoints.map(v => v.x + ',' + v.y).join('|');
+      if (before === after) {
+        window.__stoppedShort = true;
+        const floor = Math.hypot(S().canvas.width, S().canvas.height) * 0.02;
+        const ps = S().vanishingPoints;
+        let closest = Infinity;
+        for (let a = 0; a < ps.length; a++) for (let b = a + 1; b < ps.length; b++) {
+          closest = Math.min(closest, Math.hypot(ps[a].x - ps[b].x, ps[a].y - ps[b].y));
+        }
+        window.__clearOfCentre = closest >= floor;
+        break;
+      }
+    }
     const s = window.__ip.scene;
     const cx = s.canvas.width / 2, cy = s.canvas.height / 2;
     const floor = Math.hypot(s.canvas.width, s.canvas.height) * 0.15;
-    const mx = s.canvas.width * 0.25, my = s.canvas.height * 0.25;
     return {
-      onPaper: s.vanishingPoints.filter(v =>
-        v.x > -mx && v.x < s.canvas.width + mx && v.y > -my && v.y < s.canvas.height + my).length,
+      everOnPaper: window.__everOnPaper === true,
+      stoppedShort: window.__stoppedShort === true,
+      clearOfCentre: window.__clearOfCentre === true,
       finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
     };
   });
-  check('and it refuses before a point ends up ON THE PAPER (D42/D45)',
-    refused.onPaper === 0 && refused.finite,
-    `${refused.onPaper} points on the paper after pressing Stronger to the limit`);
+  check('a point IS allowed onto the paper — that is one-point perspective (D46)',
+    refused.everOnPaper && refused.finite,
+    refused.everOnPaper ? 'a point reached the paper and the drawing stayed sound'
+                        : 'the dial still refuses to put a point on the paper');
+  check('and what it refuses is two points arriving at the same place (D46)',
+    refused.stoppedShort && refused.clearOfCentre,
+    `stopped: ${refused.stoppedShort}, no two points on top of each other: ${refused.clearOfCentre}`);
 
   // D45 — pressing Stronger must not slide the horizon off eye level.
   const stayed = await cPg.evaluate(() => {
@@ -1623,6 +1654,9 @@ try {
 
   // D45 — a cube is sized from the points, so it is still a cube after Stronger.
   const sized = await cPg.evaluate(() => {
+    // Back off the dial first: the check above deliberately drives it to its
+    // limit, and a cube measured there is measuring the limit, not the sizing.
+    for (let i = 0; i < 12; i++) document.getElementById('gentler').click();
     const before = window.__ip.scene.vanishingPoints.map(v => v.x);
     document.getElementById('clear-drawing').click();
     document.getElementById('clear-drawing').click();

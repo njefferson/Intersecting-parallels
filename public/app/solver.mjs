@@ -602,13 +602,34 @@ export function moveVp(scene, vpId, { x, y }) {
 // paper is what the drawing sits on and what the artist is composing within, and
 // scaling about a moving centroid would drift the composition sideways every
 // time it was used.
-// A point must stay OFF the paper, with room to spare. Measured against the paper
-// itself rather than its centre: the first version of this guard used distance
-// from the centre, which happily allowed a point to sit inside the sheet as long
-// as it was far enough sideways. A vanishing point inside the drawing collapses
-// every depth limit near it — corners stop responding because they are already
-// clamped — which is the state Noah's screenshot was in.
-const SPREAD_MARGIN = 0.25;   // of the paper's own width/height, outside the edge
+// D46 — a vanishing point may sit ANYWHERE, INCLUDING ON THE PAPER.
+//
+// Noah, 2026-07-30: "You are dead wrong when you tell the user that putting a
+// vanishing point on the paper makes it cease being a vanishing point. What the
+// fuck do you think a train track is?"
+//
+// He is right, and D45 was wrong on the substance rather than on its threshold.
+// One-point perspective puts the vanishing point IN THE MIDDLE OF THE PICTURE —
+// the track, the corridor, the road running away from you. A point on the paper
+// is not a failure state, it is the most ordinary construction there is, and
+// refusing it forbade an entire class of drawing this app exists to make.
+//
+// The real limit is much smaller and is about arithmetic, not composition: a
+// guide has no direction when its point sits ON the corner it guides, and
+// scaling everything toward one spot would eventually put every point there.
+// So the only thing refused is a scale that collapses the points into the centre
+// they are being scaled about. Everything else is allowed.
+//
+// The clamp people actually feel near a close point is `tLimit` — a corner cannot
+// reach its own vanishing point, because that distance is infinity in the world
+// being drawn. That is correct wherever the point sits, and has nothing to do
+// with the paper.
+// The only true degeneracy: two points arriving at the same place. Then the two
+// guides through any corner are the same line, the corner is no longer defined by
+// a crossing, and the construction has nothing left to say. Distance from the
+// CENTRE is not the test — a lone point scaled all the way to the middle of the
+// paper is one-point perspective, and perfectly fine.
+const SPREAD_FLOOR = 0.02;   // of the paper's diagonal, between any two points
 
 export function scaleVpSpread(scene, k) {
   if (!Number.isFinite(k) || k <= 0) return { ok: false, reason: "that is not a scale" };
@@ -618,7 +639,7 @@ export function scaleVpSpread(scene, k) {
   }
   const { width: w, height: h } = scene.canvas;
   const cx = w / 2, cy = h / 2;
-  const mx = w * SPREAD_MARGIN, my = h * SPREAD_MARGIN;
+  const floor = Math.hypot(w, h) * SPREAD_FLOOR;
 
   // D45 — a point that sits ON the horizon STAYS on it. Scaling y as well as x
   // pulled horizon points off the line they define, so pressing Stronger slid the
@@ -630,11 +651,11 @@ export function scaleVpSpread(scene, k) {
     y: vp.onHorizon ? vp.y : cy + (vp.y - cy) * k,
   }));
 
-  // Refuse as a whole rather than moving some and stopping.
-  for (const n of next) {
-    const outside = n.x < -mx || n.x > w + mx || n.y < -my || n.y > h + my;
-    if (!outside) {
-      return { ok: false, reason: `any stronger and ${n.vp.label} would be on the paper, where it stops being a vanishing point` };
+  for (let i = 0; i < next.length; i++) {
+    for (let j = i + 1; j < next.length; j++) {
+      if (Math.hypot(next[i].x - next[j].x, next[i].y - next[j].y) < floor) {
+        return { ok: false, reason: `any stronger and ${next[i].vp.label} and ${next[j].vp.label} would be the same point, and two guides that are one line define no corner` };
+      }
     }
   }
   for (const n of next) { n.vp.x = n.x; n.vp.y = n.y; }
