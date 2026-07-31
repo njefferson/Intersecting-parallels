@@ -106,6 +106,38 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-07-30 — 1.8.0.** Ninth promote. `main`
+fast-forwarded `2c7a42f` -> `8e0f422`, no merge commit, remote diff empty
+afterwards. Two releases:
+
+- **1.7.3** — D46, and the most important thing in this promote: production had
+  been REFUSING ONE-POINT PERSPECTIVE since 1.7.2 went live an hour earlier. My
+  guard forbade a vanishing point on the paper and told the user in a toast that
+  it stopped being a vanishing point there. Noah: *"What the fuck do you think a
+  train track is?"* The only thing refused now is two points arriving at the same
+  place.
+- **1.8.0** — D47, the toolbar: 33 controls in four rows became 19 in two, and
+  the stage went from about two thirds of the window to **87%**.
+
+All four workflows verified green on `8e0f422` on `staging` BEFORE the merge and
+again on `main` after it. The record was held until every run on `main` reached
+`completed / success`, for the fifth promote running.
+
+Gates at 1.8.0: **154 unit tests**, a11y PASS (now including the Setup panel as
+its own surface), **149 walk checks**, 7 declared interactions with no gaps.
+
+**Worth carrying out of today.** Two classes of defect kept getting through every
+gate and being found by Noah in minutes:
+
+1. **A new capability silently invalidating an older amendment's assumption.**
+   D39's signed depths broke D37's stored walls; D42's dial broke three of D45's
+   assumptions about scale. Every gate stayed green because each amendment was
+   gated against itself.
+2. **The app stating a FACT about perspective that it had not been taught.**
+   D45's guard did not just have the wrong threshold, it asserted something false
+   about drawing, in a toast, to the person who knows. A limit is the app's to
+   set; a fact about the craft is not.
+
 **PROMOTED TO PRODUCTION 2026-07-30 — 1.7.2.** Eighth promote, and the first one
 that is purely defect repair — every line of it came from Noah's photographs of
 the build promoted an hour earlier. `main` fast-forwarded `7eff04a` -> `2c7a42f`,
