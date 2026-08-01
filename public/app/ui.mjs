@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure, buildRoom, axisPointCount,
+  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure, buildRoom, axisPointCount, buildStreet,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, buildRoof, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.12.5";
+const VERSION = "1.13.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -40,7 +40,7 @@ const el = {
   inspector: $("inspector"), horizonY: $("horizon-y"), toast: $("toast"), live: $("live"),
   touchFlag: $("touch-flag"), force: $("force"), build: $("build-stamp"),
   extrudeFlag: $("extrude-flag"), extrudeSay: $("extrude-say"), setup: $("setup"),
-  undo: $("undo"), redo: $("redo"),
+  undo: $("undo"), redo: $("redo"), streetBlocks: $("street-blocks"),
 };
 
 const ctx = el.canvas.getContext("2d");
@@ -1484,6 +1484,59 @@ function addRoom() {
   el.canvas.focus({ preventScroll: true });
   afterEdit(`Room drawn, running back to ${res.vp.label}. Turn on Solid to see the walls; move ${res.vp.label} to look somewhere else and the whole room follows.`);
 }
+// D61 — a street: buildings down both sides, crossroads, and the alleys behind.
+//
+// Noah, 2026-08-01: "buildings on both sides of a road with one point perspective
+// and alleys/crossroads all sound cool. Maybe draw a grid of lines that act as
+// streets and then plot them with buildings?" This is that, in one action — the
+// grid IS the streets, and the plots it makes are what the buildings stand on.
+//
+// The heights are a fixed pattern rather than a random one, and the zeroes in it
+// are deliberate: a zero leaves its plot open, which is what puts gaps between
+// the blocks. A random skyline would look livelier and would not be reproducible
+// — you could never get the same street back, and neither could a test.
+const SKYLINE = [3, 5, 0, 4, 6, 2, 4, 0, 5, 3, 7, 2];
+
+function addStreet() {
+  endExtrude(false);
+  const w = scene.canvas.width, h = scene.canvas.height;
+  const usable = scene.vanishingPoints.filter(v => !v.locked);
+  const onPaper = usable.filter(v => v.x > 0 && v.x < w && v.y > 0 && v.y < h);
+  if (!onPaper.length) {
+    toast("A street runs away from where you stand. Move a vanishing point onto the paper — that is the end of the road.", "error");
+    return;
+  }
+  // The point you are facing is the one nearest the middle of the page.
+  const mid = { x: w / 2, y: h / 2 };
+  const facing = onPaper.reduce((best, v) =>
+    Math.hypot(v.x - mid.x, v.y - mid.y) < Math.hypot(best.x - mid.x, best.y - mid.y) ? v : best);
+  const blocks = Math.max(1, Math.min(8, parseInt(el.streetBlocks?.value, 10) || 4));
+
+  // Where the near kerb goes, and how tall the blocks are, are ONE decision.
+  // Standing in a street, a building a few times your own height fills the sky —
+  // that is true, and drawn straight it puts every near building off the top of
+  // the page with nothing readable left. So the near kerb is placed a fair way
+  // down the page for depth, and then the whole skyline is scaled by the one
+  // factor that makes the tallest block land inside the paper. The blocks keep
+  // their proportions to each other; what changes is how far away you stand.
+  const ground = facing.y + Math.max(140, (h - facing.y) * 0.55);
+  const span = ground - facing.y;
+  const tallest = Math.max(...SKYLINE);
+  const k = span > 1 ? Math.min(1, (ground - h * 0.03) / (span * tallest)) : 1;
+  const storeys = SKYLINE.map(v => (v > 0 ? v * k : 0));
+
+  const at = { x: facing.x, y: Math.min(ground, h * 0.98) };
+  beginGesture(history, scene);
+  const res = buildStreet(scene, {
+    vpId: facing.id, at, width: Math.round(w * 0.26), block: Math.round(w * 0.22),
+    blocks, storeys,
+  });
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  selection = null;
+  el.canvas.focus({ preventScroll: true });
+  afterEdit(`Street drawn: ${blocks} block${blocks === 1 ? "" : "s"} running back to ${res.vp.label}, ${res.buildings.length} buildings and ${res.plots.length - res.buildings.length} open lots. Turn on Solid to mass them; drag ${res.vp.label} and the whole city turns.`);
+}
+
 // D53 — a roof on the last box drawn, or on the box the selection belongs to.
 // It needs a BOX rather than a point, because a gable is defined by the building
 // underneath it: the ridge runs along one of its axes and sits over its middle.
@@ -1519,6 +1572,7 @@ function addRoofToBox() {
 $("add-roof")?.addEventListener("click", addRoofToBox);
 
 $("add-room")?.addEventListener("click", addRoom);
+$("add-street")?.addEventListener("click", addStreet);
 
 $("add-cube")?.addEventListener("click", addCube);
 $("taller")?.addEventListener("click", () => stretchSolid(STRETCH));

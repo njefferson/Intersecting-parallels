@@ -1008,6 +1008,154 @@ export function addFigure(scene, { at, ratio = 1 }) {
 // moving the vanishing point re-forms the room instead of skewing it.
 const ROOM_MIN = 0.05, ROOM_MAX = 0.95;
 
+// D61 — a street. Buildings down both sides, crossroads, and the alleys behind.
+//
+// Noah, 2026-08-01: "buildings on both sides of a road with one point perspective
+// and alleys/crossroads all sound cool. Maybe draw a grid of lines that act as
+// streets and then plot them with buildings?"
+//
+// Nothing new is invented here. The whole thing is three amendments already in
+// the app, pointed at one construction:
+//
+//   D52's FRACTION — four rails start on the same near line and run to the same
+//   point, so at a shared fraction of the way there they all reach the same
+//   height on the page. That is what keeps every crossroad HORIZONTAL no matter
+//   where the point is dragged, and it is the far-wall-stays-a-rectangle argument
+//   with four rails instead of four corners.
+//
+//   D50's INTERVAL — the fractions themselves, so blocks are equally spaced in
+//   the world and crowd toward the point on the page.
+//
+//   D51's GAUGE — every building's height is a multiple of your own eye height,
+//   measured to the horizon from its own corner. Equal storeys therefore come out
+//   correctly foreshortened at every depth, and the roofline runs to the point
+//   without anyone aiming it there. Move the horizon and the city re-measures.
+//
+// The rails, from left to right: the back of the left block, the left kerb, the
+// right kerb, the back of the right block. The outer pair are the alleys.
+const STREET_MAX_BLOCKS = 8;
+
+export function buildStreet(scene, { vpId, at, width = 420, block = 300, blocks = 4, first = 0.17, storeys } = {}) {
+  if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.y)) return { ok: false, reason: "that is not a place to put a street" };
+  if (!(width > 1) || !(block > 1)) return { ok: false, reason: "a street needs a road and a block either side of it" };
+  const n = Math.max(1, Math.min(STREET_MAX_BLOCKS, Math.round(blocks)));
+  const vp = scene.vanishingPoints.find(v => v.id === vpId) ?? scene.vanishingPoints.find(v => !v.locked);
+  if (!vp) return { ok: false, reason: "a street needs a vanishing point to run away to — add one first" };
+  // D52's rule, and for the same reason: a point off to the side builds a road
+  // running PAST you rather than away from you. That is honest geometry and it is
+  // not a street you are standing in.
+  if (vp.x < 0 || vp.x > scene.canvas.width || vp.y < 0 || vp.y > scene.canvas.height) {
+    return { ok: false, reason: "a street runs away from where you stand — drag a vanishing point onto the paper first" };
+  }
+  if (!(Number.isFinite(first) && first > 0.01 && first < 0.6)) return { ok: false, reason: "that first block is not a distance" };
+
+  const made = { vertices: [], edges: [] };
+  const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
+  const E = (a2, b2, binding) => {
+    const r = addEdge(scene, { a: a2.id, b: b2.id, binding });
+    if (r.ok) made.edges.push(r.edge.id);
+    return r.ok;
+  };
+
+  // The fractions. depthAtInterval against a unit distance IS the fraction, so
+  // one formula serves the marks along a guide and the blocks along a street.
+  const fracs = [];
+  for (let j = 1; j <= n; j++) {
+    const f = depthAtInterval(1, first, j);
+    if (f === null || !(f > 0) || !(f < 1)) break;
+    fracs.push(f);
+  }
+  if (!fracs.length) return { ok: false, reason: "could not space the blocks" };
+
+  const half = width / 2;
+  const offsets = [-half - block, -half, half, half + block];
+  const rails = [];
+  for (const dx of offsets) {
+    const foot = V(addAnchor(scene, { x: at.x + dx, y: at.y }));
+    if (!foot) return { ok: false, reason: "could not lay the kerb" };
+    const along = [foot];
+    for (const f of fracs) {
+      const p = V(addRayVertex(scene, { origin: foot.id, binding: { vpId: vp.id }, t: 0 }));
+      if (!p) return { ok: false, reason: "could not run the street to the vanishing point" };
+      p.recede = f;                       // the shared fraction — this is the whole trick
+      along.push(p);
+    }
+    rails.push(along);
+  }
+
+  for (const along of rails) {
+    for (let j = 0; j + 1 < along.length; j++) E(along[j], along[j + 1], { vpId: vp.id });
+  }
+  // Crossroads. Every rail is at the same height at the same fraction, so these
+  // are horizontal and stay horizontal; the binding says so rather than the
+  // coordinates happening to agree.
+  for (let j = 0; j < rails[0].length; j++) {
+    for (let r = 0; r + 1 < rails.length; r++) E(rails[r][j], rails[r + 1][j], "horizontal");
+  }
+
+  // The plots: the strip behind each kerb, block by block. Rails 0-1 on the left,
+  // 2-3 on the right. The road itself (rails 1-2) is left empty, which is what
+  // makes it a road.
+  const plots = [];
+  for (const [a2, b2, side] of [[0, 1, "left"], [2, 3, "right"]]) {
+    for (let j = 0; j + 1 < rails[0].length; j++) {
+      plots.push({ side, block: j, corners: [rails[a2][j], rails[b2][j], rails[b2][j + 1], rails[a2][j + 1]] });
+    }
+  }
+
+  const built = [];
+  if (storeys && storeys.length) {
+    for (let i = 0; i < plots.length; i++) {
+      const h = storeys[i % storeys.length];
+      if (!(h > 0)) continue;                       // a zero is a gap — the alleys
+      const r = raiseBuilding(scene, plots[i], h, vp, made);
+      if (r) built.push(r);
+    }
+  }
+
+  solveScene(scene);
+  return { ok: true, ...made, vp, rails, fracs, plots, buildings: built };
+}
+
+// One building on one plot: a vertical from each ground corner, every one of them
+// a MULTIPLE OF EYE HEIGHT rather than a length, so the four come out to the right
+// foreshortened heights on their own and the roofline runs where it should.
+function raiseBuilding(scene, plot, storeys, vp, made) {
+  const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
+  const E = (a2, b2, binding) => {
+    const r = addEdge(scene, { a: a2.id, b: b2.id, binding });
+    if (r.ok) made.edges.push(r.edge.id);
+  };
+  const base = plot.corners;
+  const top = [];
+  for (const g of base) {
+    const t = V(addRayVertex(scene, { origin: g.id, binding: "vertical", t: -10 }));
+    if (!t) return null;
+    // POSITIVE, like a scale figure's ratio (D51). gaugeSpan is negative for a
+    // point below the horizon and the vertical guide points down the page, so a
+    // positive gauge is what sends the wall UP. Getting this backwards buried
+    // every building in the ground, and the first version of the tests could not
+    // see it because they measured height with Math.abs.
+    t.gauge = storeys;
+    top.push(t);
+  }
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    E(top[i], top[j], i % 2 === 0 ? "horizontal" : { vpId: vp.id });
+    E(base[i], top[i], "vertical");
+  }
+  const solid = `bldg${scene.nextId}`;
+  const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
+  F([base[0], base[1], base[2], base[3]], "bottom");
+  F([top[0], top[1], top[2], top[3]], "top");
+  // The wall facing the road and the wall facing you. Which is which depends on
+  // the side of the street, and that is known from the plot, not measured.
+  const streetSide = plot.side === "left" ? [1, 2] : [3, 0];
+  F([base[streetSide[0]], base[streetSide[1]], top[streetSide[1]], top[streetSide[0]]], "right");
+  F([base[0], base[1], top[1], top[0]], "left");
+  return { solid, base, top, storeys, side: plot.side };
+}
+
 export function buildRoom(scene, { at, width, height, vpId, depth = 0.6 }) {
   if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.y)) return { ok: false, reason: "that is not a place to put a room" };
   if (!(width > 1) || !(height > 1)) return { ok: false, reason: "a room needs a wall you can see" };

@@ -2479,6 +2479,84 @@ try {
     await jCtx.close();
   }
 
+  // D61 — a street, through the real control.
+  const stCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(stCtx);
+  const stPage = await stCtx.newPage();
+  stPage.on('pageerror', e => pageErrors.push(`street page: ${e}`));
+  await stPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await stPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await stPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+  });
+
+  const refusedStreet = await stPage.evaluate(() => {
+    document.getElementById('add-street').click();
+    return { verts: window.__ip.scene.vertices.length, said: document.getElementById('toast')?.textContent || '' };
+  });
+  check('a street with no point on the paper is refused, with the instruction (D61)',
+    refusedStreet.verts === 0 && /where you stand|onto the paper/i.test(refusedStreet.said),
+    `${refusedStreet.verts} corners, said "${refusedStreet.said.slice(0, 70)}"`);
+
+  await stPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const vp = s.vanishingPoints.find(v => !v.locked);
+    window.__ip.moveVp(vp.id, { x: s.canvas.width / 2, y: s.canvas.height * 0.42 });
+    document.getElementById('add-street').click();
+  });
+  await stPage.waitForTimeout(300);
+
+  const city = await stPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const rails = 4;
+    const bldgs = new Set((s.faces ?? []).filter(f => String(f.solid).startsWith('bldg')).map(f => f.solid));
+    // Crossroads are level: every rail reaches the same height at the same block.
+    const receders = s.vertices.filter(v => Number.isFinite(v.recede));
+    const byFrac = new Map();
+    for (const v of receders) {
+      const k = v.recede.toFixed(6);
+      byFrac.set(k, (byFrac.get(k) || []).concat(v.y));
+    }
+    let worstTilt = 0;
+    for (const ys of byFrac.values()) worstTilt = Math.max(worstTilt, Math.max(...ys) - Math.min(...ys));
+    return {
+      buildings: bldgs.size, rails, crossroads: byFrac.size,
+      perCrossroad: [...byFrac.values()].map(v => v.length),
+      worstTilt: +worstTilt.toFixed(6),
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+      degenerate: s.vertices.filter(v => v.degenerate).length,
+    };
+  });
+  check('a street lays crossroads that are level, and buildings on the plots (D61)',
+    city.buildings >= 4 && city.crossroads === 4 && city.perCrossroad.every(n => n === 4)
+      && city.worstTilt < 1e-6 && city.finite && city.degenerate === 0,
+    JSON.stringify(city));
+
+  // The whole point of the app: drag the point and the city turns, still level.
+  const turnedCity = await stPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const vp = s.vanishingPoints.find(v => !v.locked);
+    let worstTilt = 0, moved = 0;
+    for (const p of [{ x: 300, y: 300 }, { x: 1100, y: 700 }, { x: 800, y: 200 }]) {
+      const before = s.vertices.map(v => v.x);
+      window.__ip.moveVp(vp.id, p);
+      await new Promise(r => requestAnimationFrame(r));
+      if (s.vertices.some((v, i) => Math.abs(v.x - before[i]) > 1)) moved++;
+      const byFrac = new Map();
+      for (const v of s.vertices.filter(x => Number.isFinite(x.recede))) {
+        const k = v.recede.toFixed(6);
+        byFrac.set(k, (byFrac.get(k) || []).concat(v.y));
+      }
+      for (const ys of byFrac.values()) worstTilt = Math.max(worstTilt, Math.max(...ys) - Math.min(...ys));
+    }
+    return { moved, worstTilt: +worstTilt.toFixed(6),
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)) };
+  });
+  check('drag the point and the whole city turns, crossroads still level (D61)',
+    turnedCity.moved === 3 && turnedCity.worstTilt < 1e-6 && turnedCity.finite,
+    JSON.stringify(turnedCity));
+  await stCtx.close();
+
   // D47 — the toolbar cleanup. The bar must stay SHORT, everything that moved
   // must still be reachable, and neither panel may be covered by a point marker.
   const barCtx = await browser.newContext({ viewport: { width: 1180, height: 820 }, colorScheme: 'light' });

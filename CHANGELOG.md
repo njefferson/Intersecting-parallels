@@ -8,6 +8,29 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.13.0 — CAPABILITY · 2026-08-01
+
+**A street — buildings down both sides, crossroads, and the alleys behind.**
+
+- Setup, under *Build*: choose how many blocks and press **Street**. You get the
+  road running away to the point you are facing, a crossroad at every block, the
+  line behind each block that is its alley, and buildings standing on the plots
+  between them. Some plots are left open on purpose — that is what puts gaps
+  between the blocks.
+- **Every crossroad stays level** however far you drag the vanishing point. The
+  four street lines hold *how far along they are*, not how long they are, so they
+  all reach the same height at the same block — which is what makes a crossroad
+  horizontal rather than something that has to be straightened afterwards.
+- **The blocks are equally spaced in the world, not on the paper** — each one
+  shallower than the last, crowding toward the point without ever reaching it.
+- **Every building is a multiple of your own eye height**, measured to the horizon
+  from its own corner. So the same building comes out correctly smaller further
+  down the street, the rooflines run to the point without being aimed there, and
+  moving the horizon re-measures the whole city.
+- Drag the vanishing point and the entire street turns with it.
+
+---
+
 ## 1.12.5 — ITERATION · 2026-08-01
 
 **The house stops tangling.**

@@ -830,6 +830,57 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D61 — a street (SHIPPED 1.13.0, staging)
+
+Noah, 2026-08-01: *"buildings on both sides of a road with one point perspective
+and alleys/crossroads all sound cool. Maybe draw a grid of lines that act as
+streets and then plot them with buildings?"* — and that last sentence is the
+design. The grid IS the streets; the plots it makes are what the buildings stand
+on.
+
+**Nothing new was invented.** It is three amendments already in the app pointed at
+one construction, which is the strongest sign the earlier ones were right:
+
+- **D52's fraction.** Four rails start on the same near line and run to the same
+  point, so at a shared fraction of the way there they all reach the same height
+  on the page. That is what keeps every crossroad horizontal — the same argument
+  that keeps a room's far wall a rectangle, with four rails instead of four
+  corners. Nothing is straightened afterwards.
+- **D50's interval.** `depthAtInterval` against a unit distance IS the fraction,
+  so one formula serves marks along a guide and blocks along a street.
+- **D51's gauge.** Every building's height is a multiple of eye height measured to
+  the horizon from its own corner, so equal storeys foreshorten correctly at every
+  depth, rooflines run to the point without being aimed there, and moving the
+  horizon re-measures the city.
+
+**Two things the tests could not see, and a screenshot could.**
+
+1. **The gauge sign was inverted** and the whole city was built downward into the
+   ground. Every ratio came out exactly right — a wall of the correct length
+   pointing the wrong way is still the correct length — because the tests measured
+   height with `Math.abs`. Nine unit tests, all green, all blind to it. Rendering
+   it once and looking made it obvious in a second. The tests are signed now and
+   assert upward first.
+2. **The defaults were unusable even when correct.** Standing in a street, a
+   building a few times your own height genuinely fills the sky, so drawn straight
+   every near block ran off the top of the page with nothing readable left. That
+   is not a geometry bug and there was nothing to fix in the solver; the near kerb
+   and the skyline are now ONE decision, scaled by the single factor that lands the
+   tallest block inside the paper. The blocks keep their proportions; what changes
+   is how far away you are standing.
+
+**And one check that could not fail, caught by planting.** "Blocks crowd toward
+the point" was written as `far < near + 1e-9`, which admits `far === near` — and
+equal spacing is exactly what naive fractions give, because a fraction of the way
+to a point is LINEAR in page height. A plant replacing the interval formula with
+`first * j` passed every test in the file. It is `far < near * 0.97` now, plus a
+direct assertion that the fractions themselves are sublinear.
+
+That is the fourth empty check this session, and the second whose emptiness came
+from a tolerance admitting the degenerate case rather than from a filter matching
+nothing. Worth naming as its own shape: **a tolerance wide enough to admit the
+null hypothesis is not a tolerance, it is the absence of a test.**
+
 ### D60 — a divider holds a FRACTION, and depends on what it divides (SHIPPED 1.12.5, staging)
 
 Noah's IMG_1361/1362: the house pulled into a crossed tangle when a corner was
