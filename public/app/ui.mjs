@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.14.0";
+const VERSION = "1.15.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1568,9 +1568,12 @@ function addRoofToBox() {
     const owner = boxes.find(f => f.loop.includes(selection.id));
     if (owner) solid = owner.solid;
   }
-  // Recover the box's corners from its two stored rings (D44's contract).
+  // Recover the box's corners from its rings. D63 stores six faces, and the
+  // BOTTOM one is wound the opposite way to the top so the solid closes — so it
+  // has to be reversed back before it can be read as a ring in the top's order.
+  // Reading it raw silently produced a mirrored corner set and no roof at all.
   const ring = sh => (scene.faces ?? []).find(f => f.solid === solid && f.shade === sh)?.loop ?? [];
-  const b = ring("bottom").map(id => scene.vertices.find(v => v.id === id));
+  const b = [...ring("bottom")].reverse().map(id => scene.vertices.find(v => v.id === id));
   const t = ring("top").map(id => scene.vertices.find(v => v.id === id));
   if (b.length !== 4 || t.length !== 4 || [...b, ...t].some(v => !v)) {
     toast("That box is missing corners a roof would need", "error");

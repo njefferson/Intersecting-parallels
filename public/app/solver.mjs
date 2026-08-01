@@ -121,6 +121,41 @@ export function migrateScene(raw) {
 // unit circle through the same transform and you have the ellipse the camera
 // would have produced — tangent to all four sides at their PERSPECTIVE midpoints,
 // which is the property the eight-point construction is trying to approximate.
+// D63 — orient a whole solid's faces once, at BUILD time.
+//
+// Every builder makes its rings in whatever order its own construction produced,
+// and those orders do not agree with each other: a box's base ring runs
+// [near, left, back, right], a street plot's runs across the block and back. Both
+// are perfectly good rings, and a face scheme applied to them comes out wound
+// outward for one and inward for the other. Hand-flipping each builder is how you
+// get five conventions and a bug per builder.
+//
+// So the winding is NORMALISED here instead, once, from the solid's own geometry:
+// take any cap, and if it is wound the wrong way for our convention, reverse every
+// face of the solid. `inward` asks for the opposite, which is what an interior is.
+// This is a build-time fact about the construction, never recomputed per frame.
+export function orientSolid(scene, solid, { cap, inward = false } = {}) {
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  const area = loop => {
+    let a = 0;
+    for (let i = 0; i < loop.length; i++) {
+      const p = byId.get(loop[i]), q = byId.get(loop[(i + 1) % loop.length]);
+      if (!p || !q || !Number.isFinite(p.x) || !Number.isFinite(q.x)) return null;
+      a += p.x * q.y - q.x * p.y;
+    }
+    return a / 2;
+  };
+  const faces = scene.faces.filter(f => f.solid === solid);
+  const ref = cap ? faces.find(f => f.shade === cap) : faces[0];
+  if (!ref) return false;
+  const a = area(ref.loop);
+  if (a === null || Math.abs(a) < 1e-9) return false;    // edge-on: nothing to learn
+  const wantPositive = !inward;
+  if ((a > 0) === wantPositive) return false;            // already right way round
+  for (const f of faces) f.loop.reverse();
+  return true;
+}
+
 export function addCircle(scene, { quad, label }) {
   if (!Array.isArray(quad) || quad.length !== 4) return { ok: false, reason: "a circle is inscribed in four corners" };
   const seen = new Set(quad);
@@ -1211,11 +1246,26 @@ export function buildStreet(scene, { vpId, at, width = 420, block = 300, blocks 
 // foreshortened heights on their own and the roofline runs where it should.
 function raiseBuilding(scene, plot, storeys, vp, made) {
   const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
+  // D63 — make the ground ring's ROTATIONAL SENSE canonical before anything is
+  // built on it. A street plot is [railA@j, railB@j, railB@j+1, railA@j+1], which
+  // goes round the opposite way to a box's [near, left, back, right]; feed that to
+  // the box's face scheme and every face comes out inside out. This is not a
+  // winding to be flipped afterwards — orientSolid cannot see it, because the set
+  // it produces is internally consistent and simply faces the wrong way as a
+  // whole. Fixing the RING is the one place that ends it for good.
+  const ringArea = pts => {
+    let a2 = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      a2 += p.x * q.y - q.x * p.y;
+    }
+    return a2 / 2;
+  };
   const E = (a2, b2, binding) => {
     const r = addEdge(scene, { a: a2.id, b: b2.id, binding });
     if (r.ok) made.edges.push(r.edge.id);
   };
-  const base = plot.corners;
+  const base = ringArea(plot.corners) < 0 ? [...plot.corners].reverse() : plot.corners;
   const top = [];
   for (const g of base) {
     const t = V(addRayVertex(scene, { origin: g.id, binding: "vertical", t: -10 }));
@@ -1233,15 +1283,23 @@ function raiseBuilding(scene, plot, storeys, vp, made) {
     E(top[i], top[j], i % 2 === 0 ? "horizontal" : { vpId: vp.id });
     E(base[i], top[i], "vertical");
   }
+  // D63 — all six, wound like a box's. Which walls you can see is the winding's
+  // business now, so a building no longer has to be told which side of the road
+  // it is on: the projection already knows.
   const solid = `bldg${scene.nextId}`;
   const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
-  F([base[0], base[1], base[2], base[3]], "bottom");
-  F([top[0], top[1], top[2], top[3]], "top");
-  // The wall facing the road and the wall facing you. Which is which depends on
-  // the side of the street, and that is known from the plot, not measured.
-  const streetSide = plot.side === "left" ? [1, 2] : [3, 0];
-  F([base[streetSide[0]], base[streetSide[1]], top[streetSide[1]], top[streetSide[0]]], "right");
-  F([base[0], base[1], top[1], top[0]], "left");
+  const wallShade = ["near", "left", "back", "right"];
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    F([base[i], base[j], top[j], top[i]], wallShade[i]);
+  }
+  F(top, "top");
+  F([...base].reverse(), "bottom");
+  // Orient from the TOP cap: a building stands on the ground, so its top is the
+  // horizontal face you can see and its underside is the one that must cull.
+  // The ring is canonical now, so the faces are already right way out. This is
+  // kept as the backstop for a plot so foreshortened its ring reads as zero area.
+  orientSolid(scene, solid, { cap: "top" });
   return { solid, base, top, storeys, side: plot.side };
 }
 
@@ -1294,13 +1352,18 @@ export function buildRoom(scene, { at, width, height, vpId, depth = 0.6 }) {
 
   // Five surfaces, and every one of them faces you. That is what being inside
   // means, and it is why a room needs its own face set rather than the box's.
+  // D63 — the SAME scheme a box uses, then every loop REVERSED. A room is a box
+  // you are inside, so its faces face inward; reversing is the whole difference,
+  // and it means one rule culls both. The old set was wound four different ways
+  // and only worked because visibleFaces had a special case for interiors.
   const solid = `room${scene.nextId}`;
-  const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
+  const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id).reverse(), solid, shade });
+  const wallShade = ["bottom", "right", "top", "left"];   // near ring is [bl, br, tr, tl]
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    F([near[i], near[j], far[j], far[i]], wallShade[i]);
+  }
   F(far, "back");
-  F([near[0], near[1], far[1], far[0]], "bottom");   // floor
-  F([near[3], near[2], far[2], far[3]], "top");      // ceiling
-  F([near[0], near[3], far[3], far[0]], "left");
-  F([near[1], near[2], far[2], far[1]], "right");
 
   solveScene(scene);
   return { ok: true, ...made, solid, vp, recede, near, far };

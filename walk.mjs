@@ -1307,7 +1307,7 @@ try {
     };
   });
   check('one cube, equal on every axis, both rings stored (D37 setup)',
-    built.edges === 12 && built.faces === 2 && built.depths[0] === built.depths[1],
+    built.edges === 12 && built.faces === 6 && built.depths[0] === built.depths[1],   // D63: six faces, not two rings
     JSON.stringify(built));
 
   const wireframe = await faceCounts();
@@ -1337,9 +1337,19 @@ try {
   // eye-level line is a drawn reference that coincides with it when the points
   // are level. These checks moved the reference and expected the drawing to
   // follow, which was the old rule and is the defect Noah photographed.
+  // Through moveVp, which RE-SOLVES. This used to poke `vp.y` on the scene object
+  // and never solve, which worked only because the old rule read the vanishing
+  // points live at draw time: move the points, and the answer changed without any
+  // corner having moved. Under D63 visibility comes from where the corners
+  // actually are, so a fixture that never re-solves is asserting nothing — the
+  // box stays exactly where it was and every winding with it. That is what looked
+  // like the solver and the renderer disagreeing about the same box; they never
+  // did, the box had simply not been re-solved.
   const setHorizon = async y => {
     await nodragPage.evaluate(v => {
-      for (const vp of window.__ip.scene.vanishingPoints) if (vp.onHorizon) vp.y = v;
+      for (const vp of window.__ip.scene.vanishingPoints.filter(p => p.onHorizon)) {
+        window.__ip.moveVp(vp.id, { x: vp.x, y: v });
+      }
       window.__ip.select(null);
     }, y);
     await nodragPage.waitForTimeout(160);
@@ -1580,7 +1590,7 @@ try {
     return { edges: s.edges.length, faces: s.faces.length, height: Math.round(Math.abs(riser.t)), depths };
   });
   check('Add cube builds a box equal along all three guides (D42)',
-    cube.edges === 12 && cube.faces === 2 && cube.depths.every(d => d === cube.height),
+    cube.edges === 12 && cube.faces === 6 && cube.depths.every(d => d === cube.height),   // D63
     `height ${cube.height}, depths ${JSON.stringify(cube.depths)}`);
 
   await tapSetup(cPg, 'taller');
@@ -1860,7 +1870,7 @@ try {
     const p = f.loop.map(id => byId.get(id));
     const midY = p.reduce((m, v) => m + v.y, 0) / p.length;
     // Horizon ABOVE the top face, eye level BELOW it: the two disagree.
-    for (const vp of s.vanishingPoints) if (vp.onHorizon) vp.y = midY - 80;
+    for (const vp of s.vanishingPoints.filter(v => v.onHorizon)) window.__ip.moveVp(vp.id, { x: vp.x, y: midY - 80 });
     document.getElementById('horizon-y').value = String(Math.round(midY + 80));
     document.getElementById('horizon-y').dispatchEvent(new Event('change'));
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -1881,7 +1891,7 @@ try {
     const byId = new Map(s.vertices.map(v => [v.id, v]));
     const p = f.loop.map(id => byId.get(id));
     const midY = p.reduce((m, v) => m + v.y, 0) / p.length;
-    for (const vp of s.vanishingPoints) if (vp.onHorizon) vp.y = midY + 80;   // now BELOW the face
+    for (const vp of s.vanishingPoints.filter(v => v.onHorizon)) window.__ip.moveVp(vp.id, { x: vp.x, y: midY + 80 });   // now BELOW the face
     window.__ip.select(null);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const c = document.getElementById('canvas');
@@ -1895,7 +1905,14 @@ try {
     }
     return { top, bottom, eye: s.eyeLevel.y };
   });
-  check('in the band where eye level and the horizon disagree, the HORIZON decides (D49)',
+  // D63 — restated, not deleted. The claim was "the horizon decides, not the
+  // authored eye-level line", and under winding NOTHING consults either: moving
+  // the points moves the corners, the corners change the winding, and the winding
+  // decides. What the check is really pinning is that the visible cap follows the
+  // POINTS and is indifferent to the eye-level line, and that is still exactly
+  // the thing worth holding. Both halves used to poke vp.y without re-solving,
+  // which is why they reported the same number twice.
+  check('the visible cap follows the POINTS, and eye level has no say in it (D63)',
     band.top > 20 && flipped.top < 20,
     `horizon above the face: top ${band.top}px; horizon moved below it: top ${flipped.top}px — and eye level never moved from ${flipped.eye}`);
   await hzCtx.close();
@@ -2246,7 +2263,7 @@ try {
     };
   });
   check('a roof brings two slope points, on the vertical through their axis point (D53)',
-    roofed.slopes === 2 && roofed.onVertical && roofed.straddle && roofed.roofFaces === 2
+    roofed.slopes === 2 && roofed.onVertical && roofed.straddle && roofed.roofFaces === 5   // D63: closed prism — two slopes, two gable ends, an underside
       && roofed.finite && roofed.degenerate === 0,
     JSON.stringify(roofed));
 
@@ -2297,7 +2314,7 @@ try {
   const shadedUp = await rfPage.evaluate(countShades);
   const gainedUp = { left: shadedUp.left - wallsUp.left, right: shadedUp.right - wallsUp.right };
   check('a roof over your head shows its underside, not its slopes (D54)',
-    overhead.faces === 2 && overhead.aboveHorizon
+    overhead.faces === 5 && overhead.aboveHorizon
       && Math.abs(gainedUp.left) < 500 && Math.abs(gainedUp.right) < 500,
     `${overhead.faces} roof planes stored, all above the horizon: ${overhead.aboveHorizon}, painting ${gainedUp.left}/${gainedUp.right}px onto walls of ${wallsUp.left}/${wallsUp.right}`);
 
