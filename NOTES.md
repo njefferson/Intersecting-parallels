@@ -106,6 +106,38 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-08-01 — 1.13.0.** Thirteenth promote. `main`
+fast-forwarded `b238b74` -> `731a8ed`, no merge commit, remote diff against
+`staging` empty afterwards.
+
+- **1.13.0** — D61, the street: buildings down both sides, crossroads, alleys.
+  Built entirely out of D50, D51 and D52 pointed at one construction, which is
+  the strongest evidence yet that those three were right. Two faults nine green
+  unit tests could not see and one screenshot could: the gauge sign inverted (the
+  whole city built downward into the ground, every ratio exactly correct because
+  `Math.abs` hid the direction) and defaults that were unusable while being
+  geometrically perfect.
+- Doctrine §4 gained three rules earned this week — a control must not move when
+  used, no two controls answer to the same name, and the way in costs what the
+  way out costs. Two never-reproduced reports were closed at Noah's instruction,
+  and the a11y gate stopped asking a question §4 had already answered on
+  2026-07-30.
+
+All four workflows verified `completed / success` on `731a8ed` on `main`, read
+back from the API; the record was held until every one finished, for the ninth
+promote running.
+
+Gates at 1.13.0: **214 unit tests**, **182 walk checks**, a11y PASS, 7 declared
+interactions with no gaps.
+
+**Four empty checks in one day.** The roof shading counting walls; the eye-level
+rule measuring two poses and then an off-page fixture; D60's divider loop finding
+nothing once the fraction was gone; and D61's crowding test with a tolerance that
+admitted equal spacing. Not one was found by running the gates. All four were
+found by planting the fault. Two distinct shapes, both worth recognising on
+sight: **a filter that matches nothing reports a clean result**, and **a tolerance
+wide enough to admit the null hypothesis is the absence of a test.**
+
 **PROMOTED TO PRODUCTION 2026-08-01 — 1.12.5.** Twelfth promote. Noah said
 **"Promote - anything left?"** and `main` fast-forwarded `764e80f` -> `c0a2022`,
 no merge commit, remote diff against `staging` empty afterwards. Five iterations,
