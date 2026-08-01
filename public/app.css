@@ -69,9 +69,24 @@ button,select,input[type="number"],input[type="text"]{font:inherit;font-size:var
 .btn:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
 .btn[disabled]{opacity:.45;cursor:default}
 /* Selected state is a filled chip WITH a tick — the accepted filter-chip
-   pattern (hub LESSONS 6), never hue alone. */
+   pattern (hub LESSONS 6), never hue alone.
+
+   D55 — the tick's SPACE is reserved on every toggle, whether it is showing or
+   not, and only its VISIBILITY changes. Noah, 2026-08-01: "Buttons move when
+   used." A tick that appears on press makes the button wider on press, and in a
+   wrapping row that reflows everything after it — tapping Solid pushed Hidden
+   lines onto the next line and slid Eye level down a row, so the next tap landed
+   on a control the finger had not aimed at. The width is set explicitly rather
+   than left to the glyph, so it cannot drift with the font. */
+.btn[aria-pressed]::before{
+  content:"✓";
+  font-weight:700;
+  width:.75em;
+  text-align:center;
+  visibility:hidden;
+}
 .btn[aria-pressed="true"]{background:var(--slate);border-color:var(--slate);color:var(--bg)}
-.btn[aria-pressed="true"]::before{content:"✓ ";font-weight:700}
+.btn[aria-pressed="true"]::before{visibility:visible}
 .btn.danger{border-color:var(--danger);color:var(--danger)}
 /* An ARMED destructive button. Meaning never rides on hue (Doctrine §4), so the
    armed state is carried by weight and a doubled border as well as colour, and it

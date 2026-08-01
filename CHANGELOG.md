@@ -8,6 +8,22 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.12.1 — ITERATION · 2026-08-01
+
+**Buttons stop moving when you use them.**
+
+- Switching a setting on made its button wider, because the tick appeared only
+  once the button was on. In a panel where the buttons wrap onto several lines
+  that pushed everything after it along — turn on **Solid** and *Hidden lines*
+  jumped to the next line, *Eye level* dropped a row, and the four **While
+  drawing** buttons all moved down with them. If your finger was already on its
+  way to one of those, it landed on something else.
+- The tick's space is now always there, showing or not, so nothing changes size
+  and nothing moves. The tick itself stays: it is what tells you a setting is on
+  without relying on the colour.
+
+---
+
 ## 1.12.0 — CAPABILITY · 2026-08-01
 
 **A roof — the first thing in the app that is not level and not upright.**

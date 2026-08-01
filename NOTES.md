@@ -793,6 +793,40 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D55 — a control must not move when you use it (SHIPPED 1.12.1, staging)
+
+Noah, 2026-08-01, with two screenshots of the same panel: **"Buttons move when
+used."**
+
+The selected state is a filled chip WITH a tick, never hue alone (hub LESSONS 6,
+Doctrine §4). The tick was drawn by `.btn[aria-pressed="true"]::before`, so it
+existed only while the button was on — and a pseudo-element that appears makes
+the button WIDER the moment it is pressed. `.setup-row` wraps. Turn on Solid and
+Hidden lines is pushed off the first line, Eye level drops a row, and the four
+While-drawing toggles move down with them. A finger already travelling toward one
+of those lands on a different control.
+
+The fix is to reserve the tick's space on every toggle and change only its
+`visibility`. The tick stays — it is the non-colour signal and removing it would
+have traded an accessibility rule for a layout one. Its width is set explicitly
+rather than left to the glyph, so it cannot drift with the font.
+
+**The check needed two text sizes, and finding that out was the work.** At
+default text the panel is 320px and the rows have slack, so pressing a button
+changes its own width by 18px and moves NOTHING else. A gate written only there
+would have measured the cause and missed the whole reported symptom. At 200% text
+the panel is 640px, the rows are full, and the same press moves eight other
+controls — `show-hidden` 370px left and 100px down, `eye-level` 280px left, every
+While-drawing toggle a row lower. Both cases are asserted now, and both were made
+to fail against the exact pre-fix CSS before either was believed.
+
+Two plants were wrong before the third was right, which is itself worth keeping:
+`display:none` on the reserved slot removed the tick in BOTH states, so nothing
+moved and the check passed while the accessibility signal was gone; and setting
+`content:""` left `width:.75em` reserving the space anyway. A plant that does not
+reproduce the original defect proves nothing about the check — it has to be the
+real thing, and here that meant restoring the exact two lines that shipped.
+
 ### D53 / D54 — the roof, and what planting found under it (SHIPPED 1.12.0, staging)
 
 A house needs a roof, and a roof is the first thing in this app that is neither

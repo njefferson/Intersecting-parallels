@@ -2320,6 +2320,82 @@ try {
     turned.followed && turned.moved && turned.finite, JSON.stringify(turned));
   await rfCtx.close();
 
+  // D55 — pressing a toggle must not MOVE anything, including itself.
+  //
+  // Noah, 2026-08-01, with two screenshots of the same panel: "Buttons move when
+  // used." The tick was drawn only in the pressed state, so a button got wider
+  // the moment it was switched on, and .setup-row wraps — tapping Solid pushed
+  // Hidden lines onto the next line and slid Eye level down a row, under a
+  // finger already on its way to where they used to be.
+  //
+  // Run at TWO text sizes, because they catch different halves of it. At default
+  // text only the pressed button changes width; nothing else has to move, so a
+  // check run there alone would report 18px and miss the reflow entirely. At
+  // 200% the panel is wide enough for the rows to be full, and the same 37px
+  // cascades into eight other controls — show-hidden 370px left and 100px down,
+  // eye-level 280px left, every While-drawing toggle a row lower. That second
+  // case IS the report; the first is the cause. Both are asserted.
+  for (const [label, vp, textScale] of [
+    ['1180x820', { width: 1180, height: 820 }, 1],
+    ['834x1194 at 200% text', { width: 834, height: 1194 }, 2],
+  ]) {
+    const jCtx = await browser.newContext({ viewport: vp, colorScheme: 'light' });
+    await seenWelcome(jCtx);
+    if (textScale !== 1) {
+      await jCtx.addInitScript(k => {
+        document.addEventListener('DOMContentLoaded', () => {
+          document.documentElement.style.fontSize = `${16 * k}px`;
+        });
+      }, textScale);
+    }
+    const jPage = await jCtx.newPage();
+    jPage.on('pageerror', e => pageErrors.push(`jump page ${label}: ${e}`));
+    await jPage.goto(origin + '/', { waitUntil: 'networkidle' });
+    await jPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+
+    const jump = await jPage.evaluate(async () => {
+      if (document.getElementById('setup').dataset.on !== 'true') document.getElementById('show-setup').click();
+      await new Promise(r => requestAnimationFrame(r));
+      const geom = () => {
+        const out = {};
+        for (const b of document.querySelectorAll('#setup .btn[aria-pressed]')) {
+          const r = b.getBoundingClientRect();
+          out[b.id] = [Math.round(r.x), Math.round(r.y), Math.round(r.width)];
+        }
+        return out;
+      };
+      // Assert the FIXTURE: if the panel is shut or empty every rect is zero and
+      // every difference is zero, which reads exactly like a pass.
+      const present = Object.keys(geom()).length;
+      const worst = { id: null, dx: 0, dy: 0, dw: 0 };
+      for (const id of ['solid', 'show-hidden', 'rays', 'grid', 'eye-level', 'assist', 'snap45', 'weld', 'touch-draws']) {
+        const b = document.getElementById(id);
+        if (!b) continue;
+        const before = geom();
+        b.click();
+        await new Promise(r => requestAnimationFrame(r));
+        const after = geom();
+        for (const k of Object.keys(before)) {
+          if (!after[k]) continue;
+          const dx = Math.abs(after[k][0] - before[k][0]);
+          const dy = Math.abs(after[k][1] - before[k][1]);
+          const dw = Math.abs(after[k][2] - before[k][2]);
+          if (dx + dy + dw > worst.dx + worst.dy + worst.dw) {
+            Object.assign(worst, { id: `${id} moved ${k}`, dx, dy, dw });
+          }
+        }
+        b.click();                                  // put it back the way it was
+        await new Promise(r => requestAnimationFrame(r));
+      }
+      return { ...worst, present, wide: Math.round(document.getElementById('setup').getBoundingClientRect().width) };
+    });
+    check(`pressing a toggle moves nothing on the panel — not even itself (D55, ${label})`,
+      jump.present >= 9 && jump.dx === 0 && jump.dy === 0 && jump.dw === 0,
+      jump.id ? `worst: ${jump.id} by ${jump.dx}/${jump.dy}px and ${jump.dw}px of width`
+              : `${jump.present} toggles in a ${jump.wide}px panel, none shifted anything`);
+    await jCtx.close();
+  }
+
   // D47 — the toolbar cleanup. The bar must stay SHORT, everything that moved
   // must still be reachable, and neither panel may be covered by a point marker.
   const barCtx = await browser.newContext({ viewport: { width: 1180, height: 820 }, colorScheme: 'light' });
