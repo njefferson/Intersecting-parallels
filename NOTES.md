@@ -106,6 +106,37 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-08-01 — 1.12.0.** Eleventh promote. Noah said
+**"Promote"** and `main` fast-forwarded `8179687` -> `9fab6af`, no merge commit;
+the remote diff between `main` and `staging` is empty afterwards, checked rather
+than assumed. Two commits: the release, and the 1.11.0 record that had been
+written on `staging` because `main` is fast-forward-only — so that record reaches
+production here, exactly as it said it would.
+
+- **1.12.0** — D53, the roof: the first thing in the app that is neither level
+  nor upright. A set of parallel slopes gets a vanishing point of its own on the
+  vertical through the point the walls below it run to, which is what makes a
+  roof drawable rather than guessable.
+- **D54**, which is not a feature. Two defects found only by planting faults, and
+  both were sitting behind checks that had been green since the day they were
+  written. The roof's planes were never being drawn at all; the check said
+  otherwise because it counted total shaded pixels and the walls alone cleared
+  its bar. Then the check written to cover the FIX turned out to be empty twice
+  in a row. Full account in the D53/D54 amendment, and the cross-app version is
+  now hub LESSONS **7g**.
+- The toolbar cap held. The roof's button took the bar to 21 against D47's 20,
+  and the generators moved into Setup rather than the number moving.
+
+All four workflows verified `completed / success` on `9fab6af` on `main`, read
+back from the API; the record was held until every one of them finished, for the
+seventh promote running. The sandbox still cannot reach pages.dev, so the deploy
+run is the evidence and Noah's on-screen version stamp closes the gap.
+
+Gates at 1.12.0: **201 unit tests**, **174 walk checks**, a11y PASS, 7 declared
+interactions with no gaps. Every check added this release was made to fail
+against a planted fault before it was believed — which this time was not a
+formality, because two of them could not.
+
 **PROMOTED TO PRODUCTION 2026-08-01 — 1.11.0.** Tenth promote, and the largest
 by content: `main` fast-forwarded `928f1d7` -> `8179687` in a single push, no
 merge commit, carrying **four releases** that had been stacked on `staging`
