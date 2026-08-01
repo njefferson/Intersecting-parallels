@@ -401,8 +401,14 @@ console.log(`surfaces: ${STATE_COUNT} x themes: ${THEMES.length} x viewports: ${
 if (exemptions.size) {
   console.log(`\nEXEMPTED (${exemptions.size}) — reported, never silent:`);
   for (const e of exemptions) console.log('  · ' + e);
-  console.log('  §4 states ">= 44px" flatly; WCAG 2.2 SC 2.5.8 exempts inline targets.');
-  console.log('  Noah rules on whether §4 should carry that exception explicitly.');
+  // §4 CARRIES this exception in its own words now (hub DOCTRINE.md, ruled by
+  // Noah 2026-07-30): targets are >= 44px except one inline in a sentence, whose
+  // height the surrounding line constrains, "and the gate applies that exception
+  // and PRINTS every element it applied it to, never silently". So this list is
+  // the doctrine being obeyed, not a question waiting on an answer — which is
+  // what it used to say for two days after the answer arrived.
+  console.log('  §4: >= 44px EXCEPT a target inline in a sentence (WCAG 2.2 SC 2.5.8).');
+  console.log('  §4 requires every application of that exception to be printed. Above is that list.');
 }
 if (failures.length) {
   console.log(`\nFAILURES (${failures.length}):`);

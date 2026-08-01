@@ -2310,6 +2310,28 @@ long before the manifest exists. *(Deploy pipeline already live from bootstrap.)
 
 ---
 
+## Closed by Noah, 2026-08-01 — do not re-open, do not re-ask
+
+Two long-standing reports that were never reproduced. **Noah: "You can forget
+these two."** They are dropped as findings; the investigation notes stay in the
+D45 entry and the 1.7.0 record because what was tried is worth keeping, but
+neither is outstanding and neither should appear in a status list again.
+
+- *"Placed a cube with the button, and it is only manipulatable with the
+  out-of-sight corners"* (reported 2026-07-30, never reproduced headlessly).
+- The Weld preference desyncing from its button on reload (P2, 2026-07-29).
+
+Also closed and NOT an open question: §4's flat ">= 44px" versus WCAG 2.2 SC
+2.5.8's inline exception. §4 has carried the exception in its own words since
+2026-07-30 (hub `0ada0b7`), and the a11y gate spent two days printing a question
+that had already been answered. It cites §4 now and prints the list §4 requires
+it to print. §4 also gained three rules earned here this week — a control must
+not move when used, no two controls answer to the same name, and the way in
+costs what the way out costs.
+
+Still genuinely open, and small: the snap radius is hardcoded where §4 wants it
+adjustable, and target SPACING is ungated (the gate measures size only).
+
 ## Verified vs needs Noah's hands
 
 Machine-verifiable, headless: solver unit tests (projection, intersection,
