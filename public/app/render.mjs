@@ -211,6 +211,28 @@ function visibleFaces(solid, scene, byId) {
   const top = solid.faces.find(f => f.shade === "top");
   const out = [];
 
+  // D54 — a solid made only of INCLINED planes: a roof. It stores no top and no
+  // bottom, because a slope is neither — it is a top face that has been tilted —
+  // so the derivation above finds nothing and, before this, drew nothing at all.
+  //
+  // The rule is D37's, unchanged: you see the top of a thing that sits below your
+  // eye. Stand at the kerb and look up at a gable and you do not see the roof —
+  // you see the wall and the underside of the eaves, which this app does not
+  // model and therefore does not draw. Each plane is judged on its own middle, so
+  // a roof crossing eye level loses the half that has gone over your head.
+  if (!top && !bottom && solid.faces.length) {
+    for (const f of solid.faces) {
+      const pts = f.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.x) && Number.isFinite(v.y));
+      if (!pts.length) continue;
+      const mid = {
+        x: pts.reduce((a, v) => a + v.x, 0) / pts.length,
+        y: pts.reduce((a, v) => a + v.y, 0) / pts.length,
+      };
+      if (sideOfHorizon(scene, mid) < 0) out.push(f);
+    }
+    return out;
+  }
+
   if (bottom && top && bottom.loop.length === top.loop.length && bottom.loop.length >= 3) {
     const b = bottom.loop, t = top.loop, n = b.length;
     const near = nearBaseIndex(b, byId);

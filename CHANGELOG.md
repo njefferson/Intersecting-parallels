@@ -8,6 +8,33 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.12.0 — CAPABILITY · 2026-08-01
+
+**A roof — the first thing in the app that is not level and not upright.**
+
+- **Roof** puts a gable on a box you have already drawn. The ridge sits over the
+  middle of the roof in *perspective*, not halfway along it: the near half of a
+  receding edge takes more of the page, so the middle of it is not the average of
+  its ends. Both gable ends get the same height, and the far one comes out
+  shorter on the page by itself, because that is what distance does.
+- A sloping edge runs to a **vanishing point of its own**, and that point sits on
+  the vertical line through the point the wall below it runs to. Two of them
+  appear in the Points panel — one above and one below — one for each side of the
+  roof. They are not extra axes and they do not count toward the limit of three;
+  they follow the wall's point wherever you drag it, so the whole house turns
+  together.
+- Turn on **Solid** and both roof planes fill — but only when the house is below
+  your eye. Stand at the kerb and look up at a gable and you do not see the roof
+  at all; you see the wall and the underside of the eaves. The app now draws that
+  the same way it already drew the top and the underside of a box.
+- The generators — **Cube**, **Room** and **Roof** — have moved off the toolbar
+  into **Setup**, under *Build*. The bar keeps **Add line** and **Add box**,
+  which are there so the app can be used without dragging; a cube has no drag to
+  be an alternative to, so it is a feature and it lives with the other things
+  that build geometry.
+
+---
+
 ## 1.11.0 — CAPABILITY · 2026-07-31
 
 **A room — a box you are inside.**

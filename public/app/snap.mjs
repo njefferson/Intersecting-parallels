@@ -13,7 +13,7 @@
 import {
   SNAP_RADIUS, EPS_LEN_FACTOR,
   projectPointOnLine, bindingDirection,
-  addAnchor, addRayVertex, addIntersectVertex, addEdge, addFace, solveScene,
+  addAnchor, addRayVertex, addIntersectVertex, addEdge, addFace, solveScene, addSlopePoint, depthAtInterval,
 } from "./solver.mjs";
 
 const DEG = 180 / Math.PI;
@@ -569,4 +569,89 @@ export function buildBox(scene, { at, height, depth, depthL, depthR }) {
 
   solveScene(scene);
   return { ok: true, ...made, solid, corners: { nearBottom, nearTop, leftBottom, rightBottom, leftTop, rightTop, backBottom, backTop } };
+}
+
+// D53 — a gable roof on a box, which is what turns a box into a house.
+//
+// Every part of this is forced by the construction rather than chosen:
+//
+//   · The two gable ends are the box's near-right and far-left top edges. Both
+//     run along the RIGHT axis, so their midpoints come from D50's interval
+//     formula at f = 1/2 — the perspective midpoint, not the average of the two
+//     corners, which would sit visibly off-centre on a foreshortened edge.
+//   · The peaks rise vertically from those midpoints.
+//   · The RIDGE joins them and runs along the LEFT axis, so the far peak is not
+//     measured at all: it is where the ridge from the near peak crosses the
+//     vertical above the far midpoint. An intersect, held by both.
+//   · The two roof planes slope in OPPOSITE directions across the ridge, so they
+//     get two slope points — one above the right-hand point, one below it. Every
+//     rafter binds to the one its own plane runs to.
+//
+// Pitch is a fraction of the box's own height, so Taller keeps working on the
+// whole house rather than leaving the roof behind.
+export function buildRoof(scene, { corners, pitch = 0.5 }) {
+  const c = corners ?? {};
+  const { nearBottom, nearTop, leftTop, rightTop, backTop, leftBottom, rightBottom } = c;
+  for (const [name, v] of Object.entries({ nearBottom, nearTop, leftTop, rightTop, backTop, leftBottom, rightBottom })) {
+    if (!v) return { ok: false, reason: `a roof needs a box to sit on (missing ${name})` };
+  }
+  if (!Number.isFinite(pitch) || pitch <= 0) return { ok: false, reason: "a roof needs a pitch" };
+  const axisL = leftBottom.binding, axisR = rightBottom.binding;
+  if (typeof axisL !== "object" || typeof axisR !== "object") {
+    return { ok: false, reason: "that box has no vanishing points to run a ridge along" };
+  }
+  const vpL = scene.vanishingPoints.find(v => v.id === axisL.vpId);
+  const vpR = scene.vanishingPoints.find(v => v.id === axisR.vpId);
+  if (!vpL || !vpR) return { ok: false, reason: "the box's vanishing points are gone" };
+
+  const rise = -Math.abs(Math.abs(nearTop.y - nearBottom.y) * pitch);
+  const made = { vertices: [], edges: [] };
+  const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
+
+  // Perspective midpoints of the two gable edges (D50 at f = 1/2).
+  const half = (from, to, binding, vp) => {
+    const D = Math.hypot(vp.x - from.x, vp.y - from.y);
+    const t1 = Math.hypot(to.x - from.x, to.y - from.y);
+    const t = depthAtInterval(D, t1, 0.5);
+    if (t === null) return null;
+    return V(addRayVertex(scene, { origin: from.id, binding: { ...binding }, t }));
+  };
+  const midNear = half(nearTop, rightTop, axisR, vpR);
+  const midFar = half(leftTop, backTop, axisR, vpR);
+  if (!midNear || !midFar) return { ok: false, reason: "could not find the middle of a gable" };
+
+  const peakNear = V(addRayVertex(scene, { origin: midNear.id, binding: "vertical", t: rise }));
+  if (!peakNear) return { ok: false, reason: "could not raise the near gable" };
+  // The far peak is NOT measured: it is where the ridge crosses the vertical over
+  // the far gable's middle, so both ends stay honest when anything moves.
+  const peakFar = V(addIntersectVertex(scene, { defs: [
+    { origin: peakNear.id, binding: { ...axisL } },
+    { origin: midFar.id, binding: "vertical" },
+  ] }));
+  if (!peakFar) return { ok: false, reason: "the ridge and the far gable do not meet — check the vanishing points" };
+
+  // Two slope points: the planes fall away from the ridge in opposite directions.
+  const up = addSlopePoint(scene, { vpId: vpR.id, rise, label: `${vpR.label} roof up` });
+  const down = addSlopePoint(scene, { vpId: vpR.id, rise: -rise, label: `${vpR.label} roof down` });
+  const bindUp = up.ok ? { vpId: up.vp.id } : "free";
+  const bindDown = down.ok ? { vpId: down.vp.id } : "free";
+
+  const E = (a, b, binding) => {
+    const r = addEdge(scene, { a: a.id, b: b.id, binding });
+    if (r.ok) made.edges.push(r.edge.id);
+  };
+  E(peakNear, peakFar, { ...axisL });          // the ridge
+  E(nearTop, peakNear, bindUp);                // the plane facing the near-right
+  E(leftTop, peakFar, bindUp);
+  E(rightTop, peakNear, bindDown);             // and the one facing away
+  E(backTop, peakFar, bindDown);
+
+  const solid = `roof${scene.nextId}`;
+  const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
+  F([nearTop, peakNear, peakFar, leftTop], "left");
+  F([rightTop, peakNear, peakFar, backTop], "right");
+
+  solveScene(scene);
+  return { ok: true, ...made, solid, peakNear, peakFar, midNear, midFar,
+    slopes: [up.ok ? up.vp : null, down.ok ? down.vp : null] };
 }

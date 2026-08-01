@@ -737,6 +737,63 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D53 / D54 — the roof, and what planting found under it (SHIPPED 1.12.0, staging)
+
+A house needs a roof, and a roof is the first thing in this app that is neither
+level nor upright. Everything up to here ran to one of three axis points or
+straight up; a slope runs to neither.
+
+**A set of parallel slopes has a vanishing point of its own, and it sits on the
+VERTICAL through the point their horizontal projection runs to.** That one fact
+is what makes a roof drawable rather than guessable, and it is the whole of D53.
+A slope point is stored as `trace: { vpId, rise }` and re-seated at the top of
+every `solveScene`, so it can never be stale: drag the wall's point and the roof
+turns with it. It is exempt from D41's cap of three, because the cap counts AXES
+and a slope is an axis tilted — `axisPointCount` is the count that matters now.
+
+The ridge sits over the perspective middle of the gable, which is `depthAtInterval`
+at f = 0.5 (D50) rather than the average of the two ends. The far peak is an
+INTERSECT rather than a measured height, so it comes out shorter on the page by
+itself; measuring it would have been drawing what you know instead of what you
+see.
+
+**D54 is not a feature. It is two defects that only planting found**, and both
+were hiding behind checks that passed:
+
+1. **The roof's planes were never drawn at all.** `visibleFaces` derives a
+   solid's two visible walls from its `top` and `bottom` faces. A roof has
+   neither — a slope is a top face tilted — so the derivation found nothing and
+   returned an empty list. The walk said "and Solid shades the roof planes as
+   well as the walls — ok" because it was counting the TOTAL shaded area, and
+   the walls alone cleared the bar. Deleting a whole roof plane did not move it.
+   The check now measures the roof's own contribution as a before-and-after
+   difference: 9,081 and 17,944 pixels where it had been reporting 42,939.
+2. **The fix needed the eye-level rule, and the check for THAT was empty too.**
+   You see a roof when it is below your eye; look up at a gable from the kerb and
+   you see the wall and the underside of the eaves, not the roof. The first
+   version of that check compared an overhead house against the below-eye-level
+   wall count — two different poses, so the difference said nothing — and then,
+   once that was fixed, the fixture put the ridge off the top of the page, so
+   nothing was painted whichever way the renderer behaved. Two consecutive
+   versions of a check that could not fail. It asserts its own fixture now (every
+   roof corner above the horizon AND on the page) and drops the horizon instead
+   of lifting the house.
+
+**The pattern, third time now.** D39→D37 and D42→D45 were a new capability
+silently invalidating an older amendment's assumption. This is the other one: a
+check written at the same time as the code it checks, measuring something
+adjacent to its claim, and green from the day it was written. The gates cannot
+catch that. Only planting the fault can, and the rule from Doctrine §6 —
+make it fail before trusting it — earned its place twice in one release.
+
+**One more thing came out of it.** The roof's button took the toolbar to 21
+controls against D47's cap of 20. The fix was to take the three GENERATORS off
+the bar (Cube, Room, Roof now live in Setup under *Build*), not to raise the cap.
+Add line and Add box stay, because they are the non-drag path to Draw mode and
+Box mode under SC 2.5.1 — a cube has no drag gesture to be an alternative to.
+Raising the number would have been the same move as exempting the grid from the
+contrast gate, which Noah has already ruled on once.
+
 ### D52 — the interior room (SHIPPED 1.11.0, staging)
 
 Third and last of the three Noah agreed to, and the only one that is a NEW KIND

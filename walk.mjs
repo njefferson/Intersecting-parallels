@@ -58,6 +58,27 @@ const tapSetup = (page, id) => page.evaluate(which => {
   b.click();
 }, id);
 
+// D54 — the generators moved into Setup. Where a check is about the KEYBOARD
+// route (focus, then Enter) rather than about a click, the panel still has to be
+// open first; opening it is itself a keyboard-reachable button, so the route
+// under test is unchanged in kind, only one step longer.
+const openSetup = page => page.evaluate(() => {
+  if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+});
+
+// Count the pixels painted in each of the two front-face shades. Returned as a
+// function so a check can take the SAME measurement twice and compare, which is
+// the only way to attribute painted area to the thing that was just added.
+const countShades = () => {
+  const c = document.getElementById('canvas');
+  const d = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+  const key = x => (255 << 24 | x[2] << 16 | x[1] << 8 | x[0]) >>> 0;
+  const left = key([34, 39, 58]), right = key([46, 52, 69]);
+  let l = 0, r = 0;
+  for (let i = 0; i < d.length; i++) { if (d[i] === left) l++; else if (d[i] === right) r++; }
+  return { left: l, right: r };
+};
+
 const failures = [];
 const steps = [];
 const check = (name, ok, detail = '') => {
@@ -1257,6 +1278,7 @@ try {
   // threshold entirely. That was the fixture being badly conditioned, not the
   // app being wrong, and lowering the threshold to fit it would have been a test
   // written to pass. Add cube gives equal edges every run.
+  await openSetup(nodragPage);
   await nodragPage.focus('#add-cube');
   await nodragPage.keyboard.press('Enter');
   await nodragPage.waitForTimeout(200);
@@ -1542,6 +1564,7 @@ try {
   await cPg.goto(origin + '/', { waitUntil: 'networkidle' });
   await cPg.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 20000 });
 
+  await openSetup(cPg);
   await cPg.focus('#add-cube');
   await cPg.keyboard.press('Enter');
   await cPg.waitForTimeout(200);
@@ -1715,6 +1738,7 @@ try {
   shPage.on('pageerror', e => pageErrors.push(`shrink page: ${e}`));
   await shPage.goto(origin + '/', { waitUntil: 'networkidle' });
   await shPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await openSetup(shPage);
   await shPage.focus('#add-cube');
   await shPage.keyboard.press('Enter');
   await shPage.waitForTimeout(200);
@@ -2161,6 +2185,141 @@ try {
     vpCentred.finite && vpCentred.degenerate === 0, JSON.stringify(vpCentred));
   await rmCtx.close();
 
+  // D53 — the roof, and the slope points that make it drawable.
+  const rfCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(rfCtx);
+  const rfPage = await rfCtx.newPage();
+  rfPage.on('pageerror', e => pageErrors.push(`roof page: ${e}`));
+  await rfPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await rfPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await rfPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+  });
+
+  const noBox = await rfPage.evaluate(() => {
+    document.getElementById('add-roof').click();
+    return { verts: window.__ip.scene.vertices.length, said: document.getElementById('toast')?.textContent || '' };
+  });
+  check('a roof with no building under it is refused (D53)',
+    noBox.verts === 0 && /box/i.test(noBox.said),
+    `${noBox.verts} corners, said "${noBox.said.slice(0, 60)}"`);
+
+  // Solid goes on with the CUBE ALONE first, and the walls are counted. The
+  // roof's own shading is then the DIFFERENCE. Counting the total instead was a
+  // test that passed with a whole roof plane DELETED: the walls alone cleared
+  // the bar, so the check was measuring the walls and reporting on the roof.
+  // Planting that fault is what found it, and it is what found the real defect
+  // underneath — the roof's planes were never being drawn at all (D54).
+  //
+  // The house is dropped BELOW eye level first, which is not a convenience: a
+  // roof over your head shows you its underside, not its slopes, so a fixture
+  // that leaves the house up in the air is asking for nothing to be drawn and
+  // would be satisfied by a renderer that draws nothing ever. The check just
+  // below asserts that same rule from the other end.
+  await rfPage.evaluate(() => document.getElementById('add-cube').click());
+  await tapSetup(rfPage, 'solid');
+  await rfPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    window.__ip.manipulate(a.id, { x: a.x, y: 1120 });
+  });
+  await rfPage.waitForTimeout(250);
+  const walls = await rfPage.evaluate(countShades);
+
+  await rfPage.evaluate(() => document.getElementById('add-roof').click());
+  await rfPage.waitForTimeout(250);
+
+  const roofed = await rfPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const slopes = s.vanishingPoints.filter(v => v.trace);
+    const parent = slopes.length ? s.vanishingPoints.find(v => v.id === slopes[0].trace.vpId) : null;
+    return {
+      slopes: slopes.length,
+      onVertical: slopes.every(v => Math.abs(v.x - parent.x) < 1e-9),
+      straddle: slopes.length === 2 && Math.sign(slopes[0].y - parent.y) === -Math.sign(slopes[1].y - parent.y),
+      roofFaces: s.faces.filter(f => String(f.solid).startsWith('roof')).length,
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+      degenerate: s.vertices.filter(v => v.degenerate).length,
+      addVpDisabled: document.getElementById('add-vp').disabled,
+    };
+  });
+  check('a roof brings two slope points, on the vertical through their axis point (D53)',
+    roofed.slopes === 2 && roofed.onVertical && roofed.straddle && roofed.roofFaces === 2
+      && roofed.finite && roofed.degenerate === 0,
+    JSON.stringify(roofed));
+
+  const shaded = await rfPage.evaluate(countShades);
+  const gained = { left: shaded.left - walls.left, right: shaded.right - walls.right };
+  check('and Solid fills BOTH roof planes, over and above the walls (D54)',
+    gained.left > 500 && gained.right > 500,
+    `roof added ${gained.left} and ${gained.right}px to walls of ${walls.left} and ${walls.right}`);
+
+  // The other end of the same rule: build the identical house OVER YOUR HEAD and
+  // the slopes must not be painted, because from underneath they are not what you
+  // can see. Measured as its own before-and-after, because the first version of
+  // this compared the overhead count against the BELOW-eye-level walls — two
+  // different poses, so the difference said nothing about the roof, and the check
+  // stayed green with eye level ignored entirely. Planting that is what showed it.
+  //
+  // The HORIZON is dropped rather than the house lifted. Lifting it ran the ridge
+  // off the top of the page, so nothing was painted whichever way the renderer
+  // behaved and the check could not fail — it was measuring the edge of the
+  // canvas. Putting the horizon near the bottom leaves the whole house on the
+  // page and entirely above your eye, which is the case being asserted.
+  await rfPage.evaluate(() => {
+    document.getElementById('clear-drawing').click();
+    document.getElementById('clear-drawing').click();
+    const s = window.__ip.scene;
+    for (const vp of s.vanishingPoints.filter(v => v.onHorizon)) window.__ip.moveVp(vp.id, { x: vp.x, y: 1100 });
+    document.getElementById('add-cube').click();
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    window.__ip.manipulate(a.id, { x: a.x, y: 1000 });         // stands entirely above the horizon
+  });
+  await rfPage.waitForTimeout(250);
+  const wallsUp = await rfPage.evaluate(countShades);
+  const overhead = await rfPage.evaluate(() => {
+    document.getElementById('add-roof').click();
+    const s = window.__ip.scene;
+    const byId = new Map(s.vertices.map(v => [v.id, v]));
+    const roof = s.faces.filter(f => String(f.solid).startsWith('roof'));
+    // Assert the FIXTURE, not just the result: every roof corner has to be above
+    // the horizon and on the page, or this proves nothing about what is drawn.
+    const hz = s.vanishingPoints.filter(v => v.onHorizon).map(v => v.y);
+    const pts = roof.flatMap(f => f.loop.map(id => byId.get(id))).filter(Boolean);
+    return {
+      faces: roof.length,
+      aboveHorizon: pts.length > 0 && pts.every(v => v.y < Math.min(...hz) && v.y > 0 && v.y < s.canvas.height),
+    };
+  });
+  await rfPage.waitForTimeout(250);
+  const shadedUp = await rfPage.evaluate(countShades);
+  const gainedUp = { left: shadedUp.left - wallsUp.left, right: shadedUp.right - wallsUp.right };
+  check('a roof over your head shows its underside, not its slopes (D54)',
+    overhead.faces === 2 && overhead.aboveHorizon
+      && Math.abs(gainedUp.left) < 500 && Math.abs(gainedUp.right) < 500,
+    `${overhead.faces} roof planes stored, all above the horizon: ${overhead.aboveHorizon}, painting ${gainedUp.left}/${gainedUp.right}px onto walls of ${wallsUp.left}/${wallsUp.right}`);
+
+  // The whole house must turn together when a wall's point moves.
+  const turned = await rfPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    // Ask the ROOF which point it hangs from — a gable's slopes belong to one
+    // axis, not to whichever axis happens to come first in the list.
+    const slope = s.vanishingPoints.find(v => v.trace);
+    const axis = slope ? s.vanishingPoints.find(v => v.id === slope.trace.vpId) : null;
+    if (!axis) return { followed: false, moved: false, finite: false, why: 'no slope point' };
+    const before = { x: slope.x, y: slope.y };
+    window.__ip.moveVp(axis.id, { x: axis.x + 500, y: axis.y - 120 });
+    await new Promise(r => requestAnimationFrame(r));
+    return {
+      followed: Math.abs(slope.x - axis.x) < 1e-9,
+      moved: Math.hypot(slope.x - before.x, slope.y - before.y) > 100,
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+    };
+  });
+  check('moving a wall\'s point takes the roof with it (D53)',
+    turned.followed && turned.moved && turned.finite, JSON.stringify(turned));
+  await rfCtx.close();
+
   // D47 — the toolbar cleanup. The bar must stay SHORT, everything that moved
   // must still be reachable, and neither panel may be covered by a point marker.
   const barCtx = await browser.newContext({ viewport: { width: 1180, height: 820 }, colorScheme: 'light' });
@@ -2179,13 +2338,17 @@ try {
       stageShare: Math.round(stage.getBoundingClientRect().height / window.innerHeight * 100),
     };
   });
+  // The cap is 20 and it is not moving. It has already caught one release: the
+  // roof's button took the bar to 21, and the fix was to take three generators
+  // off the bar (D54), not to raise the number so the bar could keep growing.
   check('the toolbar is two rows, not four (D47)',
     bar.height <= 130 && bar.controls <= 20,
     `${bar.height}px tall, ${bar.controls} controls, stage gets ${bar.stageShare}% of the window`);
 
   // Everything that moved is still there and still a real control.
   const moved = await barPage.evaluate(() => {
-    const ids = ['solid', 'face-opacity', 'show-hidden', 'rays', 'grid', 'eye-level',
+    const ids = ['add-cube', 'add-room', 'add-roof',
+                 'solid', 'face-opacity', 'show-hidden', 'rays', 'grid', 'eye-level',
                  'taller', 'shorter', 'stronger', 'gentler',
                  'assist', 'snap45', 'weld', 'touch-draws', 'add-vp'];
     document.getElementById('show-setup').click();
@@ -2199,7 +2362,7 @@ try {
   });
   const missing = Object.entries(moved).filter(([, ok]) => !ok).map(([k]) => k);
   check('every control that moved off the bar is still visible and still 44px (D47)',
-    missing.length === 0, missing.length ? `not reachable: ${missing.join(', ')}` : 'all fifteen');
+    missing.length === 0, missing.length ? `not reachable: ${missing.join(', ')}` : `all ${Object.keys(moved).length}`);
 
   await barPage.waitForTimeout(300);
   const overlap = await barPage.evaluate(() => {

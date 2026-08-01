@@ -48,14 +48,16 @@
       <button class="btn" id="mode-select" type="button" aria-pressed="false">Select</button>
     </div>
 
-    <!-- D34 / §4 (SC 2.5.1, 2.5.7): drawing without a drag. These stay on the bar
-         because they are the non-drag path to the app's primary act — putting one
-         behind a panel would make the accessible route the slower route. -->
+    <!-- D34 / §4 (SC 2.5.1, 2.5.7): drawing without a drag. These two stay on the
+         bar because they are the non-drag path to the app's primary act — Draw
+         mode and Box mode done without a drag — and putting one behind a panel
+         would make the accessible route the slower route. D54: the GENERATORS
+         (cube, room, roof) are not on the bar, because there is no drag gesture
+         they are the alternative to. They are features, and features live in
+         Setup beside the other things that build geometry. -->
     <div class="bar-group" role="group" aria-label="Draw without dragging">
       <button class="btn" id="add-line" type="button">Add line</button>
       <button class="btn" id="add-box" type="button">Add box</button>
-      <button class="btn" id="add-cube" type="button">Add cube</button>
-      <button class="btn" id="add-room" type="button">Add room</button>
     </div>
 
     <div class="bar-group" role="group" aria-label="Guide for the next stroke">
@@ -116,6 +118,15 @@
         <button class="btn" id="setup-close" type="button" aria-label="Hide the setup panel">Hide</button>
       </div>
       <div class="panel-body">
+        <!-- D54: the generators. Each one lays a whole construction down at once,
+             held by the same points as anything drawn by hand. -->
+        <h3 class="panel-sec">Build</h3>
+        <div class="setup-row">
+          <button class="btn" id="add-cube" type="button">Cube</button>
+          <button class="btn" id="add-room" type="button">Room</button>
+          <button class="btn" id="add-roof" type="button">Roof</button>
+        </div>
+
         <h3 class="panel-sec">How it looks</h3>
         <div class="setup-row">
           <button class="btn" id="solid" type="button" aria-pressed="false">Solid</button>

@@ -12,9 +12,9 @@
 import {
   createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure, buildRoom,
+  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure, buildRoom, axisPointCount,
 } from "./solver.mjs";
-import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
+import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, buildRoof, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
   createView, fitView, toCanvas, toScreen, zoomAt, draw, vpAt, offscreenMarker, HANDLE_HIT,
 } from "./render.mjs";
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.11.0";
+const VERSION = "1.12.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1484,6 +1484,40 @@ function addRoom() {
   el.canvas.focus({ preventScroll: true });
   afterEdit(`Room drawn, running back to ${res.vp.label}. Turn on Solid to see the walls; move ${res.vp.label} to look somewhere else and the whole room follows.`);
 }
+// D53 — a roof on the last box drawn, or on the box the selection belongs to.
+// It needs a BOX rather than a point, because a gable is defined by the building
+// underneath it: the ridge runs along one of its axes and sits over its middle.
+function addRoofToBox() {
+  endExtrude(false);
+  const boxes = (scene.faces ?? []).filter(f => String(f.solid).startsWith("box"));
+  if (!boxes.length) { toast("Draw a box first — a roof sits on a building", "error"); return; }
+  let solid = boxes[boxes.length - 1].solid;
+  if (selection && selection.type === "vertex") {
+    const owner = boxes.find(f => f.loop.includes(selection.id));
+    if (owner) solid = owner.solid;
+  }
+  // Recover the box's corners from its two stored rings (D44's contract).
+  const ring = sh => (scene.faces ?? []).find(f => f.solid === solid && f.shade === sh)?.loop ?? [];
+  const b = ring("bottom").map(id => scene.vertices.find(v => v.id === id));
+  const t = ring("top").map(id => scene.vertices.find(v => v.id === id));
+  if (b.length !== 4 || t.length !== 4 || [...b, ...t].some(v => !v)) {
+    toast("That box is missing corners a roof would need", "error");
+    return;
+  }
+  const corners = {
+    nearBottom: b[0], leftBottom: b[1], backBottom: b[2], rightBottom: b[3],
+    nearTop: t[0], leftTop: t[1], backTop: t[2], rightTop: t[3],
+  };
+  beginGesture(history, scene);
+  const res = buildRoof(scene, { corners, pitch: 0.5 });
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  selection = { type: "vertex", id: res.peakNear.id };
+  el.canvas.focus({ preventScroll: true });
+  const named = res.slopes.filter(Boolean).map(v => v.label).join(" and ");
+  afterEdit(`Roof added — the ridge sits over the middle of the box, and the rafters run to ${named || "their own slope points"}. Those points are in Points, and they follow the wall they hang from.`);
+}
+$("add-roof")?.addEventListener("click", addRoofToBox);
+
 $("add-room")?.addEventListener("click", addRoom);
 
 $("add-cube")?.addEventListener("click", addCube);
@@ -1579,7 +1613,7 @@ $("redo").addEventListener("click", () => {
 const MAX_VPS = 3;
 
 $("add-vp").addEventListener("click", () => {
-  if (scene.vanishingPoints.length >= MAX_VPS) {
+  if (axisPointCount(scene) >= MAX_VPS) {
     toast(`Three is the limit: one vanishing point per axis is all a box has. A fourth would have nothing to bind to.`, "error");
     return;
   }
@@ -1597,7 +1631,7 @@ $("add-vp").addEventListener("click", () => {
 function refreshAddVp() {
   const b = $("add-vp");
   if (!b) return;
-  const full = scene.vanishingPoints.length >= MAX_VPS;
+  const full = axisPointCount(scene) >= MAX_VPS;
   const drawn = scene.edges.length > 0 || scene.vertices.length > 0;
   b.disabled = full || drawn;
   b.setAttribute("aria-label", full

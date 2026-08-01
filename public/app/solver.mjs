@@ -327,6 +327,7 @@ function solveIntersect(scene, v, index) {
 // was the cost, not the constant (Doctrine §14), so it is the shape that
 // changed. Same semantics, including how cycles are reported.
 export function solveScene(scene) {
+  reseatSlopePoints(scene);      // D53: derived points first, then everything that binds to them
   const index = new Map();
   for (const v of scene.vertices) index.set(v.id, v);
 
@@ -1040,6 +1041,60 @@ export function buildRoom(scene, { at, width, height, vpId, depth = 0.6 }) {
 
   solveScene(scene);
   return { ok: true, ...made, solid, vp, recede, near, far };
+}
+
+// ---- D53 — inclined planes: roofs, ramps, stairs ------------------------
+//
+// The last thing a house needs that a box cannot express. A sloping edge is not
+// bound to any of the three axis points, and it is not free either — a set of
+// parallel slopes has its OWN vanishing point, and that point sits on the
+// VERTICAL LINE through the point its horizontal projection runs to. Rising away
+// from you puts it above; falling away puts it below.
+//
+// That is the whole construction, and it is why a roof is drawable at all: the
+// eaves run to VP1, so the slope above them runs to a point directly above VP1,
+// and every rafter on that side is parallel to it.
+//
+// A slope point is DERIVED — it holds which point it hangs from and how far, and
+// re-derives its position on every solve, so moving the parent takes the roof
+// with it. It does not count against D41's limit of three, because it is not a
+// fourth axis: it is the same axis tilted, and the limit exists to stop points
+// that nothing can bind to.
+export function addSlopePoint(scene, { vpId, rise, label }) {
+  const parent = scene.vanishingPoints.find(v => v.id === vpId);
+  if (!parent) return { ok: false, reason: "a slope hangs off an existing vanishing point — pick the one its base runs to" };
+  if (!Number.isFinite(rise) || rise === 0) {
+    return { ok: false, reason: "a slope needs a rise: above the point to climb away from you, below it to fall away" };
+  }
+  const vp = {
+    id: newId(scene, "vp"),
+    label: label ?? `${parent.label} slope`,
+    x: parent.x,
+    y: parent.y + rise,
+    axis: "slope", locked: false, onHorizon: false,
+    trace: { vpId: parent.id, rise },
+  };
+  scene.vanishingPoints.push(vp);
+  solveScene(scene);
+  return { ok: true, vp };
+}
+
+// Re-seat every derived point before anything is solved against it. Cheap, and
+// it means a slope point can never be stale: drag the parent and the roof turns
+// with the walls, which is the entire reason it is derived rather than placed.
+export function reseatSlopePoints(scene) {
+  for (const vp of scene.vanishingPoints) {
+    if (!vp.trace) continue;
+    const parent = scene.vanishingPoints.find(v => v.id === vp.trace.vpId);
+    if (!parent) { delete vp.trace; continue; }   // its parent went; it stays where it is
+    vp.x = parent.x;
+    vp.y = parent.y + vp.trace.rise;
+  }
+}
+
+// D41's limit counts AXIS points only. A slope is the same axis tilted.
+export function axisPointCount(scene) {
+  return scene.vanishingPoints.filter(v => !v.trace).length;
 }
 
 export function deleteVertex(scene, vertexId) {
