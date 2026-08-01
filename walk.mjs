@@ -2056,6 +2056,111 @@ try {
     `${onHorizon.before} -> ${onHorizon.after} corners, said "${onHorizon.said.slice(0, 60)}"`);
   await figCtx.close();
 
+  // D52 — the interior room, through the real control.
+  const rmCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(rmCtx);
+  const rmPage = await rmCtx.newPage();
+  rmPage.on('pageerror', e => pageErrors.push(`theRoom page: ${e}`));
+  await rmPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await rmPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await rmPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+  });
+  // A room needs a point you are FACING. The default scene's points sit far off
+  // to either side, which is a two-point setup — so one is moved onto the paper
+  // first, which is the one-point interior the exercise is about.
+  const refusedRoom = await rmPage.evaluate(() => {
+    document.getElementById('add-room').click();
+    return { verts: window.__ip.scene.vertices.length, said: document.getElementById('toast')?.textContent || '' };
+  });
+  check('a room off to the side is refused, with the instruction (D52)',
+    refusedRoom.verts === 0 && /facing/i.test(refusedRoom.said),
+    `${refusedRoom.verts} corners, said "${refusedRoom.said.slice(0, 70)}"`);
+
+  await rmPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const vp = s.vanishingPoints.find(v => !v.locked);
+    window.__ip.moveVp(vp.id, { x: s.canvas.width / 2, y: s.canvas.height / 2 });
+    document.getElementById('add-room').click();
+  });
+  await rmPage.waitForTimeout(250);
+
+  const theRoom = await rmPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const faces = s.faces.filter(f => String(f.solid).startsWith('room'));
+    return {
+      edges: s.edges.length, verts: s.vertices.length,
+      faces: faces.length, shades: faces.map(f => f.shade).sort(),
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+      degenerate: s.vertices.filter(v => v.degenerate).length,
+    };
+  });
+  check('a room is eight corners, twelve edges and FIVE surfaces (D52)',
+    theRoom.verts === 8 && theRoom.edges === 12 && theRoom.faces === 5 && theRoom.finite && theRoom.degenerate === 0,
+    JSON.stringify(theRoom));
+  check('and every surface faces you — there is no near face on an interior (D52)',
+    JSON.stringify(theRoom.shades) === JSON.stringify(['back', 'bottom', 'left', 'right', 'top']),
+    JSON.stringify(theRoom.shades));
+
+  // Solid must fill all five, including the far wall's own tint.
+  await tapSetup(rmPage, 'solid');
+  await rmPage.waitForTimeout(250);
+  const roomFill = await rmPage.evaluate(() => {
+    const c = document.getElementById('canvas');
+    const d = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+    const key = x => (255 << 24 | x[2] << 16 | x[1] << 8 | x[0]) >>> 0;
+    const want = { back: [52, 58, 75], top: [59, 64, 81], right: [46, 52, 69], left: [34, 39, 58], bottom: [12, 15, 27] };
+    const lut = new Map(Object.entries(want).map(([k, v]) => [key(v), k]));
+    const out = { back: 0, top: 0, right: 0, left: 0, bottom: 0 };
+    for (let i = 0; i < d.length; i++) {
+      const k = lut.get(d[i]);
+      if (k !== undefined) out[k]++;
+    }
+    return out;
+  });
+  check('Solid fills all five surfaces of a room, far wall included (D52)',
+    Object.values(roomFill).every(n => n > 200), JSON.stringify(roomFill));
+
+  // The claim that makes a room a room: the far wall stays a RECTANGLE.
+  const rectStayed = await rmPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const far = s.vertices.filter(v => Number.isFinite(v.recede));
+    const boxy = () => {
+      const p = far.map(v => ({ x: v.x, y: v.y }));
+      const [bl, br, tr, tl] = p;
+      return Math.max(Math.abs(bl.y - br.y), Math.abs(tl.y - tr.y),
+        Math.abs(bl.x - tl.x), Math.abs(br.x - tr.x));
+    };
+    const worst = [];
+    const vp = s.vanishingPoints.find(v => !v.locked);
+    for (const p of [{ x: 500, y: 400 }, { x: 1300, y: 700 }, { x: 800, y: 600 }, { x: 200, y: 1000 }]) {
+      window.__ip.moveVp(vp.id, p);
+      await new Promise(r => requestAnimationFrame(r));
+      worst.push(+boxy().toFixed(4));
+    }
+    return { worst, count: far.length, finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)) };
+  });
+  check('the far wall stays a RECTANGLE wherever the point is dragged (D52)',
+    rectStayed.count === 4 && rectStayed.finite && rectStayed.worst.every(w => w < 0.001),
+    `worst corner mismatch per move: ${JSON.stringify(rectStayed.worst)}px`);
+
+  // Including the point dead centre of the opening — the ordinary interior view.
+  const vpCentred = await rmPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const near = s.vertices.filter(v => v.kind !== 'ray' || !Number.isFinite(v.recede));
+    const cx = near.reduce((a, v) => a + v.x, 0) / near.length;
+    const cy = near.reduce((a, v) => a + v.y, 0) / near.length;
+    window.__ip.moveVp(s.vanishingPoints.find(v => !v.locked).id, { x: cx, y: cy });
+    await new Promise(r => requestAnimationFrame(r));
+    return {
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+      degenerate: s.vertices.filter(v => v.degenerate).length,
+    };
+  });
+  check('and with the point dead centre of the opening, which is the ordinary view (D52)',
+    vpCentred.finite && vpCentred.degenerate === 0, JSON.stringify(vpCentred));
+  await rmCtx.close();
+
   // D47 — the toolbar cleanup. The bar must stay SHORT, everything that moved
   // must still be reachable, and neither panel may be covered by a point marker.
   const barCtx = await browser.newContext({ viewport: { width: 1180, height: 820 }, colorScheme: 'light' });

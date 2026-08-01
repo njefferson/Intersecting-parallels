@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure,
+  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure, buildRoom,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.10.0";
+const VERSION = "1.11.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1452,6 +1452,39 @@ $("add-figure")?.addEventListener("click", placeFigure);
 
 $("divide-depth")?.addEventListener("click", () => spaceAlongGuide("divide"));
 $("repeat-depth")?.addEventListener("click", () => spaceAlongGuide("repeat"));
+
+// D52 — a room. The opening is sized from the paper rather than from the points,
+// because it is a hole in the picture plane, not something receding: it is the
+// frame you are looking through.
+function addRoom() {
+  endExtrude(false);
+  const w = scene.canvas.width, h = scene.canvas.height;
+  const width = Math.round(w * 0.5), height = Math.round(h * 0.5);
+  const at = { x: Math.round((w - width) / 2), y: Math.round((h - height) / 2) };
+  // Look at the point nearest the middle of the opening — that is the one you
+  // are facing, and in a one-point interior it is the only one that matters.
+  const centre = { x: at.x + width / 2, y: at.y + height / 2 };
+  // A room runs away to a point you are FACING, which means one on the paper —
+  // the classic one-point interior. A point far off to the side builds a tunnel
+  // running sideways past you, which is valid geometry and is not a room, so it
+  // is refused with the instruction rather than drawn. D46: a point on the paper
+  // is the most ordinary construction there is.
+  const usable = scene.vanishingPoints.filter(v => !v.locked);
+  const onPaper = usable.filter(v => v.x > 0 && v.x < w && v.y > 0 && v.y < h);
+  if (!onPaper.length) {
+    toast("A room runs away to a point you are facing. Move a vanishing point onto the paper — near the middle is the classic one-point interior.", "error");
+    return;
+  }
+  const facing = onPaper.reduce((best, v) =>
+    Math.hypot(v.x - centre.x, v.y - centre.y) < Math.hypot(best.x - centre.x, best.y - centre.y) ? v : best);
+  beginGesture(history, scene);
+  const res = buildRoom(scene, { at, width, height, vpId: facing?.id, depth: 0.6 });
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  selection = { type: "vertex", id: res.far[0].id };
+  el.canvas.focus({ preventScroll: true });
+  afterEdit(`Room drawn, running back to ${res.vp.label}. Turn on Solid to see the walls; move ${res.vp.label} to look somewhere else and the whole room follows.`);
+}
+$("add-room")?.addEventListener("click", addRoom);
 
 $("add-cube")?.addEventListener("click", addCube);
 $("taller")?.addEventListener("click", () => stretchSolid(STRETCH));

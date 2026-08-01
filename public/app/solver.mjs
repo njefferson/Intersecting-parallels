@@ -243,6 +243,18 @@ function solveRay(scene, v, index) {
     const span = gaugeSpan(scene, { x: origin.x, y: origin.y });
     if (span !== null && Math.abs(span) >= 1) v.t = span * v.gauge;
   }
+  // D52 — a room's far corner holds how far back it is as a FRACTION of the way
+  // to the vanishing point, not as a length. All four corners share the fraction,
+  // which is what keeps the far wall a rectangle: it is the near wall scaled
+  // about the point. Store lengths instead and the wall skews the moment the
+  // point moves, because the four corners are different distances from it.
+  if (Number.isFinite(v.recede) && typeof v.binding === "object") {
+    const vp = scene.vanishingPoints.find(p => p.id === v.binding.vpId);
+    if (vp) {
+      const D = Math.hypot(vp.x - origin.x, vp.y - origin.y);
+      if (Number.isFinite(D) && D > 0) v.t = D * v.recede;
+    }
+  }
   const u = bindingDirection(scene, { x: origin.x, y: origin.y }, v.binding);
   if (!u) { v.degenerate = true; return; } // x,y untouched — the last-valid cache
   v.degenerate = false;
@@ -274,7 +286,13 @@ function solveRay(scene, v, index) {
   // so the corner stays exactly where it sat. Displacement is still minimised
   // when the guide flips; it is no longer minimised when the user is the one
   // moving the corner.
-  if (Number.isFinite(v.ux) && Number.isFinite(v.uy) && (v.ux * u.x + v.uy * u.y) < 0) {
+  // D52 — the flip holds a STORED length in place when its guide reverses. A
+  // derived length (a D51 gauge, a D52 room corner) is recomputed from scratch
+  // every solve, so there is no history to preserve and negating it just sends
+  // the corner to the wrong side. Found by a room's far wall skewing when the
+  // point moved past one of its corners.
+  const derived = Number.isFinite(v.gauge) || Number.isFinite(v.recede);
+  if (!derived && Number.isFinite(v.ux) && Number.isFinite(v.uy) && (v.ux * u.x + v.uy * u.y) < 0) {
     v.t = -v.t;                       // the guide reversed under it — hold position
   }
   v.ux = u.x;
@@ -943,6 +961,85 @@ export function addFigure(scene, { at, ratio = 1 }) {
   if (!e.ok) return e;
   solveScene(scene);
   return { ok: true, feet: feet.vertex, head: head.vertex, edge: e.edge, ratio };
+}
+
+// ---- D52 — the interior room -------------------------------------------
+//
+// Third of the three Noah asked for, and the only one that is a NEW KIND of
+// thing rather than more of what exists. A room is a box you are INSIDE, and
+// that inverts everything the box code assumes: you see the far wall, the floor,
+// the ceiling and both side walls, and the surface nearest you — the opening you
+// are looking through — is the one you do not see at all.
+//
+// The construction is the oldest exercise in perspective. Draw the opening as a
+// rectangle. Run a line from each of its corners to the vanishing point. Stop all
+// four at the same fraction of the way there, and the far wall is the near wall
+// scaled about the point — which is why it stays a rectangle without anything
+// having to enforce it.
+//
+// `recede` is that fraction, held per corner and re-derived on every solve, so
+// moving the vanishing point re-forms the room instead of skewing it.
+const ROOM_MIN = 0.05, ROOM_MAX = 0.95;
+
+export function buildRoom(scene, { at, width, height, vpId, depth = 0.6 }) {
+  if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.y)) return { ok: false, reason: "that is not a place to put a room" };
+  if (!(width > 1) || !(height > 1)) return { ok: false, reason: "a room needs a wall you can see" };
+  const vp = scene.vanishingPoints.find(v => v.id === vpId) ?? scene.vanishingPoints.find(v => !v.locked);
+  if (!vp) return { ok: false, reason: "a room needs a vanishing point to run away to — add one first" };
+  const recede = Math.max(ROOM_MIN, Math.min(ROOM_MAX, depth));
+
+  const made = { vertices: [], edges: [] };
+  const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
+  const E = (a, b, binding) => {
+    const r = addEdge(scene, { a: a.id, b: b.id, binding });
+    if (r.ok) made.edges.push(r.edge.id);
+    return r.ok;
+  };
+
+  // The opening, held as a rectangle the way this app holds rectangles: one
+  // anchor, two axis rays, and a corner where the two axes cross.
+  const bl = V(addAnchor(scene, { x: at.x, y: at.y + height }));
+  if (!bl) return { ok: false, reason: "could not place the near corner" };
+  const br = V(addRayVertex(scene, { origin: bl.id, binding: "horizontal", t: width }));
+  const tl = V(addRayVertex(scene, { origin: bl.id, binding: "vertical", t: -height }));
+  if (!br || !tl) return { ok: false, reason: "could not raise the opening" };
+  const tr = V(addIntersectVertex(scene, { defs: [
+    { origin: tl.id, binding: "horizontal" },
+    { origin: br.id, binding: "vertical" },
+  ] }));
+  if (!tr) return { ok: false, reason: "could not close the opening" };
+
+  // The far wall: the same four corners, the same fraction of the way to the
+  // point. Ring order matches the near ring, which is the contract every face
+  // below reads off.
+  const near = [bl, br, tr, tl];
+  const far = [];
+  for (const n of near) {
+    const f = V(addRayVertex(scene, { origin: n.id, binding: { vpId: vp.id }, t: 0 }));
+    if (!f) return { ok: false, reason: "could not run the walls back to the vanishing point" };
+    f.recede = recede;
+    far.push(f);
+  }
+
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    E(near[i], near[j], i % 2 === 0 ? "horizontal" : "vertical");   // the opening
+    E(far[i], far[j], i % 2 === 0 ? "horizontal" : "vertical");     // the far wall
+    E(near[i], far[i], { vpId: vp.id });                            // and the run between
+  }
+
+  // Five surfaces, and every one of them faces you. That is what being inside
+  // means, and it is why a room needs its own face set rather than the box's.
+  const solid = `room${scene.nextId}`;
+  const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
+  F(far, "back");
+  F([near[0], near[1], far[1], far[0]], "bottom");   // floor
+  F([near[3], near[2], far[2], far[3]], "top");      // ceiling
+  F([near[0], near[3], far[3], far[0]], "left");
+  F([near[1], near[2], far[2], far[1]], "right");
+
+  solveScene(scene);
+  return { ok: true, ...made, solid, vp, recede, near, far };
 }
 
 export function deleteVertex(scene, vertexId) {

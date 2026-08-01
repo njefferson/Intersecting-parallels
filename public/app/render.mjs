@@ -73,10 +73,12 @@ export function themeColors(theme) {
         // D37 — face fills. These are SURFACES, not marks: they are held to
         // "every mark stays >= 3:1 ON them", not to 3:1 themselves. Lit from
         // above, so top is lightest and the underside darkest.
-        faceTop: "#F3F3F4", faceRight: "#E5E6E7", faceLeft: "#D7D7D9", faceBottom: "#C6C7C9" }
+        faceTop: "#F3F3F4", faceRight: "#E5E6E7", faceLeft: "#D7D7D9", faceBottom: "#C6C7C9",
+        faceBack: "#EDEEEF" }
     : { ink: "#EAECF5", guide: "#8B93AD", grid: "#636A80", paper: "#141A2E",
         vp: "#8A97FF", vpLocked: "#8B93AD", bad: "#E0619E", sel: "#58C6E0", ghost: "#8B93AD",
-        faceTop: "#3B4051", faceRight: "#2E3445", faceLeft: "#22273A", faceBottom: "#0C0F1B" };
+        faceTop: "#3B4051", faceRight: "#2E3445", faceLeft: "#22273A", faceBottom: "#0C0F1B",
+        faceBack: "#343A4B" };
 }
 
 
@@ -195,6 +197,16 @@ function sideOfHorizon(scene, p) {
 // This also makes old drawings work unchanged: a box saved before this stored its
 // walls, and those are simply ignored in favour of the ring.
 function visibleFaces(solid, scene, byId) {
+  // D52 — an INTERIOR. A room is a box you are inside, so every surface it has
+  // faces you: the far wall, the floor, the ceiling and both side walls. The one
+  // you cannot see is the opening you are looking through, which is why a room
+  // stores five faces and no near one. Nothing is culled and nothing is derived —
+  // a solid that has a back wall simply shows everything it has, back first.
+  if (solid.faces.some(f => f.shade === "back")) {
+    const rank = { back: 0, bottom: 1, top: 2, left: 3, right: 4 };
+    return [...solid.faces].sort((a, b) => (rank[a.shade] ?? 9) - (rank[b.shade] ?? 9));
+  }
+
   const bottom = solid.faces.find(f => f.shade === "bottom");
   const top = solid.faces.find(f => f.shade === "top");
   const out = [];
@@ -275,7 +287,7 @@ function visibleEdgeKeys(faces) {
 
 const edgeKey = e => (e.a < e.b ? `${e.a}|${e.b}` : `${e.b}|${e.a}`);
 
-const FACE_COLOUR = { top: "faceTop", right: "faceRight", left: "faceLeft", bottom: "faceBottom" };
+const FACE_COLOUR = { top: "faceTop", right: "faceRight", left: "faceLeft", bottom: "faceBottom", back: "faceBack" };
 
 function fillFace(ctx, view, face, byId, c) {
   const pts = face.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.x) && Number.isFinite(v.y));

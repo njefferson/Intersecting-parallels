@@ -737,6 +737,45 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D52 — the interior room (SHIPPED 1.11.0, staging)
+
+Third and last of the three Noah agreed to, and the only one that is a NEW KIND
+of thing rather than more of what exists. A room is a box you are INSIDE, and
+that inverts what every piece of the box code assumes: you see the far wall, the
+floor, the ceiling and both side walls, and the surface nearest you — the opening
+you are looking through — is the one you never see.
+
+So a room stores FIVE faces and no near one, and `visibleFaces` short-circuits on
+a solid that has a `back`: an interior culls nothing, because there is nothing to
+cull. That is simpler than the box path, not harder.
+
+**The far wall stays a rectangle because the corners hold a FRACTION**, not a
+length. All four sit the same fraction of the way to the point, which makes the
+far wall the near wall scaled about that point — a homothety, so rectangularity
+is preserved for free rather than enforced. Store lengths instead and the wall
+skews the instant the point moves, because the four corners are different
+distances from it. Planting exactly that collapses the room to a single flat
+plane: 150,984 pixels of back wall and **zero** of all four sides.
+
+**A defect in D39 fell out of this.** The guide-reversal flip — which negates `t`
+when a vanishing point crosses its corner's origin, so the corner holds position —
+was firing on DERIVED lengths too. A derived length is recomputed from scratch
+every solve, so there is no history to preserve and the negation just threw the
+corner to the wrong side; the far wall skewed when the point moved past one of its
+corners. The flip is now skipped for anything holding a ratio or a fraction. It
+had been latent since D51 shipped an hour earlier.
+
+**A room needs a point you are FACING.** With every point off to the sides — the
+default two-point setup — the construction builds a tunnel running past you,
+which is honest geometry and is not a room. Rather than draw that, it refuses and
+says to move a point onto the paper. That is the one-point interior the exercise
+is about, and it leans on D46: a point on the paper is the most ordinary
+construction there is.
+
+**All three delivered.** Depth division (D50), the scale figure (D51), the room
+(D52). What the app can now do that it could not this morning: space anything
+evenly in depth, check any scene against human scale, and draw an interior.
+
 ### D51 — the scale figure (SHIPPED 1.10.0, staging)
 
 Second of the three Noah agreed to, and the one with the best effort-to-usefulness

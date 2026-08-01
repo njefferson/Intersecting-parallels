@@ -8,6 +8,24 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.11.0 — CAPABILITY · 2026-07-31
+
+**A room — a box you are inside.**
+
+- **Add room** draws the one-point interior: the opening you look through, and
+  the far wall, floor, ceiling and both side walls running back to a vanishing
+  point. Turn on **Solid** and all five surfaces fill, because inside a room
+  every surface faces you. The one you cannot see is the opening itself.
+- Move the vanishing point and the whole room turns to follow, and the far wall
+  **stays a rectangle** — it holds how far back it is as a fraction of the way to
+  the point, not as a length, so it can never skew.
+- A room needs a point you are **facing**, so if all your points are off to the
+  sides it says so and tells you to move one onto the paper. A point far to one
+  side builds a tunnel running past you, which is honest geometry and is not a
+  room.
+
+---
+
 ## 1.10.0 — CAPABILITY · 2026-07-31
 
 **A scale figure — the quickest way to tell whether a scene reads at human size.**

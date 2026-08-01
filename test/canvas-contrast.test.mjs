@@ -46,7 +46,7 @@ test("the contrast arithmetic itself is right", () => {
 // colour without deciding which kind it is fails the build instead of passing
 // quietly. The completeness test below is what enforces that.
 const MARKS = ["ink", "guide", "grid", "vp", "vpLocked", "bad", "sel", "ghost"];
-const SURFACES = ["faceTop", "faceRight", "faceLeft", "faceBottom"];
+const SURFACES = ["faceTop", "faceRight", "faceLeft", "faceBottom", "faceBack"];
 
 // The grid is drawn UNDER the face fills (draw order: paper, grid, fills, then
 // every line), so it is the one mark that never lands on a surface and is not
@@ -76,10 +76,12 @@ for (const theme of ["dark", "light"]) {
     // information. Each step in the ramp has to be visible, and each face has to
     // be visible against bare paper, or "solid" has not been delivered.
     const c = themeColors(theme);
-    const ramp = SURFACES.map(k => c[k]);
+    // The back wall is its own surface, not a step in the lit ramp — it is the
+    // one you look AT rather than along, so it is checked against paper only.
+    const ramp = ["faceTop", "faceRight", "faceLeft", "faceBottom"].map(k => c[k]);
     for (let i = 0; i < ramp.length - 1; i++) {
       const step = contrast(ramp[i], ramp[i + 1]);
-      assert.ok(step >= 1.1, `${SURFACES[i]} -> ${SURFACES[i + 1]} is only ${step.toFixed(2)}:1`);
+      assert.ok(step >= 1.1, `ramp step ${i} is only ${step.toFixed(2)}:1`);
     }
     for (const k of SURFACES) {
       assert.ok(contrast(c[k], c.paper) >= 1.05, `${k} is indistinguishable from paper`);
