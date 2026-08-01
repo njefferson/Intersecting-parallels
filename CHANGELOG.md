@@ -8,6 +8,25 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.8.1 — ITERATION · 2026-07-31
+
+**Boxes shade correctly at the horizon, and on both sides of it.**
+
+- A box dragged **above the horizon** was shaded inside out: the app kept working
+  out which sides face you from where the corners landed on screen, and that
+  guess is only right below the horizon. It does not guess any more. Which sides
+  face you is fixed when the box is built, and the only thing that changes it is
+  a depth you have pushed through to the other side.
+- A box sitting **between eye level and the horizon** showed neither its top nor
+  its underside, leaving a hollow chevron. Whether you can see the top of a
+  horizontal face is decided by the **horizon** — the line your vanishing points
+  make — not by the eye-level marker. The two are the same line whenever your
+  points are level, which is why this only went wrong once they were not.
+- Eye level stays exactly what it was: a reference you place and read against.
+  Moving it no longer changes what is drawn, because it never should have.
+
+---
+
 ## 1.8.0 — CAPABILITY · 2026-07-30
 
 **The toolbar was eating a third of the iPad. It is two rows now.**

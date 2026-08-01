@@ -1306,30 +1306,34 @@ try {
   }, shade);
   const topMid = await faceMid('top');
   const bottomMid = await faceMid('bottom');
-  const setEye = async y => {
+  // D49 — move the HORIZON, not the eye-level line. What you can see of a
+  // horizontal face is decided by the vanishing line the points define; the
+  // eye-level line is a drawn reference that coincides with it when the points
+  // are level. These checks moved the reference and expected the drawing to
+  // follow, which was the old rule and is the defect Noah photographed.
+  const setHorizon = async y => {
     await nodragPage.evaluate(v => {
-      const f = document.getElementById('horizon-y');
-      f.value = String(v);
-      f.dispatchEvent(new Event('change'));
+      for (const vp of window.__ip.scene.vanishingPoints) if (vp.onHorizon) vp.y = v;
+      window.__ip.select(null);
     }, y);
     await nodragPage.waitForTimeout(160);
   };
 
-  await setEye(Math.round(topMid.y - 150));
+  await setHorizon(Math.round(topMid.y - 150));
   const above = await faceCounts();
-  check('eye level ABOVE the box shows its top and never its underside (D37)',
+  check('the horizon ABOVE the box shows its top and never its underside (D37/D49)',
     above.top > 200 && above.bottom === 0, JSON.stringify(above));
 
-  await setEye(Math.round(bottomMid.y + 150));
+  await setHorizon(Math.round(bottomMid.y + 150));
   const below = await faceCounts();
-  const eyeNow = await nodragPage.evaluate(() => window.__ip.scene.eyeLevel.y);
-  check('eye level BELOW the box shows its underside and never its top',
+  const eyeNow = await nodragPage.evaluate(() => Math.round(window.__ip.horizon()?.a.y ?? NaN));
+  check('the horizon BELOW the box shows its underside and never its top',
     below.bottom > 200 && below.top < 20,
-    `${JSON.stringify(below)} · eye ${eyeNow}, top mid ${Math.round(topMid.y)}, bottom mid ${Math.round(bottomMid.y)}`);
+    `${JSON.stringify(below)} · horizon ${eyeNow}, top mid ${Math.round(topMid.y)}, bottom mid ${Math.round(bottomMid.y)}`);
 
-  await setEye(Math.round((topMid.y + bottomMid.y) / 2));
+  await setHorizon(Math.round((topMid.y + bottomMid.y) / 2));
   const straddle = await faceCounts();
-  check('eye level THROUGH the box shows neither — the middle case in the lesson',
+  check('the horizon THROUGH the box shows neither — the middle case in the lesson',
     straddle.top < 20 && straddle.bottom < 20 && straddle.left > 200,
     JSON.stringify(straddle));
 
@@ -1765,6 +1769,110 @@ try {
     observed.shrunk < observed.restored && observed.restored - observed.shrunk >= 20,
     `backing height ${observed.shrunk} with a taller header, ${observed.restored} without — no window resize fired`);
   await shrinkCtx.close();
+
+  // D49 — a cube dragged across the horizon, and a cube in the band where eye
+  // level and the horizon DISAGREE. Both were broken on 1.8.0; both are measured
+  // in pixels here because both are claims about what is on screen.
+  const hzCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(hzCtx);
+  const hzPage = await hzCtx.newPage();
+  hzPage.on('pageerror', e => pageErrors.push(`horizon page: ${e}`));
+  await hzPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await hzPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await tapSetup(hzPage, 'solid');
+  await hzPage.evaluate(() => document.getElementById('add-cube').click());
+  await hzPage.waitForTimeout(250);
+  // Make it LOPSIDED before measuring: a symmetric cube has two walls of equal
+  // area, so "is it still the same pair" cannot be answered from the areas.
+  await hzPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    const rays = s.vertices.filter(v => v.kind === 'ray' && v.origin === a.id && typeof v.binding === 'object');
+    rays[0].t *= 2.2;
+    window.__ip.manipulate(a.id, { x: a.x, y: a.y });   // re-solve through the real path
+  });
+  await hzPage.waitForTimeout(200);
+
+  const shadesAt = y => hzPage.evaluate(async targetY => {
+    const s = window.__ip.scene;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    window.__ip.manipulate(a.id, { x: a.x, y: targetY });
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const c = document.getElementById('canvas');
+    const d = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+    const key = x => (255 << 24 | x[2] << 16 | x[1] << 8 | x[0]) >>> 0;
+    const want = { top: [59, 64, 81], right: [46, 52, 69], left: [34, 39, 58], bottom: [12, 15, 27] };
+    const lut = new Map(Object.entries(want).map(([k, v]) => [key(v), k]));
+    const out = { top: 0, right: 0, left: 0, bottom: 0 };
+    for (let i = 0; i < d.length; i++) {
+      const k = lut.get(d[i]);
+      if (k !== undefined) out[k]++;
+    }
+    return out;
+  }, y);
+
+  const low = await shadesAt(1050);
+  const high = await shadesAt(150);
+  check('a cube well below the horizon shows two walls and its top (D49)',
+    low.left > 200 && low.right > 200 && low.top > 200 && low.bottom === 0,
+    JSON.stringify(low));
+  check('and dragged well above it, two walls and its UNDERSIDE — not inside out (D49)',
+    high.left > 200 && high.right > 200 && high.bottom > 200 && high.top < 20,
+    JSON.stringify(high));
+  check('the same two walls face you on both sides of the horizon (D49)',
+    low.left !== low.right && Math.sign(low.left - low.right) === Math.sign(high.left - high.right),
+    `below ${low.left}/${low.right}, above ${high.left}/${high.right}`);
+
+  // The band Noah photographed: eye level and the horizon pulled apart, with the
+  // box between them. The HORIZON is what decides.
+  const band = await hzPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    window.__ip.manipulate(a.id, { x: a.x, y: 900 });
+    const f = s.faces.find(x => x.shade === 'top');
+    const byId = new Map(s.vertices.map(v => [v.id, v]));
+    const p = f.loop.map(id => byId.get(id));
+    const midY = p.reduce((m, v) => m + v.y, 0) / p.length;
+    // Horizon ABOVE the top face, eye level BELOW it: the two disagree.
+    for (const vp of s.vanishingPoints) if (vp.onHorizon) vp.y = midY - 80;
+    document.getElementById('horizon-y').value = String(Math.round(midY + 80));
+    document.getElementById('horizon-y').dispatchEvent(new Event('change'));
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const c = document.getElementById('canvas');
+    const d = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+    const key = x => (255 << 24 | x[2] << 16 | x[1] << 8 | x[0]) >>> 0;
+    const topKey = key([59, 64, 81]);
+    let top = 0;
+    for (let i = 0; i < d.length; i++) if (d[i] === topKey) top++;
+    return { top, faceMid: Math.round(midY), eye: s.eyeLevel.y, horizon: Math.round(midY - 80) };
+  });
+  // Differential, not a threshold: put the horizon on one side of the face and
+  // then the other, and the top must appear and vanish with the HORIZON while the
+  // eye-level line is left where it is.
+  const flipped = await hzPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const f = s.faces.find(x => x.shade === 'top');
+    const byId = new Map(s.vertices.map(v => [v.id, v]));
+    const p = f.loop.map(id => byId.get(id));
+    const midY = p.reduce((m, v) => m + v.y, 0) / p.length;
+    for (const vp of s.vanishingPoints) if (vp.onHorizon) vp.y = midY + 80;   // now BELOW the face
+    window.__ip.select(null);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const c = document.getElementById('canvas');
+    const d = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+    const key = x => (255 << 24 | x[2] << 16 | x[1] << 8 | x[0]) >>> 0;
+    const topKey = key([59, 64, 81]), bottomKey = key([12, 15, 27]);
+    let top = 0, bottom = 0;
+    for (let i = 0; i < d.length; i++) {
+      if (d[i] === topKey) top++;
+      else if (d[i] === bottomKey) bottom++;
+    }
+    return { top, bottom, eye: s.eyeLevel.y };
+  });
+  check('in the band where eye level and the horizon disagree, the HORIZON decides (D49)',
+    band.top > 20 && flipped.top < 20,
+    `horizon above the face: top ${band.top}px; horizon moved below it: top ${flipped.top}px — and eye level never moved from ${flipped.eye}`);
+  await hzCtx.close();
 
   // D47 — the toolbar cleanup. The bar must stay SHORT, everything that moved
   // must still be reachable, and neither panel may be covered by a point marker.

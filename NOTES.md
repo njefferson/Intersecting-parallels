@@ -737,6 +737,53 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D49 — stop recalculating what the construction knows (FIXED 1.8.1, staging)
+
+**Noah, 2026-07-31, after a screenshot of three cubes straddling the two lines:**
+*"All these cubes fail at eye/horizon lines."* Then, cutting the whole thing
+short: *"Why do you recalculate normals at all?"*
+
+That question ends a run of four amendments chasing the same bug. D37 stored the
+two front walls. D39's signed depths invalidated that. D44 replaced it with
+"nearest is the corner LOWEST ON THE PAGE". D48 (never shipped) was going to
+patch that to "furthest from the horizon". Every one of them derived, from SCREEN
+POSITION, a fact the construction already held.
+
+**`buildBox` puts the anchor at the near bottom corner and runs both depths
+OUTWARD from it.** The two walls meeting at the anchor's vertical edge are the
+front pair, by construction, permanently. Dragging the box around the page cannot
+change that. The one thing that does is a depth going NEGATIVE — which puts that
+corner on the near side of the anchor — and that is a stored sign, not a
+measurement. Two signs, four cases, exact:
+
+    both +      anchor nearest        walls at ring[0]
+    left -      left corner nearest   walls at ring[1]
+    right -     right corner nearest  walls at ring[3]
+    both -      back corner nearest   walls at ring[2]
+
+No eye level, no screen y, nothing to go stale, and a test that drags the box
+from y=1150 to y=100 and asserts the answer never moves.
+
+**The second half was the other line.** Whether you see the top of a horizontal
+face or its underside is decided by the **HORIZON** — the vanishing line the
+points define — not by the authored eye-level marker. A horizontal plane below
+your eye projects below the horizon; above your eye, above it. Eye level is a
+drawn reference that COINCIDES with the horizon whenever the points are level,
+which is why testing against it worked for as long as it did and failed exactly
+in the band Noah photographed. Falls back to eye level when there are fewer than
+two points on the horizon (D36), because a one-point scene is an ordinary drawing.
+
+Consequence worth stating: **moving the eye-level marker no longer changes what is
+drawn.** It never should have. The lesson is still there — it is about where the
+POINTS sit relative to your eye, and moving the points is what changes the view.
+
+**Gated:** the walk drags a lopsided cube from well below the horizon to well
+above it and asserts the same pair of walls stays lit (planted: they swap,
+81736/41791 becomes 18970/46743) with the top giving way to the underside; plus a
+differential in the disagreement band where the horizon moves across a face and
+the eye-level line never moves. Planting both old rules reddens four walk checks
+and a unit test.
+
 ### D47 — the toolbar (SHIPPED 1.8.0, staging)
 
 **Noah, 2026-07-30, with a photograph of four toolbar rows:** *"Can you clean up

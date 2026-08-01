@@ -96,19 +96,81 @@ function groupSolids(scene, byId) {
     for (const id of f.loop) g.verts.add(id);
   }
   const out = [...bySolid.values()];
-  // Painter's order without a third dimension to sort by: the LOWEST point on
-  // the page is the nearest, because that is what a ground plane receding to a
-  // horizon means. Farthest first, so nearer solids paint over them.
+  // Painter's order without a third dimension to sort by: distance FROM THE
+  // HORIZON is the depth cue, because the horizon is where distance becomes
+  // infinite (D48). Farthest first, so nearer solids paint over them. This used
+  // to be plain "lowest y", which put a solid above the horizon in the wrong
+  // order for exactly the reason the wall picking was wrong.
+  const eye = scene.eyeLevel?.y;
+  const level = Number.isFinite(eye) ? eye : 0;
   for (const g of out) {
-    let maxY = -Infinity;
+    let far = -Infinity;
     for (const id of g.verts) {
       const v = byId.get(id);
-      if (v && Number.isFinite(v.y)) maxY = Math.max(maxY, v.y);
+      if (v && Number.isFinite(v.y)) far = Math.max(far, Math.abs(v.y - level));
     }
-    g.depth = maxY;
+    g.depth = far;
   }
   out.sort((a, b) => a.depth - b.depth);
   return out;
+}
+
+// D49 — STOP RECALCULATING WHAT THE CONSTRUCTION ALREADY KNOWS.
+//
+// Noah, 2026-07-31: "Why do you recalculate normals at all?"
+//
+// He is right and it is the question that ends this whole line of bugs. D44 read
+// the near corner off SCREEN POSITION ("lowest on the page"), D48 patched that to
+// distance from the horizon, and each version was wrong somewhere else. None of
+// it was necessary: `buildBox` puts the anchor at the near bottom corner and runs
+// both depths OUTWARD from it, so the two walls meeting at the anchor's vertical
+// edge are the front pair. That is true by construction and no amount of dragging
+// the box around the page changes it.
+//
+// The one thing that genuinely changes it is a depth going NEGATIVE (D39), which
+// puts that corner on the near side of the anchor instead of the far side. And
+// that is a STORED SIGN, not a measurement. Two signs, four cases, exact:
+//
+//   both depths +   the anchor is nearest          walls at ring[0]
+//   left -, right + the left corner is nearest     walls at ring[1]
+//   left +, right - the right corner is nearest    walls at ring[3]
+//   both -          the back corner is nearest     walls at ring[2]
+//
+// No eye level, no screen y, no heuristic, and nothing to go stale.
+export function nearBaseIndex(ring, byId) {
+  // The ring is [anchor, leftDepth, back, rightDepth] — buildBox's own order,
+  // which D44's test pins.
+  const near = id => {
+    const v = byId.get(id);
+    return !!v && typeof v.t === "number" && v.t < 0;
+  };
+  const l = near(ring[1]), r = near(ring[3]);
+  if (!l && !r) return 0;
+  if (l && !r) return 1;
+  if (!l && r) return 3;
+  return 2;
+}
+
+// D49 — and the OTHER line. Whether you see the top of a horizontal face or its
+// underside is decided by the HORIZON, not by the authored eye-level line.
+//
+// Noah, 2026-07-31, with three cubes sitting in the band between the two: "All
+// these cubes fail at eye/horizon lines."
+//
+// The horizon is where horizontal planes at your eye height vanish, so a
+// horizontal face projects below it when it is below your eye and above it when
+// it is above. Eye level is a drawn reference that COINCIDES with the horizon
+// whenever the points are level — which is why testing against it worked until
+// the two diverged, and then failed exactly in the band where they do.
+//
+// Returns > 0 above the horizon, < 0 below it. Falls back to the eye-level line
+// when there are not two points to define a horizon (D36), because then there is
+// nothing better and the two are the same thing anyway.
+function sideOfHorizon(scene, p) {
+  const hz = horizonLine(scene);
+  if (hz) return (p.x - hz.a.x) * hz.u.y - (p.y - hz.a.y) * hz.u.x;
+  const eye = scene.eyeLevel?.y;
+  return Number.isFinite(eye) ? eye - p.y : 0;
 }
 
 // D44 — which faces of a solid can be seen, INCLUDING when it is inside out.
@@ -127,26 +189,19 @@ function groupSolids(scene, byId) {
 // The walls are not stored at all now. The base ring and the top ring are stored
 // (as the bottom and top faces, in matching order), and the four walls are read
 // off them every frame — so they cannot be stale, and an inverted box gets the
-// right pair for free. The visible pair is the two that meet at the base corner
-// LOWEST ON THE PAGE, which is the same "lowest is nearest" a ground plane
-// receding to a horizon already gives us and which solid ordering already uses.
+// right pair for free. The visible pair is the two that meet at the NEAREST base
+// corner; D49 has what "nearest" means, and it is not what this originally said.
 //
 // This also makes old drawings work unchanged: a box saved before this stored its
 // walls, and those are simply ignored in favour of the ring.
 function visibleFaces(solid, scene, byId) {
-  const eye = scene.eyeLevel?.y;
   const bottom = solid.faces.find(f => f.shade === "bottom");
   const top = solid.faces.find(f => f.shade === "top");
   const out = [];
 
   if (bottom && top && bottom.loop.length === top.loop.length && bottom.loop.length >= 3) {
     const b = bottom.loop, t = top.loop, n = b.length;
-    // The near corner: lowest on the page among the base ring.
-    let near = -1, bestY = -Infinity;
-    for (let i = 0; i < n; i++) {
-      const v = byId.get(b[i]);
-      if (v && Number.isFinite(v.y) && v.y > bestY) { bestY = v.y; near = i; }
-    }
+    const near = nearBaseIndex(b, byId);
     if (near >= 0) {
       // The two walls meeting at that corner: the one arriving and the one leaving.
       const walls = [];
@@ -169,12 +224,16 @@ function visibleFaces(solid, scene, byId) {
   // lesson: you see the top of a box that sits below your eye and the underside
   // of one that sits above it, and a box straddling your eye shows neither.
   for (const f of [top, bottom]) {
-    if (!f || !Number.isFinite(eye)) continue;
-    const ys = f.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.y)).map(v => v.y);
-    if (!ys.length) continue;
-    const mid = ys.reduce((a, b2) => a + b2, 0) / ys.length;
-    if (f.shade === "top" && mid > eye) out.push(f);
-    if (f.shade === "bottom" && mid < eye) out.push(f);
+    if (!f) continue;
+    const pts = f.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.x) && Number.isFinite(v.y));
+    if (!pts.length) continue;
+    const mid = {
+      x: pts.reduce((a, v) => a + v.x, 0) / pts.length,
+      y: pts.reduce((a, v) => a + v.y, 0) / pts.length,
+    };
+    const side = sideOfHorizon(scene, mid);
+    if (f.shade === "top" && side < 0) out.push(f);      // below the horizon: you see its top
+    if (f.shade === "bottom" && side > 0) out.push(f);   // above it: you see underneath
   }
 
   // Draw order inside a solid, and it is not arbitrary. The walls go down first;

@@ -13,6 +13,7 @@ import {
   createScene, addVp, addAnchor, setEyeLevel, horizonLine, addFace, deleteVertex, clearDrawing, solveScene, scaleVpSpread,
 } from "../public/app/solver.mjs";
 import { buildBox } from "../public/app/snap.mjs";
+import { nearBaseIndex } from "../public/app/render.mjs";
 import { parseProjectJson } from "../public/app/state.mjs";
 
 function twoPointScene() {
@@ -274,4 +275,84 @@ test("D46: what IS refused is two points arriving at the same place", () => {
   assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= floor,
     `the two points collapsed onto each other at ${Math.round(a.x)},${Math.round(a.y)}`);
   assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)));
+});
+
+test("D49: which walls face you comes from the DEPTH SIGNS, not from the screen", () => {
+  // Noah, 2026-07-31: "Why do you recalculate normals at all?" The construction
+  // knows. buildBox runs both depths outward from the anchor, so the anchor is
+  // the near corner — until a depth goes negative and puts that corner on the
+  // near side instead. Two stored signs, four cases, nothing measured.
+  const { scene } = twoPointScene();
+  const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 250, depthR: 250 });
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  const ring = scene.faces.find(f => f.solid === res.solid && f.shade === "bottom").loop;
+  const L = scene.vertices.find(v => v.id === res.corners.leftBottom.id);
+  const R = scene.vertices.find(v => v.id === res.corners.rightBottom.id);
+
+  assert.equal(nearBaseIndex(ring, byId), 0, "both depths positive: the anchor is nearest");
+  L.t = -250; solveScene(scene);
+  assert.equal(nearBaseIndex(ring, byId), 1, "left depth negative: that corner is nearest");
+  L.t = 250; R.t = -250; solveScene(scene);
+  assert.equal(nearBaseIndex(ring, byId), 3, "right depth negative");
+  L.t = -250; solveScene(scene);
+  assert.equal(nearBaseIndex(ring, byId), 2, "both negative: the back corner is nearest");
+});
+
+test("D49: and dragging the box around the page never changes it", () => {
+  // This is the whole point. D44 read nearness off screen position and D48
+  // patched that with the horizon; both changed their answer when the drawing
+  // moved. The construction does not.
+  const { scene } = twoPointScene();
+  const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 250, depthR: 250 });
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  const ring = scene.faces.find(f => f.solid === res.solid && f.shade === "bottom").loop;
+  const anchor = scene.vertices.find(v => v.id === res.corners.nearBottom.id);
+
+  const answers = new Set();
+  for (const y of [1150, 900, 700, 560, 540, 520, 300, 100]) {
+    anchor.y = y;
+    solveScene(scene);
+    answers.add(nearBaseIndex(ring, byId));
+  }
+  assert.deepEqual([...answers], [0],
+    "the near corner changed as the box was dragged across the horizon");
+});
+
+test("D49: face visibility follows the HORIZON, not the eye-level line", () => {
+  // Noah, 2026-07-31, with three cubes sitting between the two lines: "All these
+  // cubes fail at eye/horizon lines." Where the points are level the two
+  // coincide, which is why testing against eye level worked until they diverged.
+  const { scene, l, r } = twoPointScene();          // both points at y 540
+  const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 250, depthR: 250 });
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  const faceMid = shade => {
+    const f = scene.faces.find(x => x.solid === res.solid && x.shade === shade);
+    const p = f.loop.map(id => byId.get(id));
+    return { x: p.reduce((a, v) => a + v.x, 0) / p.length, y: p.reduce((a, v) => a + v.y, 0) / p.length };
+  };
+  const top = faceMid("top");
+
+  // Put the box's top face BETWEEN the two lines: below the horizon (so its top
+  // is visible) but above the authored eye-level line (so the old rule said no).
+  setEyeLevel(scene, top.y + 60);        // eye level BELOW the face
+  l.y = r.y = top.y - 60;                // horizon ABOVE it
+  const hz = horizonLine(scene);
+  const side = (top.x - hz.a.x) * hz.u.y - (top.y - hz.a.y) * hz.u.x;
+  assert.ok(side < 0, "the top face should be below the horizon in this setup");
+  assert.ok(top.y < scene.eyeLevel.y, "and above the eye-level line, which is the whole point");
+  // The two lines disagree here. The horizon is the one that decides.
+});
+
+test("D49: with no horizon at all, eye level still answers", () => {
+  // One point, or none: D36 says there is no horizon. The fallback has to hold,
+  // because a one-point scene is an ordinary drawing, not an error.
+  const scene = createScene({ name: "t", width: 1600, height: 1200 });
+  setEyeLevel(scene, 540);
+  addVp(scene, { label: "VP1", x: -600, y: 540, axis: "x", onHorizon: true });
+  addVp(scene, { label: "VP2", x: 2200, y: 540, axis: "y" });     // NOT on the horizon
+  assert.equal(horizonLine(scene), null, "this scene has no horizon by D36");
+  const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 250, depthR: 250 });
+  assert.equal(res.ok, true);
+  assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+    "a scene with no horizon still solves");
 });
