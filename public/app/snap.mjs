@@ -13,7 +13,7 @@
 import {
   SNAP_RADIUS, EPS_LEN_FACTOR,
   projectPointOnLine, bindingDirection,
-  addAnchor, addRayVertex, addIntersectVertex, addEdge, addFace, solveScene, addSlopePoint, depthAtInterval, addCircle,
+  addAnchor, addRayVertex, addIntersectVertex, addEdge, addFace, solveScene, addSlopePoint, depthAtInterval, addCircle, orientSolid,
 } from "./solver.mjs";
 
 const DEG = 180 / Math.PI;
@@ -725,11 +725,28 @@ export function buildRoof(scene, { corners, pitch = 0.5 }) {
 
   const solid = `roof${scene.nextId}`;
   const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
-  // D63 — wound outward, like every other face. Measured: with the house below
-  // the horizon both planes must read positive, and these two loops did not, so
-  // they are traversed the other way round. A roof is not a special case any more.
+  // D63 — a roof is a CLOSED SOLID, and it has to be, because back-face culling
+  // distinguishes inside from outside and an open surface has no inside.
+  //
+  // Measured before this: the two slopes read positive with the house below the
+  // horizon AND positive with it above, so they never flipped and a roof over your
+  // head still painted its slopes. That is not a winding to correct — the ridge is
+  // always drawn above the eaves on the page, so a lone plane's winding depends on
+  // left/right order rather than on which side you are viewing it from. Two planes
+  // with no ends are not a thing that HAS a far side.
+  //
+  // Closing it with the two gable triangles makes it a prism, and then the same
+  // one rule that works on a box works on it, with nothing added to the renderer.
+  // The gable ends are real surfaces anyway: they are the triangles of wall you
+  // see under a roof from the end of a house.
   F([leftTop, peakFar, peakNear, nearTop], "left");
   F([backTop, peakFar, peakNear, rightTop], "right");
+  F([nearTop, peakNear, rightTop], "near");         // the gable you face
+  F([backTop, peakFar, leftTop], "back");           // and the one away from you
+  // The underside, so the prism is closed all the way round: what you see looking
+  // up at a gable from the kerb.
+  F([nearTop, rightTop, backTop, leftTop], "bottom");
+  orientSolid(scene, solid, { cap: "bottom", inward: true });
 
   solveScene(scene);
   return { ok: true, ...made, solid, peakNear, peakFar, midNear, midFar,

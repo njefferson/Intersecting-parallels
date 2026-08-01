@@ -8,6 +8,29 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.15.0 — CAPABILITY · 2026-08-01
+
+**Solids know which way they face, the way a 3-D program does.**
+
+- Which faces of a box you can see is no longer worked out from where things sit
+  on the page. Every face is built knowing which side is its outside, and that
+  never changes; the drawing then simply shows the ones turned toward you. It is
+  how any 3-D program does it, and it replaces five different rules that each got
+  one case right and another wrong.
+- **A cube no longer turns inside out** when two vanishing points swap sides. It
+  correctly shows you the other side of itself, because that is what you would
+  see.
+- **Eye level has no say in it any more.** A box below your eye shows its top
+  because its top is turned toward you — not because a line was consulted. That
+  band where eye level and the horizon disagreed, and cubes went wrong inside it,
+  cannot happen now.
+- **A roof is a closed shape**, with its two gable ends and its underside. Look up
+  at a house from the kerb and the roof correctly shows you nothing but the
+  underside of its eaves.
+- Rooms, roofs and the street's buildings all follow the same single rule.
+
+---
+
 ## 1.14.0 — CAPABILITY · 2026-08-01
 
 **A circle in perspective — wheels, arches, domes, cups, manholes.**

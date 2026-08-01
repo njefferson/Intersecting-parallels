@@ -2263,7 +2263,7 @@ try {
     };
   });
   check('a roof brings two slope points, on the vertical through their axis point (D53)',
-    roofed.slopes === 2 && roofed.onVertical && roofed.straddle && roofed.roofFaces === 2
+    roofed.slopes === 2 && roofed.onVertical && roofed.straddle && roofed.roofFaces === 5   // D63: closed prism — two slopes, two gable ends, an underside
       && roofed.finite && roofed.degenerate === 0,
     JSON.stringify(roofed));
 
@@ -2314,7 +2314,7 @@ try {
   const shadedUp = await rfPage.evaluate(countShades);
   const gainedUp = { left: shadedUp.left - wallsUp.left, right: shadedUp.right - wallsUp.right };
   check('a roof over your head shows its underside, not its slopes (D54)',
-    overhead.faces === 2 && overhead.aboveHorizon
+    overhead.faces === 5 && overhead.aboveHorizon
       && Math.abs(gainedUp.left) < 500 && Math.abs(gainedUp.right) < 500,
     `${overhead.faces} roof planes stored, all above the horizon: ${overhead.aboveHorizon}, painting ${gainedUp.left}/${gainedUp.right}px onto walls of ${wallsUp.left}/${wallsUp.right}`);
 
