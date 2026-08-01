@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.12.1";
+const VERSION = "1.12.2";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -303,7 +303,7 @@ function renderPanel({ structural = true } = {}) {
       point.onHorizon = !point.onHorizon;
       solveScene(scene);
       afterEdit(`${point.label} ${point.onHorizon ? "slaved to the horizon" : "freed from the horizon"}`);
-    }, `Keep ${point.label} on the horizon line`));
+    }, `On horizon — keep ${point.label} on the horizon line`));
 
     const del = document.createElement("button");
     del.type = "button";
@@ -1634,11 +1634,14 @@ function refreshAddVp() {
   const full = axisPointCount(scene) >= MAX_VPS;
   const drawn = scene.edges.length > 0 || scene.vertices.length > 0;
   b.disabled = full || drawn;
+  // D56 / SC 2.5.3 Label in Name: the name STARTS with the words on the button,
+  // so saying "Add VP" activates it. It used to read "Add a vanishing point…",
+  // which spells the thing out nicely and matches nothing anyone would say.
   b.setAttribute("aria-label", full
-    ? "Add a vanishing point — unavailable, three is the limit"
+    ? "Add VP — a vanishing point; unavailable, three is the limit"
     : drawn
-      ? "Add a vanishing point — unavailable once there is a drawing; start a new drawing to change the number of points"
-      : "Add a vanishing point");
+      ? "Add VP — unavailable once there is a drawing; start a new drawing to change the number of points"
+      : "Add VP — add a vanishing point");
 }
 
 // §4 / SC 2.5.1 — pinch and two-finger pan are accelerators; these are the door.

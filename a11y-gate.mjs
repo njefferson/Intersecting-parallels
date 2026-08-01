@@ -310,11 +310,60 @@ try {
           const linksNoName = inter
             .filter(el => !el.textContent.trim() && !el.getAttribute('aria-label') && !el.getAttribute('title'))
             .map(el => el.outerHTML.slice(0, 60));
+
+          // D56 — two controls on one surface must not answer to the SAME NAME.
+          //
+          // Noah, 2026-08-01: "Person, 'place,' or thing…. Label is confusing."
+          // The Human-scale button read "Place" and so did the toolbar mode for
+          // putting vanishing points down. Two controls, one word, two meanings —
+          // and for anyone driving this by voice or by a list of controls,
+          // "Place" was simply ambiguous. Nothing in the app noticed.
+          //
+          // The rule is the accessible NAME, not the visible text, which is why
+          // the two Hide buttons and the per-point Lock/Delete rows are fine:
+          // they show the same word and answer to different names.
+          const nameOf = el =>
+            (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim();
+          const byName = new Map();
+          for (const el of inter.filter(visible)) {
+            const n = nameOf(el).toLowerCase();
+            if (!n) continue;
+            byName.set(n, (byName.get(n) || []).concat(el.id || el.tagName.toLowerCase()));
+          }
+          const dupeNames = [...byName.entries()]
+            .filter(([, who]) => who.length > 1)
+            .map(([n, who]) => `"${n}" on ${who.join(' and ')}`);
+
+          // WCAG 2.2 SC 2.5.3 Label in Name: when a control shows words AND
+          // carries an aria-label, the visible words must appear in that label —
+          // otherwise saying what is written on the button does not activate it.
+          // Added in the same commit as the aria-label that made it relevant.
+          // What a READER sees is not el.textContent: anything marked
+          // aria-hidden is decoration and is not part of the label, and a
+          // control labelled only by a symbol has no text for the criterion to
+          // be about. Both exclusions are in the criterion itself, and without
+          // them this check reports the arrow on an off-screen marker and the
+          // minus sign on Zoom out, neither of which anyone would ever say.
+          const shownText = el => {
+            const c = el.cloneNode(true);
+            for (const h of c.querySelectorAll('[aria-hidden="true"]')) h.remove();
+            return (c.textContent || '').replace(/\s+/g, ' ').trim();
+          };
+          const labelInName = inter.filter(visible).filter(el => {
+            const aria = (el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const seen = shownText(el).toLowerCase();
+            if (!aria || !seen) return false;
+            if (!/[a-z0-9]/.test(seen)) return false;      // a symbol is not text
+            return !aria.includes(seen);
+          }).map(el => `${el.id || el.tagName.toLowerCase()}: shows "${shownText(el)}", named "${el.getAttribute('aria-label')}"`);
+
           return {
             smallTargets: small,
             inlineExempt: exempt,
             imgsNoAlt,
             linksNoName,
+            dupeNames,
+            labelInName,
             lang: document.documentElement.lang,
             h1: document.querySelectorAll('h1').length,
           };
@@ -329,6 +378,8 @@ try {
         }
         for (const s of custom.imgsNoAlt) fail(at, `<img> has no alt attribute: ${s}`);
         for (const l of custom.linksNoName) fail(at, `interactive element has no accessible name: ${l}`);
+        for (const d of custom.dupeNames) fail(at, `two controls answer to the same name — ${d} (D56)`);
+        for (const l of custom.labelInName) fail(at, `SC 2.5.3 Label in Name — ${l}`);
         if (!custom.lang) fail(at, 'document has no lang attribute');
         if (custom.h1 !== 1) fail(at, `expected exactly one <h1>, found ${custom.h1}`);
         if (VERBOSE) console.log(`  ${at} targets ok, lang="${custom.lang}", h1=${custom.h1}`);

@@ -162,7 +162,16 @@
             <option value="0.5">Half height</option>
             <option value="5">Five times</option>
           </select>
-          <button class="btn" id="add-figure" type="button">Place</button>
+          <!-- D56: the verb, not "Place". Noah, 2026-08-01: "Person, 'place,' or
+               thing…. Label is confusing." Next to "A person" the word reads as a
+               NOUN — the row scanned as a list of nouns rather than a thing and
+               what to do with it — and the bar already has a Place MODE for
+               putting vanishing points down, so one word was doing two jobs. The
+               id has said `add-figure` all along; the label now agrees with it,
+               and with Add line / Add box / Add VP. The accessible name spells
+               out the whole action and contains the visible word (SC 2.5.3). -->
+          <button class="btn" id="add-figure" type="button"
+                  aria-label="Add a measure of the chosen height to the drawing">Add</button>
         </div>
 
         <h3 class="panel-sec">Space along a guide</h3>

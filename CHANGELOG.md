@@ -8,6 +8,22 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.12.2 — ITERATION · 2026-08-01
+
+**One word, one meaning.**
+
+- Under **Human scale**, the button next to *A person* said **Place**. Beside a
+  noun it reads as a noun, and the toolbar already has a **Place** mode for
+  putting vanishing points down — so the same word meant two different things
+  and neither was obvious. It says **Add** now, which is what the rest of the app
+  says when it puts something on the drawing.
+- Two other buttons were saying one thing and answering to another, which matters
+  if you drive the app by voice: **Add VP** was named "Add a vanishing point",
+  and **On horizon** was named "Keep VP1 on the horizon line". Saying what is
+  written on the button now works.
+
+---
+
 ## 1.12.1 — ITERATION · 2026-08-01
 
 **Buttons stop moving when you use them.**

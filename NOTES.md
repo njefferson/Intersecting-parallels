@@ -793,6 +793,40 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D56 — one word, one meaning (SHIPPED 1.12.2, staging)
+
+Noah, 2026-08-01: **"Person, 'place,' or thing…. Label is confusing."**
+
+The Human-scale row read `[A person ▼] [Place]`. Next to a noun, "Place" reads as
+a noun — the row scanned as a list of nouns rather than as a thing and what to do
+with it. And the toolbar has had a **Place MODE** since the beginning, for putting
+vanishing points down. One word, two controls, two meanings.
+
+The button's id has said `add-figure` since D51. The label now agrees with it, and
+with Add line / Add box / Add VP: **Add**.
+
+**The gate that would have caught it is about NAMES, not labels.** Two controls
+answering to the same accessible name is ambiguous for anyone driving the app by
+voice or moving through a list of controls — "activate Place" had two answers and
+nothing in the app noticed. The check is in `a11y-gate.mjs` and it is deliberately
+on the accessible NAME rather than the visible text, which is why the two Hide
+buttons and the per-point Lock / Delete rows pass: they show the same word and
+answer to different names.
+
+**Writing it found two real WCAG failures that had nothing to do with the report.**
+SC 2.5.3 Label in Name says the words on a control must appear in its accessible
+name, or saying what is written does not activate it. `Add VP` was named "Add a
+vanishing point" and `On horizon` was named "Keep VP1 on the horizon line" —
+neither contains what the button says. Both fixed, and the criterion is gated now,
+added in the same commit as the `aria-label` that made it relevant.
+
+Two false positives had to be cleared out of that check first, and both were the
+criterion's own exclusions rather than app defects: an `aria-hidden` arrow glyph
+on the off-screen point markers is decoration and not part of the label, and a
+button labelled only with a minus sign has no text for the criterion to be about.
+A check that reports those trains you to skim its output, which is how a real one
+gets skimmed with them.
+
 ### D55 — a control must not move when you use it (SHIPPED 1.12.1, staging)
 
 Noah, 2026-08-01, with two screenshots of the same panel: **"Buttons move when
