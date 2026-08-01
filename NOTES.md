@@ -793,6 +793,34 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D57 — the way in must cost what the way out costs (SHIPPED 1.12.3, staging)
+
+Noah, 2026-08-01: **"'Touch draw' shouldn't be buried in menus."**
+
+Touch draws was in Setup, under *While drawing*, beside Assist / 45° / Weld. It
+does not belong with them: those change how a stroke behaves, and this decides
+whether a finger draws at all. It is the most consequential switch in the app on
+the device the app is FOR.
+
+**The sharper version of the defect is the asymmetry.** When it is on, the
+standing flag on the canvas carries its own Turn off (D31's rule — a state you are
+in says so and carries its own exit). So turning it OFF was one tap, and turning
+it ON was three: Setup, scroll, tap. The direction you reach for first was the
+expensive one, and the cheap direction existed only because a different amendment
+had already got it right. Nothing noticed, because both directions worked.
+
+It is on the bar now, in its own group. That took the bar from 18 controls to 19,
+inside D47's cap of 20 — which is what the headroom from D54 was for, and the
+reason that cap was not raised when the roof pushed against it.
+
+**The check measures the ROUND TRIP from a clean load with nothing open**, rather
+than asserting the button exists. A control that is only cheap once you have
+already opened a panel is not cheap, and a check that opens the panel first would
+have passed in every version of this. Planted by putting it back in Setup: the
+button is still there and still works, both directions still succeed, and the
+check fails on `onBar:false` with a zero-sized rect — which is exactly the state
+Noah was describing.
+
 ### D56 — one word, one meaning (SHIPPED 1.12.2, staging)
 
 Noah, 2026-08-01: **"Person, 'place,' or thing…. Label is confusing."**

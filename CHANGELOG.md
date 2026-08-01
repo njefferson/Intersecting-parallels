@@ -8,6 +8,19 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.12.3 — ITERATION · 2026-08-01
+
+**Touch draws is on the toolbar.**
+
+- It decides what your finger does at all, which is a bigger question than
+  anything else it was sitting among in Setup — and turning it *off* was already
+  one tap, because the banner on the canvas carries its own **Turn off**. So
+  switching it on cost three taps and switching it off cost one. The direction
+  you reach for first was the expensive one.
+- Both directions are one tap now, and the banner stays exactly as it was.
+
+---
+
 ## 1.12.2 — ITERATION · 2026-08-01
 
 **One word, one meaning.**

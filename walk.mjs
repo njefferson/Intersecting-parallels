@@ -383,7 +383,7 @@ try {
     if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
   });
   await tPage.click('#mode-draw');
-  await tapSetup(tPage, 'touch-draws');                       // D5: finger draws, two fingers navigate
+  await tPage.click('#touch-draws');                          // D5: finger draws, two fingers navigate (D57: on the bar)
 
   const tBox = await tPage.locator('#canvas').boundingBox();
   const vpScreen = await tPage.evaluate(() => {
@@ -463,7 +463,7 @@ try {
     if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
   });
   await dPage.click('#mode-draw');
-  await tapSetup(dPage, 'touch-draws');
+  await dPage.click('#touch-draws');
 
   const dFinger = async (fx, fy, tx, ty) => {
     const cdp = await delCtx.newCDPSession(dPage);
@@ -548,7 +548,7 @@ try {
     if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
   });
   await bPage.click('#mode-box');
-  await tapSetup(bPage, 'touch-draws');
+  await bPage.click('#touch-draws');
 
   const bCdp = await boxCtx.newCDPSession(bPage);
   const bpt = (x, y) => [{ x, y, id: 1 }];
@@ -2368,7 +2368,7 @@ try {
       // every difference is zero, which reads exactly like a pass.
       const present = Object.keys(geom()).length;
       const worst = { id: null, dx: 0, dy: 0, dw: 0 };
-      for (const id of ['solid', 'show-hidden', 'rays', 'grid', 'eye-level', 'assist', 'snap45', 'weld', 'touch-draws']) {
+      for (const id of ['solid', 'show-hidden', 'rays', 'grid', 'eye-level', 'assist', 'snap45', 'weld']) {
         const b = document.getElementById(id);
         if (!b) continue;
         const before = geom();
@@ -2390,7 +2390,7 @@ try {
       return { ...worst, present, wide: Math.round(document.getElementById('setup').getBoundingClientRect().width) };
     });
     check(`pressing a toggle moves nothing on the panel — not even itself (D55, ${label})`,
-      jump.present >= 9 && jump.dx === 0 && jump.dy === 0 && jump.dw === 0,
+      jump.present >= 8 && jump.dx === 0 && jump.dy === 0 && jump.dw === 0,
       jump.id ? `worst: ${jump.id} by ${jump.dx}/${jump.dy}px and ${jump.dw}px of width`
               : `${jump.present} toggles in a ${jump.wide}px panel, none shifted anything`);
     await jCtx.close();
@@ -2426,7 +2426,7 @@ try {
     const ids = ['add-cube', 'add-room', 'add-roof',
                  'solid', 'face-opacity', 'show-hidden', 'rays', 'grid', 'eye-level',
                  'taller', 'shorter', 'stronger', 'gentler',
-                 'assist', 'snap45', 'weld', 'touch-draws', 'add-vp'];
+                 'assist', 'snap45', 'weld', 'add-vp'];
     document.getElementById('show-setup').click();
     const out = {};
     for (const id of ids) {
@@ -2439,6 +2439,38 @@ try {
   const missing = Object.entries(moved).filter(([, ok]) => !ok).map(([k]) => k);
   check('every control that moved off the bar is still visible and still 44px (D47)',
     missing.length === 0, missing.length ? `not reachable: ${missing.join(', ')}` : `all ${Object.keys(moved).length}`);
+
+  // D57 — Touch draws is ON THE BAR, and both directions cost one tap.
+  //
+  // Noah, 2026-08-01: "'Touch draw' shouldn't be buried in menus." The way OUT
+  // was already free — the standing flag carries its own Turn off — so turning it
+  // off was one tap and turning it on was three. The check measures the round
+  // trip from a clean load with nothing open, because a control that is only
+  // cheap once you have already opened a panel is not cheap.
+  const reach = await barPage.evaluate(async () => {
+    for (const id of ['setup', 'panel']) {
+      const p = document.getElementById(id);
+      if (p?.dataset.on === 'true') document.getElementById(id === 'setup' ? 'setup-close' : 'panel-close').click();
+    }
+    await new Promise(r => requestAnimationFrame(r));
+    const b = document.getElementById('touch-draws');
+    const r = b.getBoundingClientRect();
+    const onBar = !!b.closest('header.bar');
+    // Visible with no panel open, and nothing sitting on top of it.
+    const mid = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    const clear = b.contains(mid) || mid === b;
+    b.click();                                        // one tap ON
+    await new Promise(r2 => requestAnimationFrame(r2));
+    const on = b.getAttribute('aria-pressed') === 'true'
+      && document.getElementById('touch-flag')?.dataset.on === 'true';
+    document.getElementById('touch-exit').click();    // one tap OFF, from the canvas
+    await new Promise(r2 => requestAnimationFrame(r2));
+    const off = b.getAttribute('aria-pressed') === 'false';
+    return { onBar, clear, on, off, w: Math.round(r.width), h: Math.round(r.height) };
+  });
+  check('Touch draws is on the bar, and on costs the same one tap as off (D57)',
+    reach.onBar && reach.clear && reach.on && reach.off && reach.w >= 44 && reach.h >= 44,
+    JSON.stringify(reach));
 
   await barPage.waitForTimeout(300);
   const overlap = await barPage.evaluate(() => {

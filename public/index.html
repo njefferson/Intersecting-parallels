@@ -48,6 +48,17 @@
       <button class="btn" id="mode-select" type="button" aria-pressed="false">Select</button>
     </div>
 
+    <!-- D57 — on the BAR, not in Setup. Noah, 2026-08-01: "'Touch draw' shouldn't
+         be buried in menus." It decides what a finger does at all, which is a
+         bigger question than any of the settings it was sitting among, and the
+         way out was already on the canvas: when it is on, the standing flag
+         carries its own Turn off. So switching it OFF took one tap and switching
+         it ON took three. That asymmetry is the defect — the harder direction was
+         the one you reach for first. -->
+    <div class="bar-group" role="group" aria-label="What a finger does">
+      <button class="btn" id="touch-draws" type="button" aria-pressed="false">Touch draws</button>
+    </div>
+
     <!-- D34 / §4 (SC 2.5.1, 2.5.7): drawing without a drag. These two stay on the
          bar because they are the non-drag path to the app's primary act — Draw
          mode and Box mode done without a drag — and putting one behind a panel
@@ -195,7 +206,6 @@
           <button class="btn" id="assist" type="button" aria-pressed="true">Assist</button>
           <button class="btn" id="snap45" type="button" aria-pressed="false">45&deg;</button>
           <button class="btn" id="weld" type="button" aria-pressed="true">Weld</button>
-          <button class="btn" id="touch-draws" type="button" aria-pressed="false">Touch draws</button>
         </div>
       </div>
     </section>
