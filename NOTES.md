@@ -106,6 +106,43 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-08-01 — 1.12.5.** Twelfth promote. Noah said
+**"Promote - anything left?"** and `main` fast-forwarded `764e80f` -> `c0a2022`,
+no merge commit, remote diff against `staging` empty afterwards. Five iterations,
+every one of them a defect HE found on his iPad and none of them geometry the
+gates could have reasoned about unprompted:
+
+- **1.12.1** — D55, buttons moving when used. The tick appeared on press, so a
+  button grew on press, and a wrapping row shoved everything after it under a
+  finger already in flight.
+- **1.12.2** — D56, one word two meanings: the Human-scale button and the toolbar
+  mode both said "Place". Two real SC 2.5.3 failures fell out of writing the gate.
+- **1.12.3** — D57, Touch draws out of Setup and onto the bar. Off was one tap and
+  on was three, because a different amendment had already got the exit right.
+- **1.12.4** — D58/D59, the bar rearranging itself because a `<select>` sizes to
+  its longest option and its options are the scene's points; Add cube on the bar,
+  Add line into Setup with the interactions gate taught to follow a disclosure.
+- **1.12.5** — D60, the house tangling. Three faults: a stored length where a
+  fraction belonged (D52's own lesson, six hours old), an unsigned `hypot` that
+  destroyed the sign, and a divider that did not depend on what it divides. Plus a
+  fourth the gate found: filling faces through corners the solver had marked
+  unplaced.
+
+All four workflows verified `completed / success` on `c0a2022` on `main`, read
+back from the API; the record was held until every one finished, for the eighth
+promote running.
+
+Gates at 1.12.5: **204 unit tests**, **179 walk checks**, a11y PASS, 7 declared
+interactions with no gaps.
+
+**The number worth carrying out of this promote is three.** Three checks were
+caught passing against the exact fault they existed to catch — the roof shading
+counting walls, the eye-level rule measuring two different poses and then an
+off-page fixture, and D60's divider loop finding nothing to check once the
+fraction was gone. None of them were caught by running the gates; all three were
+caught by planting. A fourth unit test was written, planted against, found unable
+to fail, and DELETED rather than kept as decoration. Cross-app: hub LESSONS 7g.
+
 **PROMOTED TO PRODUCTION 2026-08-01 — 1.12.0.** Eleventh promote. Noah said
 **"Promote"** and `main` fast-forwarded `8179687` -> `9fab6af`, no merge commit;
 the remote diff between `main` and `staging` is empty afterwards, checked rather
