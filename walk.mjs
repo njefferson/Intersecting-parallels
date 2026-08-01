@@ -1307,7 +1307,7 @@ try {
     };
   });
   check('one cube, equal on every axis, both rings stored (D37 setup)',
-    built.edges === 12 && built.faces === 2 && built.depths[0] === built.depths[1],
+    built.edges === 12 && built.faces === 6 && built.depths[0] === built.depths[1],   // D63: six faces, not two rings
     JSON.stringify(built));
 
   const wireframe = await faceCounts();
@@ -1580,7 +1580,7 @@ try {
     return { edges: s.edges.length, faces: s.faces.length, height: Math.round(Math.abs(riser.t)), depths };
   });
   check('Add cube builds a box equal along all three guides (D42)',
-    cube.edges === 12 && cube.faces === 2 && cube.depths.every(d => d === cube.height),
+    cube.edges === 12 && cube.faces === 6 && cube.depths.every(d => d === cube.height),   // D63
     `height ${cube.height}, depths ${JSON.stringify(cube.depths)}`);
 
   await tapSetup(cPg, 'taller');

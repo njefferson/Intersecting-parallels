@@ -1246,11 +1246,26 @@ export function buildStreet(scene, { vpId, at, width = 420, block = 300, blocks 
 // foreshortened heights on their own and the roofline runs where it should.
 function raiseBuilding(scene, plot, storeys, vp, made) {
   const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
+  // D63 — make the ground ring's ROTATIONAL SENSE canonical before anything is
+  // built on it. A street plot is [railA@j, railB@j, railB@j+1, railA@j+1], which
+  // goes round the opposite way to a box's [near, left, back, right]; feed that to
+  // the box's face scheme and every face comes out inside out. This is not a
+  // winding to be flipped afterwards — orientSolid cannot see it, because the set
+  // it produces is internally consistent and simply faces the wrong way as a
+  // whole. Fixing the RING is the one place that ends it for good.
+  const ringArea = pts => {
+    let a2 = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i], q = pts[(i + 1) % pts.length];
+      a2 += p.x * q.y - q.x * p.y;
+    }
+    return a2 / 2;
+  };
   const E = (a2, b2, binding) => {
     const r = addEdge(scene, { a: a2.id, b: b2.id, binding });
     if (r.ok) made.edges.push(r.edge.id);
   };
-  const base = plot.corners;
+  const base = ringArea(plot.corners) < 0 ? [...plot.corners].reverse() : plot.corners;
   const top = [];
   for (const g of base) {
     const t = V(addRayVertex(scene, { origin: g.id, binding: "vertical", t: -10 }));
@@ -1282,6 +1297,8 @@ function raiseBuilding(scene, plot, storeys, vp, made) {
   F([...base].reverse(), "bottom");
   // Orient from the TOP cap: a building stands on the ground, so its top is the
   // horizontal face you can see and its underside is the one that must cull.
+  // The ring is canonical now, so the faces are already right way out. This is
+  // kept as the backstop for a plot so foreshortened its ring reads as zero area.
   orientSolid(scene, solid, { cap: "top" });
   return { solid, base, top, storeys, side: plot.side };
 }
