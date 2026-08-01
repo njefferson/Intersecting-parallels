@@ -10,7 +10,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createScene, addVp, addAnchor, setEyeLevel, horizonLine, addFace, deleteVertex, clearDrawing, solveScene, scaleVpSpread,
+  createScene, addVp, addAnchor, setEyeLevel, horizonLine, addFace, deleteVertex, clearDrawing, solveScene, scaleVpSpread, moveAnchor,
 } from "../public/app/solver.mjs";
 import { buildBox } from "../public/app/snap.mjs";
 import { nearBaseIndex } from "../public/app/render.mjs";
@@ -80,30 +80,40 @@ test("setEyeLevel refuses a non-number rather than poisoning the scene", () => {
   assert.equal(scene.eyeLevel.y, 540, "the old value survives a refused write");
 });
 
-test("D44: a box stores its two RINGS, in matching order, and nothing else", () => {
-  // The four walls used to be stored too. They are derived from these two rings
-  // at draw time now, because a stored wall cannot know that the box inverted.
+test("D63: a box stores ALL SIX faces, wound consistently round its outside", () => {
+  // Replaces D44's two rings. Noah, 2026-08-01: "assign a face a normal that
+  // doesn't change no matter what direction you look at it from and just cull the
+  // reverse normals like any 3-D program." Deriving walls at draw time was the
+  // thing that had to keep being patched; a stored, consistently wound face needs
+  // no patching, because the projection says which side you are looking at.
   const { scene } = twoPointScene();
   const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 150, depthR: 150 });
   assert.equal(res.ok, true);
   const faces = scene.faces.filter(f => f.solid === res.solid);
-  assert.equal(faces.length, 2);
-  assert.deepEqual(faces.map(f => f.shade).sort(), ["bottom", "top"]);
-  const ids = new Set(scene.vertices.map(v => v.id));
+  assert.equal(faces.length, 6);
+  assert.deepEqual(faces.map(f => f.shade).sort(),
+    ["back", "bottom", "left", "near", "right", "top"]);
+
+  // CONSISTENT WINDING, checked combinatorially so it does not depend on where
+  // anything happens to project: in a closed surface every edge is shared by
+  // exactly two faces, and they must traverse it in OPPOSITE directions. That is
+  // the whole definition of "all the normals point the same way out", and it is
+  // true of the construction rather than of the current view.
+  const seen = new Map();
   for (const f of faces) {
-    assert.equal(f.loop.length, 4);
-    for (const id of f.loop) assert.ok(ids.has(id), `face names a missing corner ${id}`);
+    for (let i = 0; i < f.loop.length; i++) {
+      const a = f.loop[i], b = f.loop[(i + 1) % f.loop.length];
+      const key = [a, b].join(">");
+      assert.ok(!seen.has(key), `edge ${key} is traversed the same way twice — a face is wound inside out`);
+      seen.set(key, f.shade);
+    }
   }
-  // Matching order is the whole contract: wall i is ring[i] -> ring[i+1] on both.
-  const top = faces.find(f => f.shade === "top").loop;
-  const bottom = faces.find(f => f.shade === "bottom").loop;
-  const byId = new Map(scene.vertices.map(v => [v.id, v]));
-  for (let i = 0; i < 4; i++) {
-    const b = byId.get(bottom[i]), t = byId.get(top[i]);
-    assert.ok(Math.abs(b.x - t.x) < 1e-6,
-      `ring position ${i} is not the same corner above and below (${b.x} vs ${t.x})`);
-    assert.ok(t.y < b.y, `ring position ${i}: the top ring must be above the base`);
+  for (const [key, shade] of seen) {
+    const [a, b] = key.split(">");
+    assert.ok(seen.has([b, a].join(">")), `${shade}'s edge ${key} has no matching face going the other way`);
   }
+  const ids = new Set(scene.vertices.map(v => v.id));
+  for (const f of faces) for (const id of f.loop) assert.ok(ids.has(id), `face names a missing corner ${id}`);
 });
 
 test("which of top and bottom you can see follows eye level — the lesson, in the data", () => {
@@ -150,7 +160,7 @@ test("a face cannot name a corner that is not there, and dies with the corner", 
 test("clearing the drawing clears its faces too", () => {
   const { scene } = twoPointScene();
   buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 150, depthR: 150 });
-  assert.equal(scene.faces.length, 2);
+  assert.equal(scene.faces.length, 6);   // D63 — all six, consistently wound
   clearDrawing(scene);
   assert.equal(scene.faces.length, 0);
   assert.equal(scene.vanishingPoints.length, 2, "the points are not the drawing");
@@ -277,45 +287,42 @@ test("D46: what IS refused is two points arriving at the same place", () => {
   assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)));
 });
 
-test("D49: which walls face you comes from the DEPTH SIGNS, not from the screen", () => {
-  // Noah, 2026-07-31: "Why do you recalculate normals at all?" The construction
-  // knows. buildBox runs both depths outward from the anchor, so the anchor is
-  // the near corner — until a depth goes negative and puts that corner on the
-  // near side instead. Two stored signs, four cases, nothing measured.
+test("D63: exactly the faces wound toward you are drawn, and dragging never changes that", () => {
+  // Replaces both D49 tests, which asserted nearBaseIndex — the depth-sign rule
+  // Noah asked to be rid of. The claim now is the renderer's: a face is visible
+  // when its projected polygon is wound outward, and a convex box shows exactly
+  // two walls at a time because the other two are wound the other way.
   const { scene } = twoPointScene();
   const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 250, depthR: 250 });
-  const byId = new Map(scene.vertices.map(v => [v.id, v]));
-  const ring = scene.faces.find(f => f.solid === res.solid && f.shade === "bottom").loop;
-  const L = scene.vertices.find(v => v.id === res.corners.leftBottom.id);
-  const R = scene.vertices.find(v => v.id === res.corners.rightBottom.id);
+  const area = loop => {
+    const byId = new Map(scene.vertices.map(v => [v.id, v]));
+    let a = 0;
+    for (let i = 0; i < loop.length; i++) {
+      const p2 = byId.get(loop[i]), q = byId.get(loop[(i + 1) % loop.length]);
+      a += p2.x * q.y - q.x * p2.y;
+    }
+    return a / 2;
+  };
+  const walls = () => scene.faces
+    .filter(f => f.solid === res.solid && ["near", "left", "back", "right"].includes(f.shade))
+    .filter(f => area(f.loop) > 0).map(f => f.shade).sort();
 
-  assert.equal(nearBaseIndex(ring, byId), 0, "both depths positive: the anchor is nearest");
-  L.t = -250; solveScene(scene);
-  assert.equal(nearBaseIndex(ring, byId), 1, "left depth negative: that corner is nearest");
-  L.t = 250; R.t = -250; solveScene(scene);
-  assert.equal(nearBaseIndex(ring, byId), 3, "right depth negative");
-  L.t = -250; solveScene(scene);
-  assert.equal(nearBaseIndex(ring, byId), 2, "both negative: the back corner is nearest");
-});
+  const first = walls();
+  assert.equal(first.length, 2, `a box shows two walls, not ${first.length}`);
 
-test("D49: and dragging the box around the page never changes it", () => {
-  // This is the whole point. D44 read nearness off screen position and D48
-  // patched that with the horizon; both changed their answer when the drawing
-  // moved. The construction does not.
-  const { scene } = twoPointScene();
-  const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 250, depthR: 250 });
-  const byId = new Map(scene.vertices.map(v => [v.id, v]));
-  const ring = scene.faces.find(f => f.solid === res.solid && f.shade === "bottom").loop;
+  // Dragging it around the page cannot change WHICH two — the box has not turned.
   const anchor = scene.vertices.find(v => v.id === res.corners.nearBottom.id);
-
-  const answers = new Set();
-  for (const y of [1150, 900, 700, 560, 540, 520, 300, 100]) {
-    anchor.y = y;
-    solveScene(scene);
-    answers.add(nearBaseIndex(ring, byId));
+  for (const p2 of [{ x: 300, y: 400 }, { x: 1400, y: 1100 }, { x: 800, y: 200 }]) {
+    moveAnchor(scene, anchor.id, p2);
+    assert.deepEqual(walls(), first, `the visible pair changed just from moving to ${JSON.stringify(p2)}`);
   }
-  assert.deepEqual([...answers], [0],
-    "the near corner changed as the box was dragged across the horizon");
+
+  // Pushing a depth through zero DOES turn it, and then the other pair faces you.
+  const L = scene.vertices.find(v => v.id === res.corners.leftBottom.id);
+  L.t = -250; solveScene(scene);
+  const after = walls();
+  assert.equal(after.length, 2, "still exactly two after inverting");
+  assert.notDeepEqual(after, first, "inverting a depth must change which walls face you");
 });
 
 test("D49: face visibility follows the HORIZON, not the eye-level line", () => {

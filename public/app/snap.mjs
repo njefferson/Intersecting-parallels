@@ -562,10 +562,34 @@ export function buildBox(scene, { at, height, depth, depthL, depthR }) {
   // D44 — store the two RINGS and nothing else. The four walls are read off them
   // at draw time, in matching order, so an inverted box gets the right pair
   // without anything stored needing to know that it inverted.
+  // D63 — ALL SIX FACES, each wound the same way round the outside of the solid.
+  //
+  // Noah, 2026-08-01: "I still don't understand why you just don't assign a face a
+  // normal that doesn't change no matter what direction you look at it from and
+  // just cull the reverse normals like any 3-D program."
+  //
+  // He is right, and this replaces D37, D44, D48, D49 and D54's visibility rules
+  // with the one every renderer uses. A face's outward side is a fact about the
+  // SOLID, fixed here and never recomputed. Which faces you can see is then read
+  // off the WINDING of the projected polygon — the thing the projection already
+  // tells you — and needs no depth signs, no near-corner picking, and no eye
+  // level. Storing only two rings and deriving walls at draw time was the whole
+  // source of that family of bugs.
+  //
+  // The rings run [near, left, back, right], so walking that order and closing
+  // each side with the ring above gives four walls wound consistently, and the
+  // top and bottom close the solid in opposite senses.
   const solid = `box${scene.nextId}`;
   const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
-  F([nearTop, leftTop, backTop, rightTop], "top");
-  F([nearBottom, leftBottom, backBottom, rightBottom], "bottom");
+  const bot = [nearBottom, leftBottom, backBottom, rightBottom];
+  const top = [nearTop, leftTop, backTop, rightTop];
+  const wallShade = ["near", "left", "back", "right"];
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    F([bot[i], bot[j], top[j], top[i]], wallShade[i]);
+  }
+  F(top, "top");
+  F([...bot].reverse(), "bottom");
 
   solveScene(scene);
   return { ok: true, ...made, solid, corners: { nearBottom, nearTop, leftBottom, rightBottom, leftTop, rightTop, backBottom, backTop } };

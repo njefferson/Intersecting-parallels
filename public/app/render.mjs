@@ -196,91 +196,69 @@ function sideOfHorizon(scene, p) {
 //
 // This also makes old drawings work unchanged: a box saved before this stored its
 // walls, and those are simply ignored in favour of the ring.
-function visibleFaces(solid, scene, byId) {
-  // D52 — an INTERIOR. A room is a box you are inside, so every surface it has
-  // faces you: the far wall, the floor, the ceiling and both side walls. The one
-  // you cannot see is the opening you are looking through, which is why a room
-  // stores five faces and no near one. Nothing is culled and nothing is derived —
-  // a solid that has a back wall simply shows everything it has, back first.
-  if (solid.faces.some(f => f.shade === "back")) {
-    const rank = { back: 0, bottom: 1, top: 2, left: 3, right: 4 };
-    return [...solid.faces].sort((a, b) => (rank[a.shade] ?? 9) - (rank[b.shade] ?? 9));
+// D63 — WHICH FACES YOU CAN SEE, decided the way every 3-D renderer decides it.
+//
+// Noah, 2026-08-01: "I still don't understand why you just don't assign a face a
+// normal that doesn't change no matter what direction you look at it from and
+// just cull the reverse normals like any 3-D program. I don't think eye line
+// makes any sense with a one or 2D or maybe any perspective. It's forced by the
+// two that make the horizon line."
+//
+// Both halves are right, and the second falls out of the first. Every face is
+// built wound the same way round the OUTSIDE of its solid, and that winding never
+// changes. The projection then tells you which side you are looking at, for free:
+// walk the projected polygon and take its signed area. One sign is the outside,
+// the other is the inside, and the inside is culled.
+//
+// What this replaces: D37's "the two front faces are the ones at the near
+// vertical edge", D44's stored rings, D48's distance-from-the-horizon ordering,
+// D49's near-corner-from-depth-signs, and D54's separate rule for roof planes.
+// Every one of those was a way of working out from screen position something the
+// winding already says, and each was wrong in a case the next one had to patch —
+// including the one Noah has just reported, a cube inverting when two vanishing
+// points swap sides. Under this rule that is not a special case: the projection
+// mirrors, every winding flips, and you correctly see the other side of the box.
+//
+// It also ends the eye-level involvement he is objecting to. Nothing here asks
+// where the horizon is. A box below your eye shows its top because its top face
+// projects wound-outward from where you are, not because a line was consulted.
+function signedArea(loop, byId) {
+  let a = 0;
+  for (let i = 0; i < loop.length; i++) {
+    const p = byId.get(loop[i]), q = byId.get(loop[(i + 1) % loop.length]);
+    if (!p || !q || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(q.x) || !Number.isFinite(q.y)) return null;
+    a += p.x * q.y - q.x * p.y;
   }
-
-  const bottom = solid.faces.find(f => f.shade === "bottom");
-  const top = solid.faces.find(f => f.shade === "top");
-  const out = [];
-
-  // D54 — a solid made only of INCLINED planes: a roof. It stores no top and no
-  // bottom, because a slope is neither — it is a top face that has been tilted —
-  // so the derivation above finds nothing and, before this, drew nothing at all.
-  //
-  // The rule is D37's, unchanged: you see the top of a thing that sits below your
-  // eye. Stand at the kerb and look up at a gable and you do not see the roof —
-  // you see the wall and the underside of the eaves, which this app does not
-  // model and therefore does not draw. Each plane is judged on its own middle, so
-  // a roof crossing eye level loses the half that has gone over your head.
-  if (!top && !bottom && solid.faces.length) {
-    for (const f of solid.faces) {
-      const pts = f.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.x) && Number.isFinite(v.y));
-      if (!pts.length) continue;
-      const mid = {
-        x: pts.reduce((a, v) => a + v.x, 0) / pts.length,
-        y: pts.reduce((a, v) => a + v.y, 0) / pts.length,
-      };
-      if (sideOfHorizon(scene, mid) < 0) out.push(f);
-    }
-    return out;
-  }
-
-  if (bottom && top && bottom.loop.length === top.loop.length && bottom.loop.length >= 3) {
-    const b = bottom.loop, t = top.loop, n = b.length;
-    const near = nearBaseIndex(b, byId);
-    if (near >= 0) {
-      // The two walls meeting at that corner: the one arriving and the one leaving.
-      const walls = [];
-      for (const i of [(near - 1 + n) % n, near]) {
-        const k = (i + 1) % n;
-        const loop = [b[i], b[k], t[k], t[i]];
-        const pts = loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.x));
-        if (pts.length < 3) continue;
-        walls.push({ loop, midX: pts.reduce((a, v) => a + v.x, 0) / pts.length });
-      }
-      // Lit from one side: the leftmost visible wall takes the darker tint. Decided
-      // by position rather than by which corner it came from, so the shading stays
-      // put when the box inverts instead of swapping brightness mid-drag.
-      walls.sort((p, q) => p.midX - q.midX);
-      walls.forEach((w, i) => out.push({ loop: w.loop, shade: i === 0 ? "left" : "right" }));
-    }
-  }
-
-  // Top and bottom are decided by EYE LEVEL, which is not a shortcut — it is the
-  // lesson: you see the top of a box that sits below your eye and the underside
-  // of one that sits above it, and a box straddling your eye shows neither.
-  for (const f of [top, bottom]) {
-    if (!f) continue;
-    const pts = f.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.x) && Number.isFinite(v.y));
-    if (!pts.length) continue;
-    const mid = {
-      x: pts.reduce((a, v) => a + v.x, 0) / pts.length,
-      y: pts.reduce((a, v) => a + v.y, 0) / pts.length,
-    };
-    const side = sideOfHorizon(scene, mid);
-    if (f.shade === "top" && side < 0) out.push(f);      // below the horizon: you see its top
-    if (f.shade === "bottom" && side > 0) out.push(f);   // above it: you see underneath
-  }
-
-  // Draw order inside a solid, and it is not arbitrary. The walls go down first;
-  // the horizontal face goes LAST, because when it is visible it is the face
-  // nearest the eye and occludes the parts of the walls behind it. The underside
-  // needs this specifically: the base and the walls share the near base edges and
-  // lie on the SAME side of them on screen, so painting the base first hid it
-  // completely.
-  const rank = { left: 0, right: 1, top: 2, bottom: 3 };
-  out.sort((a, b2) => rank[a.shade] - rank[b2.shade]);
-  return out;
+  return a / 2;
 }
 
+function visibleFaces(solid, scene, byId) {
+  const out = [];
+  for (const f of solid.faces) {
+    const a = signedArea(f.loop, byId);
+    if (a === null || Math.abs(a) < 1e-9) continue;      // edge-on: no area to fill
+    if (a > 0) out.push(f);                              // wound outward toward you
+  }
+  // SHADING is a separate question from visibility, and only visibility comes
+  // from the winding. The light is from one side, so of the two walls now facing
+  // you the leftmost takes the darker tint — decided by position on the page, the
+  // way a light source is, so the shading stays put instead of swapping brightness
+  // when the box turns. Nothing here decides WHETHER a face is drawn.
+  const walls = out.filter(f => !["top", "bottom"].includes(f.shade));
+  const mid = f => {
+    const pts = f.loop.map(id => byId.get(id)).filter(Boolean);
+    return pts.reduce((a2, v) => a2 + v.x, 0) / (pts.length || 1);
+  };
+  walls.sort((p, q) => mid(p) - mid(q));
+  const lit = new Map(walls.map((f, i) => [f, i === 0 ? "faceLeft" : "faceRight"]));
+
+  // Paint order: horizontal faces last, because they share edges with the walls
+  // and a wall drawn over them would leave a seam.
+  const rank = { top: 8, bottom: 9 };
+  const shown = out.map(f => ({ ...f, tint: lit.get(f) }));
+  shown.sort((p, q) => (rank[p.shade] ?? 0) - (rank[q.shade] ?? 0));
+  return shown;
+}
 
 // D40 — the edges a solid actually SHOWS.
 //
@@ -309,7 +287,12 @@ function visibleEdgeKeys(faces) {
 
 const edgeKey = e => (e.a < e.b ? `${e.a}|${e.b}` : `${e.b}|${e.a}`);
 
-const FACE_COLOUR = { top: "faceTop", right: "faceRight", left: "faceLeft", bottom: "faceBottom", back: "faceBack" };
+// D63 — six shades now, because a box stores all six faces. The two that face
+// you across the near vertical edge take the two front tints, and the two behind
+// take the same pair: only one of each pair can ever be visible on a convex
+// solid, so they never compete.
+const FACE_COLOUR = { top: "faceTop", bottom: "faceBottom", back: "faceBack",
+  right: "faceRight", left: "faceLeft", near: "faceRight" };
 
 function fillFace(ctx, view, face, byId, c) {
   const pts = face.loop.map(id => byId.get(id)).filter(v => v && Number.isFinite(v.x) && Number.isFinite(v.y));
@@ -322,7 +305,7 @@ function fillFace(ctx, view, face, byId, c) {
     ctx.lineTo(p.x, p.y);
   }
   ctx.closePath();
-  ctx.fillStyle = c[FACE_COLOUR[face.shade]] ?? c.faceLeft;
+  ctx.fillStyle = c[face.tint ?? FACE_COLOUR[face.shade]] ?? c.faceLeft;
   ctx.fill();
 }
 
