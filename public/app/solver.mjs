@@ -235,6 +235,14 @@ export function rebindVertex(scene, id, patch) {
 
 function solveRay(scene, v, index) {
   const origin = index ? index.get(v.origin) : vertexById(scene, v.origin);
+  // D51 — a height gauge holds a RATIO of the observer's eye height, so its
+  // length is re-measured here rather than remembered. Move the figure, move the
+  // horizon, or move a vanishing point that defines the horizon, and it re-scales
+  // itself instead of standing there at yesterday's size.
+  if (Number.isFinite(v.gauge)) {
+    const span = gaugeSpan(scene, { x: origin.x, y: origin.y });
+    if (span !== null && Math.abs(span) >= 1) v.t = span * v.gauge;
+  }
   const u = bindingDirection(scene, { x: origin.x, y: origin.y }, v.binding);
   if (!u) { v.degenerate = true; return; } // x,y untouched — the last-valid cache
   v.degenerate = false;
@@ -879,6 +887,62 @@ export function markIntervals(scene, vertexId, { parts = 0, times = 0 } = {}) {
   }
   solveScene(scene);
   return { ok: true, made, asked: fractions.length };
+}
+
+// ---- D51 — the scale figure, and why it is nearly free ------------------
+//
+// Everyone's eye is at eye level. So the vertical from ANY point on the ground up
+// to the horizon spans exactly the observer's own eye height, wherever that point
+// is and however far away — that segment is a ruler, already correctly
+// foreshortened by the perspective itself. A figure the same height as you has
+// its eye ON the horizon at any depth, which is the oldest trick in the book and
+// the one artists use to check a scene reads at human scale.
+//
+// Generalised, it measures ANYTHING of known height: a door is about 1.2 of eye
+// height, a storey about 1.9, a lamp post about 2.6. Multiply the feet-to-horizon
+// span by that ratio and you have the height, at that depth, correct.
+//
+// It is stored as a RATIO rather than a length, and re-derived on every solve, so
+// moving the horizon or the figure re-measures it instead of leaving a stale
+// stick behind. That is the same rule the rest of the app follows: hold the
+// relationship, not the number it happened to produce.
+export function gaugeSpan(scene, originPos) {
+  if (!originPos || !Number.isFinite(originPos.x) || !Number.isFinite(originPos.y)) return null;
+  const hz = horizonLine(scene);
+  if (hz) {
+    // Where the vertical through the feet meets the horizon. Vertical is (0,1),
+    // so this is a plain line/line solve that cannot divide by zero unless the
+    // horizon is itself vertical, which two points on a horizon never are.
+    if (Math.abs(hz.u.x) < 1e-9) return null;
+    const y = hz.a.y + (originPos.x - hz.a.x) * (hz.u.y / hz.u.x);
+    return Number.isFinite(y) ? y - originPos.y : null;
+  }
+  const eye = scene.eyeLevel?.y;
+  return Number.isFinite(eye) ? eye - originPos.y : null;
+}
+
+/**
+ * A vertical measure standing on the ground at `at`, `ratio` times the observer's
+ * eye height. ratio 1 is a figure your own height — its eye lands on the horizon.
+ */
+export function addFigure(scene, { at, ratio = 1 }) {
+  if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.y)) {
+    return { ok: false, reason: "that is not a place to stand" };
+  }
+  if (!Number.isFinite(ratio) || ratio <= 0) return { ok: false, reason: "a height has to be a positive number" };
+  const span = gaugeSpan(scene, at);
+  if (span === null || Math.abs(span) < 1) {
+    return { ok: false, reason: "that spot is level with the horizon, where anything standing on the ground is infinitely far away" };
+  }
+  const feet = addAnchor(scene, { x: at.x, y: at.y });
+  if (!feet.ok) return feet;
+  const head = addRayVertex(scene, { origin: feet.vertex.id, binding: "vertical", t: span * ratio });
+  if (!head.ok) return head;
+  head.vertex.gauge = ratio;          // re-measured on every solve, never stored as a length
+  const e = addEdge(scene, { a: feet.vertex.id, b: head.vertex.id, binding: "vertical" });
+  if (!e.ok) return e;
+  solveScene(scene);
+  return { ok: true, feet: feet.vertex, head: head.vertex, edge: e.edge, ratio };
 }
 
 export function deleteVertex(scene, vertexId) {

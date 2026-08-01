@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals,
+  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.9.0";
+const VERSION = "1.10.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1427,6 +1427,29 @@ function spaceAlongGuide(mode) {
     ? `Divided into ${n} — ${res.made.length} marks, evenly spaced in depth.${short}`
     : `Repeated ${n} intervals — ${res.made.length} marks, each the same distance apart in the world.${short}`);
 }
+// D51 — a height gauge standing on the ground. It goes where the SELECTED corner
+// is if there is one, so you can measure against something you have drawn;
+// otherwise the middle of the view, like the other Add buttons.
+function placeFigure() {
+  endExtrude(false);
+  const ratio = Number($("figure-ratio")?.value ?? 1);
+  let at = viewCentre();
+  if (selection && selection.type === "vertex") {
+    const v = scene.vertices.find(x => x.id === selection.id);
+    if (v && Number.isFinite(v.x) && Number.isFinite(v.y)) at = { x: v.x, y: v.y };
+  }
+  beginGesture(history, scene);
+  const res = addFigure(scene, { at, ratio });
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  selection = { type: "vertex", id: res.feet.id };
+  el.canvas.focus({ preventScroll: true });
+  const label = $("figure-ratio")?.selectedOptions?.[0]?.textContent ?? `${ratio}x`;
+  afterEdit(ratio === 1
+    ? `${label} placed — its eye sits on the horizon, which is what makes it the right size there. Its feet are selected; move them and it re-measures.`
+    : `${label} placed — ${ratio} times your own eye height at that spot. Its feet are selected; move them and it re-measures.`);
+}
+$("add-figure")?.addEventListener("click", placeFigure);
+
 $("divide-depth")?.addEventListener("click", () => spaceAlongGuide("divide"));
 $("repeat-depth")?.addEventListener("click", () => spaceAlongGuide("repeat"));
 

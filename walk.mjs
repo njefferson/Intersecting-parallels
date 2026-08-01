@@ -1973,6 +1973,89 @@ try {
     `${noGuide.before} -> ${noGuide.after} corners, said "${noGuide.said.slice(0, 60)}"`);
   await ivCtx.close();
 
+  // D51 — the scale figure, through the real control.
+  const figCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(figCtx);
+  const figPage = await figCtx.newPage();
+  figPage.on('pageerror', e => pageErrors.push(`figure page: ${e}`));
+  await figPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await figPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await figPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+  });
+
+  const placed = await figPage.evaluate(async () => {
+    const put = async (x, y, ratio) => {
+      const s = window.__ip.scene;
+      const was = new Set(s.vertices.map(v => v.id));
+      document.getElementById('figure-ratio').value = String(ratio);
+      // Stand it somewhere specific by selecting a corner there first.
+      window.__ip.select(null);
+      document.getElementById('add-figure').click();
+      await new Promise(r => requestAnimationFrame(r));
+      const fresh = s.vertices.filter(v => !was.has(v.id));
+      const feet = fresh.find(v => v.kind === 'anchor');
+      window.__ip.manipulate(feet.id, { x, y });
+      await new Promise(r => requestAnimationFrame(r));
+      const head = fresh.find(v => v.kind === 'ray');
+      return { feetY: feet.y, headY: head.y, h: Math.abs(head.y - feet.y) };
+    };
+    const near = await put(700, 1100, 1);
+    const mid = await put(800, 900, 1);
+    const far = await put(900, 700, 1);
+    const lamp = await put(700, 1100, 2.6);
+    const hz = window.__ip.horizon();
+    return { near, mid, far, lamp, horizonY: hz ? Math.round(hz.a.y) : null,
+      finite: window.__ip.scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)) };
+  });
+
+  check('a figure your own height puts its eye on the horizon, at any depth (D51)',
+    [placed.near, placed.mid, placed.far].every(f => Math.abs(f.headY - placed.horizonY) < 1.5) && placed.finite,
+    `heads at ${[placed.near, placed.mid, placed.far].map(f => Math.round(f.headY)).join(', ')}, horizon ${placed.horizonY}`);
+  check('and it shrinks with distance without being told the distance (D51)',
+    placed.near.h > placed.mid.h && placed.mid.h > placed.far.h,
+    `${Math.round(placed.near.h)} -> ${Math.round(placed.mid.h)} -> ${Math.round(placed.far.h)}px tall`);
+  check('a lamp post is 2.6 times a person standing in the same spot (D51)',
+    Math.abs(placed.lamp.h / placed.near.h - 2.6) < 0.02,
+    `${(placed.lamp.h / placed.near.h).toFixed(3)}x`);
+
+  // The whole point of holding a ratio: move the horizon and it re-measures.
+  const remeasured = await figPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const feet = s.vertices.filter(v => v.kind === 'anchor');
+    const head = s.vertices.find(v => v.kind === 'ray' && v.origin === feet[0].id);
+    const before = Math.abs(head.y - feet[0].y);
+    // Through the real mutator: a gauge re-derives inside the solve, and poking
+    // vp.y directly never triggers one.
+    for (const vp of s.vanishingPoints) {
+      if (vp.onHorizon) window.__ip.moveVp(vp.id, { x: vp.x, y: vp.y - 260 });
+    }
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const hz = window.__ip.horizon();
+    return { before, after: Math.abs(head.y - feet[0].y), headY: head.y, horizonY: hz.a.y };
+  });
+  check('moving the horizon RE-MEASURES every figure — it holds a ratio, not a length (D51)',
+    Math.abs(remeasured.after - remeasured.before) > 100
+      && Math.abs(remeasured.headY - remeasured.horizonY) < 1.5,
+    `${Math.round(remeasured.before)} -> ${Math.round(remeasured.after)}px, eye still on the horizon`);
+
+  // Standing on the horizon is refused, and leaves nothing behind.
+  const onHorizon = await figPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const hz = window.__ip.horizon();
+    const before = s.vertices.length;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    window.__ip.manipulate(a.id, { x: a.x, y: hz.a.y });
+    window.__ip.select({ type: 'vertex', id: a.id });
+    document.getElementById('add-figure').click();
+    await new Promise(r => requestAnimationFrame(r));
+    return { before, after: s.vertices.length, said: document.getElementById('toast')?.textContent || '' };
+  });
+  check('standing one on the horizon is refused, and leaves nothing behind (D51)',
+    onHorizon.after === onHorizon.before && /infinitely far away/i.test(onHorizon.said),
+    `${onHorizon.before} -> ${onHorizon.after} corners, said "${onHorizon.said.slice(0, 60)}"`);
+  await figCtx.close();
+
   // D47 — the toolbar cleanup. The bar must stay SHORT, everything that moved
   // must still be reachable, and neither panel may be covered by a point marker.
   const barCtx = await browser.newContext({ viewport: { width: 1180, height: 820 }, colorScheme: 'light' });

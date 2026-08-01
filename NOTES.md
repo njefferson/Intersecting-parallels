@@ -737,6 +737,41 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D51 — the scale figure (SHIPPED 1.10.0, staging)
+
+Second of the three Noah agreed to, and the one with the best effort-to-usefulness
+ratio in the app so far.
+
+**Everyone's eye is at eye level.** So the vertical from ANY point on the ground
+up to the horizon spans exactly the observer's own eye height — wherever that
+point is, however far away. That segment is a ruler that the perspective has
+already foreshortened for you. A figure your own height has its eye ON the
+horizon at any depth, which is the oldest trick in the book and the one artists
+use to check a scene reads at human scale.
+
+Generalised it measures anything of known height, so the control offers a person,
+a door (1.2), a storey (1.9) and a lamp post (2.6) as multiples of eye height.
+
+**It stores a RATIO and re-derives the length inside `solveRay`.** That is the
+whole design: a gauge that remembered its length would be a stick standing at
+yesterday's size, and a wrong measurement made with authority is worse than none.
+Move the figure, move the horizon, or drag a point that defines the horizon, and
+every figure re-measures. `gaugeSpan` reads the horizon at the FIGURE'S OWN x, so
+a tilted horizon measures correctly along its length, and falls back to the
+eye-level line when there are fewer than two points on the horizon (D36).
+
+Standing one exactly on the horizon is refused: anything on the ground there is
+infinitely far away, so there is no height to draw.
+
+**Planting the defect** — remember the length instead of the ratio — makes all
+three figures 60px tall regardless of depth and reddens three walk checks and two
+unit tests. That is exactly the picture a stale gauge produces, and it is the one
+an artist would trust and be misled by.
+
+**Next: the interior room.** A box you are INSIDE, which inverts the face logic in
+the opposite direction from everything fixed on 2026-07-30, and is the one-point
+exercise every beginner starts with.
+
 ### D50 — equal intervals in depth (SHIPPED 1.9.0, staging)
 
 **Noah, 2026-07-31:** *"I want to see maybe a city block generator? What else

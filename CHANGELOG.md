@@ -8,6 +8,24 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.10.0 — CAPABILITY · 2026-07-31
+
+**A scale figure — the quickest way to tell whether a scene reads at human size.**
+
+- Setup, under *Human scale*: pick **A person**, **A door**, **A storey**, **A
+  lamp post**, and press **Place**. It stands where the selected corner is, or in
+  the middle of the view.
+- A figure your own height has its eye **on the horizon** — at any depth, near or
+  far. That is not a nicety, it is the reason it comes out the right size without
+  anyone working out how far away it is.
+- It holds a **ratio**, not a length. Walk it further back and it shrinks; move
+  the horizon and every figure re-measures itself. Nothing is left standing at
+  yesterday's size.
+- Placing one on the horizon is refused, because anything standing on the ground
+  there is infinitely far away.
+
+---
+
 ## 1.9.0 — CAPABILITY · 2026-07-31
 
 **Equal spacing in depth — fence posts, floor tiles, window bays, city blocks.**
