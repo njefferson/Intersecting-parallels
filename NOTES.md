@@ -2398,6 +2398,27 @@ long before the manifest exists. *(Deploy pipeline already live from bootstrap.)
 
 ---
 
+## Decided by Noah, 2026-08-01 — for the next session
+
+- **Winding refactor (D63) lands FIRST**, before anything else on this list. It
+  is on `d63-winding-wip` with five known walk failures, one of which is a real
+  solver/renderer disagreement about the same box.
+- **A vanishing point made from two drawn lines is BOUND** to those lines: move a
+  line and the point follows. Not a plain point dropped where they crossed. Nearly
+  parallel lines must refuse with a reason rather than return a number a mile off
+  the page.
+- **Image import is the same feature** as the above, not a separate one — drawing
+  two lines along a building's edges in a photo to get its point is the actual
+  workflow. Open decision when it is built: a photo as base64 in the project JSON
+  turns a 30KB file into a 4MB one, so it probably belongs in IndexedDB with the
+  JSON holding a reference — which costs a project file its backing image when it
+  moves between devices. Decide deliberately, do not discover.
+- **Curvilinear ("banana-pan" — panoramic, verticals straight and horizontals
+  bowing — and a spherical grid) is a SECOND GEOMETRY, not a setting.** Every line
+  here is a straight segment to a point; curvilinear makes edges arcs and points
+  poles. D62's circle built the first curve infrastructure, so it is not from zero,
+  but it is the largest item by a distance and it comes after the refactor.
+
 ## Closed by Noah, 2026-08-01 — do not re-open, do not re-ask
 
 Two long-standing reports that were never reproduced. **Noah: "You can forget
