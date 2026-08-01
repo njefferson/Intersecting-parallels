@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.13.0";
+const VERSION = "1.13.1";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1497,7 +1497,7 @@ function addRoom() {
 // — you could never get the same street back, and neither could a test.
 const SKYLINE = [3, 5, 0, 4, 6, 2, 4, 0, 5, 3, 7, 2];
 
-function addStreet() {
+function addStreet(withBuildings = true) {
   endExtrude(false);
   const w = scene.canvas.width, h = scene.canvas.height;
   const usable = scene.vanishingPoints.filter(v => !v.locked);
@@ -1529,12 +1529,14 @@ function addStreet() {
   beginGesture(history, scene);
   const res = buildStreet(scene, {
     vpId: facing.id, at, width: Math.round(w * 0.26), block: Math.round(w * 0.22),
-    blocks, storeys,
+    blocks, storeys: withBuildings ? storeys : null,
   });
   if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
   selection = null;
   el.canvas.focus({ preventScroll: true });
-  afterEdit(`Street drawn: ${blocks} block${blocks === 1 ? "" : "s"} running back to ${res.vp.label}, ${res.buildings.length} buildings and ${res.plots.length - res.buildings.length} open lots. Turn on Solid to mass them; drag ${res.vp.label} and the whole city turns.`);
+  afterEdit(withBuildings
+    ? `Street drawn: ${blocks} block${blocks === 1 ? "" : "s"} running back to ${res.vp.label}, ${res.buildings.length} buildings and ${res.plots.length - res.buildings.length} open lots. Turn on Solid to mass them; drag ${res.vp.label} and the whole city turns.`
+    : `Street plan drawn: ${blocks} block${blocks === 1 ? "" : "s"} running back to ${res.vp.label}, with ${res.plots.length} plots and no buildings. Draw your own on it — every line is held by ${res.vp.label}.`);
 }
 
 // D53 — a roof on the last box drawn, or on the box the selection belongs to.
@@ -1572,7 +1574,8 @@ function addRoofToBox() {
 $("add-roof")?.addEventListener("click", addRoofToBox);
 
 $("add-room")?.addEventListener("click", addRoom);
-$("add-street")?.addEventListener("click", addStreet);
+$("add-street")?.addEventListener("click", () => addStreet(true));
+$("add-streetplan")?.addEventListener("click", () => addStreet(false));
 
 $("add-cube")?.addEventListener("click", addCube);
 $("taller")?.addEventListener("click", () => stretchSolid(STRETCH));

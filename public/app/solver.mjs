@@ -1104,6 +1104,11 @@ export function buildStreet(scene, { vpId, at, width = 420, block = 300, blocks 
   }
 
   const built = [];
+  // No storeys is not an empty city, it is a STREET PLAN — the grid on its own,
+  // to draw over. Noah's own two-step description ("draw a grid of lines that act
+  // as streets and then plot them with buildings") has the grid as a thing in its
+  // own right, and an artist wanting to place buildings by hand wants exactly the
+  // lines and none of the massing.
   if (storeys && storeys.length) {
     for (let i = 0; i < plots.length; i++) {
       const h = storeys[i % storeys.length];

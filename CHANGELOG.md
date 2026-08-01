@@ -8,6 +8,16 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.13.1 — ITERATION · 2026-08-01
+
+**The street plan on its own.**
+
+- **Plan only**, beside Street: the same road, crossroads and block lines, with
+  nothing standing on them. Every line is still held by the vanishing point, so
+  drag it and the plan turns — then draw your own buildings on it.
+
+---
+
 ## 1.13.0 — CAPABILITY · 2026-08-01
 
 **A street — buildings down both sides, crossroads, and the alleys behind.**

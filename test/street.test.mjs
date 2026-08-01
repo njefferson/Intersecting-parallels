@@ -149,6 +149,18 @@ test("a street survives its vanishing point being dragged all over", () => {
   void s;
 });
 
+test("no storeys means a street PLAN — every line, no buildings", () => {
+  const { scene, vp } = facing();
+  const s = street(scene, vp);
+  assert.equal(s.ok, true, s.reason);
+  assert.equal(s.buildings.length, 0, "a plan has no massing on it");
+  assert.equal(s.plots.length, 8, "but it still has the plots to build on");
+  assert.equal((scene.faces ?? []).length, 0, "and nothing to fill");
+  // The lines are all there and all held by the point.
+  assert.ok(s.rails.every(r => r.length === 5));
+  assert.ok(scene.edges.length >= 4 * 4 + 3 * 5, `only ${scene.edges.length} lines in the plan`);
+});
+
 test("it refuses a point off to the side, because that road runs past you", () => {
   const scene = createScene({ name: "t", width: 1600, height: 1200 });
   setEyeLevel(scene, 540);

@@ -9,7 +9,7 @@
 // deleted here — the user's drawings live in IndexedDB and an update that
 // cleared them would be destroying the work the app exists to hold.
 
-const CACHE = "intersecting-parallels-1.13.0";
+const CACHE = "intersecting-parallels-1.13.1";
 
 const SHELL = [
   "/",

@@ -2555,6 +2555,24 @@ try {
   check('drag the point and the whole city turns, crossroads still level (D61)',
     turnedCity.moved === 3 && turnedCity.worstTilt < 1e-6 && turnedCity.finite,
     JSON.stringify(turnedCity));
+
+  // D61 — the plan on its own. Same grid, nothing standing on it.
+  const streetPlan = await stPage.evaluate(() => {
+    document.getElementById('clear-drawing').click();
+    document.getElementById('clear-drawing').click();
+    if (document.getElementById('setup').dataset.on !== 'true') document.getElementById('show-setup').click();
+    document.getElementById('add-streetplan').click();
+    const s = window.__ip.scene;
+    return {
+      edges: s.edges.length,
+      faces: (s.faces ?? []).length,
+      receders: s.vertices.filter(v => Number.isFinite(v.recede)).length,
+      gauged: s.vertices.filter(v => Number.isFinite(v.gauge)).length,
+    };
+  });
+  check('Plan only lays the same grid with nothing standing on it (D61)',
+    streetPlan.edges > 20 && streetPlan.faces === 0 && streetPlan.gauged === 0 && streetPlan.receders === 16,
+    JSON.stringify(streetPlan));
   await stCtx.close();
 
   // D47 — the toolbar cleanup. The bar must stay SHORT, everything that moved

@@ -862,6 +862,20 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D61 — a street, and the plan on its own (SHIPPED 1.13.0 / 1.13.1, staging)
+
+**1.13.1 adds Plan only.** Noah's own description was two steps — *"draw a grid
+of lines that act as streets and then plot them with buildings"* — and I built it
+as one action, which is the useful default but is not what he said. The grid is a
+thing in its own right: an artist placing buildings by hand wants the lines and
+none of the massing. `buildStreet` with no storeys lays the same road, crossroads
+and block lines and stands nothing on them; every line is still held by the point,
+so the plan turns when it is dragged.
+
+Costs nothing in the solver — the storeys loop simply does not run — which is
+worth noting as the shape a good option has: if adding one needs a new code path
+rather than an absent argument, the first version probably conflated two things.
+
 ### D61 — a street (SHIPPED 1.13.0, staging)
 
 Noah, 2026-08-01: *"buildings on both sides of a road with one point perspective
