@@ -1337,9 +1337,19 @@ try {
   // eye-level line is a drawn reference that coincides with it when the points
   // are level. These checks moved the reference and expected the drawing to
   // follow, which was the old rule and is the defect Noah photographed.
+  // Through moveVp, which RE-SOLVES. This used to poke `vp.y` on the scene object
+  // and never solve, which worked only because the old rule read the vanishing
+  // points live at draw time: move the points, and the answer changed without any
+  // corner having moved. Under D63 visibility comes from where the corners
+  // actually are, so a fixture that never re-solves is asserting nothing — the
+  // box stays exactly where it was and every winding with it. That is what looked
+  // like the solver and the renderer disagreeing about the same box; they never
+  // did, the box had simply not been re-solved.
   const setHorizon = async y => {
     await nodragPage.evaluate(v => {
-      for (const vp of window.__ip.scene.vanishingPoints) if (vp.onHorizon) vp.y = v;
+      for (const vp of window.__ip.scene.vanishingPoints.filter(p => p.onHorizon)) {
+        window.__ip.moveVp(vp.id, { x: vp.x, y: v });
+      }
       window.__ip.select(null);
     }, y);
     await nodragPage.waitForTimeout(160);

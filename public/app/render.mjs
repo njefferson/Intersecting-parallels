@@ -244,7 +244,10 @@ function visibleFaces(solid, scene, byId) {
   // you the leftmost takes the darker tint — decided by position on the page, the
   // way a light source is, so the shading stays put instead of swapping brightness
   // when the box turns. Nothing here decides WHETHER a face is drawn.
-  const walls = out.filter(f => !["top", "bottom"].includes(f.shade));
+  // Only the SIDE walls take the two lit tints. "back" was being caught by this
+  // and painted as a side wall, which is why a room's far wall filled 4px: it was
+  // there, just wearing another face's colour.
+  const walls = out.filter(f => !["top", "bottom", "back"].includes(f.shade));
   const mid = f => {
     const pts = f.loop.map(id => byId.get(id)).filter(Boolean);
     return pts.reduce((a2, v) => a2 + v.x, 0) / (pts.length || 1);
