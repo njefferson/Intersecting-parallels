@@ -106,6 +106,40 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-08-01 — 1.15.0 and 1.16.0.** Fourteenth and
+fifteenth promotes, back to back. `main` fast-forwarded `b238b74` -> `8d8acbe`,
+then `8d8acbe` -> `b694848`; no merge commits, remote diff against `staging`
+empty after each. All four workflows verified `completed / success` on BOTH
+commits on `main`, read back from the API.
+
+- **1.14.0** — D62, a circle in perspective. Exact rather than the eight-point
+  construction, and stored as four ids and nothing else.
+- **1.15.0** — D63, the winding refactor, and the most important change in the
+  app so far. Noah's criticism was right and it removed five rules rather than
+  adding a sixth.
+- **1.16.0** — D64, Fit points.
+
+**Why D63 matters more than its size.** Every visibility rule before it worked
+out from screen position something the construction already knew, and each was
+correct in the case it was written for and wrong in the next one — D37, D44, D48,
+D49, D54, five in a row, each patching its predecessor. Noah stopped the sequence
+with a question rather than a bug report: *"why don't you just assign a face a
+normal that doesn't change no matter what direction you look at it from and just
+cull the reverse normals like any 3-D program."* That is one rule, it is the
+standard one, and it made the other five unnecessary. The second half of the same
+message — that eye level makes no sense as an input because it is forced by the
+two points that make the horizon — fell out for free: nothing consults either line
+now.
+
+**The pattern to carry.** Twice this week the fix was to stop deriving and start
+storing a fact about the CONSTRUCTION: signed depths in D49, and now windings.
+Both times the prompt was Noah asking why the app was recalculating at all. The
+smell to watch for is a rule that reads screen positions to answer a question the
+builder already knew the answer to.
+
+Gates at 1.16.0: **223 unit tests**, **186 walk checks**, a11y PASS, 7 declared
+interactions with no gaps.
+
 **PROMOTED TO PRODUCTION 2026-08-01 — 1.13.0.** Thirteenth promote. `main`
 fast-forwarded `b238b74` -> `731a8ed`, no merge commit, remote diff against
 `staging` empty afterwards.
