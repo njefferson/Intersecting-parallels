@@ -16,7 +16,7 @@ import {
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, buildRoof, buildCircle, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
-  createView, fitView, toCanvas, toScreen, zoomAt, draw, vpAt, offscreenMarker, HANDLE_HIT,
+  createView, fitView, fitAll, toCanvas, toScreen, zoomAt, draw, vpAt, offscreenMarker, HANDLE_HIT,
 } from "./render.mjs";
 import {
   createHistory, beginGesture, undo as undoHistory, redo as redoHistory, canUndo, canRedo,
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.15.0";
+const VERSION = "1.16.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1734,6 +1734,14 @@ function zoomBy(factor) {
 }
 $("zoom-in")?.addEventListener("click", () => zoomBy(1.25));
 $("zoom-out")?.addEventListener("click", () => zoomBy(1 / 1.25));
+$("zoom-fit-all")?.addEventListener("click", () => {
+  fitAll(view, viewport(), scene);
+  render();
+  const off = scene.vanishingPoints.filter(v => v.x < 0 || v.x > scene.canvas.width || v.y < 0 || v.y > scene.canvas.height).length;
+  say(off
+    ? `Showing the paper and all ${scene.vanishingPoints.length} points — ${off} of them off the paper. Fit comes back to the drawing.`
+    : `Showing the paper and all ${scene.vanishingPoints.length} points. Fit comes back to the drawing.`);
+});
 $("zoom-fit")?.addEventListener("click", () => {
   fitView(view, viewport());
   render();
@@ -2122,6 +2130,9 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     // sampler the screen draws with rather than a copy of the maths.
     circlePoints,
     draw: () => render(),
+    // D64 — the walk checks that Fit points actually brings every point onto
+    // the screen, which is a fact about the VIEW rather than about the scene.
+    view: () => ({ scale: view.scale, tx: view.tx, ty: view.ty }),
     get canvas() { return { width: el.canvas.width, height: el.canvas.height }; },
     // Goes through the same panel refresh the app's own paths use, so a
     // screenshot taken after a scripted move never shows stale coordinates

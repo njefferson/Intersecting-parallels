@@ -3081,6 +3081,37 @@ try {
     await new Promise(r => requestAnimationFrame(r));
     return { before, inz, outz, fit: window.__ip.zoom() };
   });
+  // D64 — Fit points frames the paper AND every vanishing point, and Fit comes back.
+  const fitPts = await page.evaluate(async () => {
+    const s = window.__ip.scene;
+    // Push a point well off the paper, which is the ordinary case.
+    const vp = s.vanishingPoints.find(v => !v.locked);
+    window.__ip.moveVp(vp.id, { x: -4000, y: -900 });
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    const onScreen = () => {
+      const v = window.__ip.view();
+      return s.vanishingPoints.every(p => {
+        const x = p.x * v.scale + v.tx, y = p.y * v.scale + v.ty;
+        return x >= 0 && x <= stage.width && y >= 0 && y <= stage.height;
+      });
+    };
+    document.getElementById('zoom-fit').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const afterFit = { on: onScreen(), scale: window.__ip.view().scale };
+    document.getElementById('zoom-fit-all').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const afterAll = { on: onScreen(), scale: window.__ip.view().scale };
+    document.getElementById('zoom-fit').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const back = { on: onScreen(), scale: window.__ip.view().scale };
+    return { afterFit, afterAll, back, said: document.getElementById('live')?.textContent || '' };
+  });
+  check('Fit points shows every vanishing point, and Fit comes back (D64)',
+    fitPts.afterFit.on === false && fitPts.afterAll.on === true
+      && fitPts.afterAll.scale < fitPts.afterFit.scale && fitPts.back.on === false
+      && Math.abs(fitPts.back.scale - fitPts.afterFit.scale) < 1e-9,
+    JSON.stringify(fitPts));
+
   check('zoom in, zoom out and fit work without a pinch (SC 2.5.1)',
     zoomed.inz > zoomed.before && zoomed.outz < zoomed.inz && zoomed.fit > 0,
     `${zoomed.before.toFixed(2)} -> in ${zoomed.inz.toFixed(2)} -> out ${zoomed.outz.toFixed(2)} -> fit ${zoomed.fit.toFixed(2)}`);

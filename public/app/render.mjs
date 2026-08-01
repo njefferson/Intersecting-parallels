@@ -36,6 +36,35 @@ export function fitView(view, viewport, margin = 24) {
   return view;
 }
 
+// D64 — fit the POINTS, not just the paper.
+//
+// Noah, 2026-08-01: "I'd like to be able to zoom out to see VPs on the screen, at
+// will, and maybe zoom back to the canvas again."
+//
+// Vanishing points are usually off the paper — that is the ordinary case, not an
+// edge one, and D27's edge markers exist because of it. But a marker pointing off
+// screen tells you a direction, not a relationship: you cannot see how far apart
+// two points are, or that one has drifted somewhere silly, without seeing them.
+// So this frames the paper AND every point together, and plain Fit comes back.
+//
+// Locked points are included. A point you cannot drag is still one you want to
+// look at, and leaving it out would frame a view that quietly omits something.
+export function fitAll(view, viewport, scene, margin = 40) {
+  const { width, height } = view.scene.canvas;
+  let minX = 0, minY = 0, maxX = width, maxY = height;
+  for (const vp of scene?.vanishingPoints ?? []) {
+    if (!Number.isFinite(vp.x) || !Number.isFinite(vp.y)) continue;
+    minX = Math.min(minX, vp.x); maxX = Math.max(maxX, vp.x);
+    minY = Math.min(minY, vp.y); maxY = Math.max(maxY, vp.y);
+  }
+  const w = maxX - minX, h = maxY - minY;
+  const s = Math.min((viewport.width - margin * 2) / w, (viewport.height - margin * 2) / h);
+  view.scale = s > 0 && Number.isFinite(s) ? s : 1;
+  view.tx = (viewport.width - w * view.scale) / 2 - minX * view.scale;
+  view.ty = (viewport.height - h * view.scale) / 2 - minY * view.scale;
+  return view;
+}
+
 export function zoomAt(view, screenPoint, factor, { min = 0.02, max = 64 } = {}) {
   const before = toCanvas(view, screenPoint);
   view.scale = Math.max(min, Math.min(max, view.scale * factor));

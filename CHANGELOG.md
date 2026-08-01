@@ -8,6 +8,21 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.16.0 — CAPABILITY · 2026-08-01
+
+**Fit points — zoom out far enough to see where your vanishing points actually are.**
+
+- **Fit points**, beside Fit, frames the paper *and* every vanishing point at
+  once, however far off the page they have wandered. **Fit** comes straight back
+  to the drawing.
+- The edge markers tell you a direction; they cannot show you a relationship. This
+  is for seeing how far apart two points really are, or that one has drifted
+  somewhere silly, which you cannot judge from an arrow at the edge of the screen.
+- Locked points are included. A point you cannot drag is still one you want to
+  look at.
+
+---
+
 ## 1.15.0 — CAPABILITY · 2026-08-01
 
 **Solids know which way they face, the way a 3-D program does.**

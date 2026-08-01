@@ -862,6 +862,56 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D64 — Fit points (SHIPPED 1.16.0, staging)
+
+Noah, 2026-08-01: *"I'd like to be able to zoom out to see VPs on the screen, at
+will, and maybe zoom back to the canvas again."*
+
+Points off the paper are the ORDINARY case, not an edge one — D27's edge markers
+exist because of it. But a marker pointing off screen gives you a direction, not a
+relationship: you cannot see how far apart two points are, or that one has drifted
+somewhere silly, without seeing them. `fitAll` frames the paper and every point
+together; plain Fit comes back.
+
+Locked points are included, deliberately. A point you cannot drag is still one you
+want to look at, and a view that quietly omits something is worse than no view.
+
+Planted by making it ignore the points: it then frames only the paper, no point
+comes on screen, and the check fails on the position rather than on the zoom —
+which matters, because the zoom level alone changes either way.
+
+### D63 — solids know which way they face (SHIPPED 1.15.0, PROMOTED)
+
+Noah's criticism, and it was the right one: *"assign a face a normal that doesn't
+change no matter what direction you look at it from and just cull the reverse
+normals like any 3-D program"*, and *"I don't think eye line makes any sense with
+a one or 2D or maybe any perspective. It's forced by the two that make the horizon
+line."* Both halves right, and the second falls out of the first.
+
+Replaced D37's front-pair rule, D44's stored rings, D48's horizon ordering, D49's
+depth signs and D54's roof branch — five rules, each correct in one case and
+patched by the next. Visibility is now the sign of the projected polygon's area
+and nothing else. Nothing consults eye level or the horizon.
+
+**Three things it taught, all found by measurement:**
+
+1. **The "solver/renderer disagreement" never existed.** The walk poked `vp.y`
+   straight onto the scene and never re-solved — fine under the old rule, which
+   read the points live at draw time; meaningless under this one, where the box
+   simply never moved. That is the third and fourth appearance of that same
+   instrument error this week.
+2. **A street plot's ring goes round the opposite way to a box's.** Feed it the
+   box's face scheme and every face comes out inside out — as an internally
+   CONSISTENT set facing the wrong way, which is exactly what `orientSolid` cannot
+   detect, since it only chooses between two consistent orientations. Fixed at the
+   RING, which is the one place that ends it for every future builder.
+3. **Back-face culling needs a CLOSED solid.** A roof was two planes with no ends,
+   and an open surface has no inside to be on the far side of: its slopes read
+   positive both above and below the horizon, because the ridge is always drawn
+   above the eaves so the winding depends on left/right order rather than on
+   viewpoint. Closing it with its gable ends and underside makes it a prism, after
+   which the one rule works on it unchanged.
+
 ### D62 — a circle in perspective (SHIPPED 1.14.0, staging)
 
 The biggest thing the app could not draw. Wheels, arches, domes, cups, manholes —
