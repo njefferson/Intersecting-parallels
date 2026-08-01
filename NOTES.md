@@ -106,6 +106,31 @@ grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
 the walk asserts the geometry rather than the label.
 
+**PROMOTED TO PRODUCTION 2026-08-01 — 1.11.0.** Tenth promote, and the largest
+by content: `main` fast-forwarded `928f1d7` -> `8179687` in a single push, no
+merge commit, carrying **four releases** that had been stacked on `staging`
+through the day.
+
+- **1.8.1** — D49, from Noah's *"Why do you recalculate normals at all?"* Four
+  amendments had been deriving from screen position a fact the construction
+  already held. It reads the stored depth SIGNS now, and the whole run of
+  inverted-box reports ends there.
+- **1.9.0** — D50, equal intervals in depth. Divide and Repeat, exact against a
+  real projection rather than approximated.
+- **1.10.0** — D51, the scale figure: a ratio of your own eye height, re-derived
+  every solve, so it can never go stale and lie with authority.
+- **1.11.0** — D52, the interior room, and the D39 defect that fell out of it.
+
+All four workflows verified `completed / success` on `8179687` on `main`, read
+back from the API rather than taken from the deploy alone — the record was held
+until every one of them finished, for the sixth promote running. The sandbox
+still cannot reach pages.dev (proxy `CONNECT tunnel failed, 403`), so the deploy
+run is the evidence and Noah's on-screen version stamp closes the gap.
+
+Gates at 1.11.0: **189 unit tests**, **169 walk checks**, a11y PASS, 7 declared
+interactions with no gaps — all four re-run here at that exact commit, not
+carried over from memory.
+
 **PROMOTED TO PRODUCTION 2026-07-30 — 1.8.0.** Ninth promote. `main`
 fast-forwarded `2c7a42f` -> `8e0f422`, no merge commit, remote diff empty
 afterwards. Two releases:
