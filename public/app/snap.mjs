@@ -609,12 +609,17 @@ export function buildRoof(scene, { corners, pitch = 0.5 }) {
   const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
 
   // Perspective midpoints of the two gable edges (D50 at f = 1/2).
+  // D60 — the midpoint holds the FRACTION, and the solver re-derives the length
+  // from wherever the edge is on each solve. `t` here is only the seed for the
+  // first draw; `divide` is the fact.
   const half = (from, to, binding, vp) => {
     const D = Math.hypot(vp.x - from.x, vp.y - from.y);
     const t1 = Math.hypot(to.x - from.x, to.y - from.y);
     const t = depthAtInterval(D, t1, 0.5);
     if (t === null) return null;
-    return V(addRayVertex(scene, { origin: from.id, binding: { ...binding }, t }));
+    const r = addRayVertex(scene, { origin: from.id, binding: { ...binding }, t });
+    if (r.ok) r.vertex.divide = { ofId: to.id, f: 0.5 };
+    return V(r);
   };
   const midNear = half(nearTop, rightTop, axisR, vpR);
   const midFar = half(leftTop, backTop, axisR, vpR);

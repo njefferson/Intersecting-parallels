@@ -2301,6 +2301,87 @@ try {
       && Math.abs(gainedUp.left) < 500 && Math.abs(gainedUp.right) < 500,
     `${overhead.faces} roof planes stored, all above the horizon: ${overhead.aboveHorizon}, painting ${gainedUp.left}/${gainedUp.right}px onto walls of ${wallsUp.left}/${wallsUp.right}`);
 
+  // D60 — a house pushed through a vanishing point must not tangle.
+  //
+  // Noah, 2026-08-01, screenshots IMG_1361/1362: the house pulled into a crossed
+  // mess when a corner was dragged far. Crossing a vanishing point inverts a
+  // depth (D39), which flips a gable edge to the other side of its origin; the
+  // gable MIDPOINT held a stored length, so it stayed behind on the old side and
+  // the ridge ended up outside the building, making both roof planes
+  // self-intersecting quads. It holds a fraction now and re-derives every solve.
+  //
+  // This is the sequence from the report, in the real app, and every face is
+  // tested for a crossing at each step — the box's as well as the roof's.
+  const tangle = await rfPage.evaluate(async () => {
+    // From a CLEAN house at its natural size and place, because the checks above
+    // leave one overhead with the horizon dropped, and that fixture never folds
+    // into a crossing however wrong the midpoints are. Rebuilt here so the
+    // sequence is the one from the report.
+    document.getElementById('clear-drawing').click();
+    document.getElementById('clear-drawing').click();
+    if (document.getElementById('setup').dataset.on !== 'true') document.getElementById('show-setup').click();
+    document.getElementById('add-cube').click();
+    document.getElementById('add-roof').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const s = window.__ip.scene;
+    const anchor = s.vertices.find(v => v.kind === 'anchor');
+    const cross = (P, Q, R, T) => {
+      const d = (o, a, b) => Math.sign((a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x));
+      return d(P, Q, R) !== d(P, Q, T) && d(R, T, P) !== d(R, T, Q);
+    };
+    const worst = [], strayed = [];
+    for (const to of [{ x: 300, y: 1100 }, { x: 2960, y: 540 }, { x: 100, y: 1150 },
+                      { x: 1400, y: 1000 }, { x: 700, y: 120 }]) {
+      window.__ip.manipulate(anchor.id, to);
+      await new Promise(r => requestAnimationFrame(r));
+      const byId = new Map(s.vertices.map(v => [v.id, v]));
+      // A crossing is only ONE way this goes wrong, and not the one a misplaced
+      // midpoint always produces: in some poses the ridge simply walks out of the
+      // building without any edge crossing. So the property itself is asserted —
+      // every divider sits between the two ends of the edge it divides.
+      for (const v of s.vertices) {
+        if (!v.divide || v.degenerate) continue;
+        const o = byId.get(v.origin), f = byId.get(v.divide.ofId);
+        if (!o || !f || f.degenerate) continue;
+        const lo = Math.min(o.x, f.x) - 0.5, hi = Math.max(o.x, f.x) + 0.5;
+        if (v.x < lo || v.x > hi) {
+          strayed.push(`${v.id} at ${v.x.toFixed(0)} off its edge ${o.x.toFixed(0)}..${f.x.toFixed(0)} at ${JSON.stringify(to)}`);
+        }
+      }
+      for (const f of s.faces) {
+        // A face is only a claim about a surface when the app is actually
+        // filling it; a solid with a corner it could not place draws as a
+        // wireframe and asserts nothing (D60).
+        if (f.loop.some(id => byId.get(id)?.degenerate)) continue;
+        const p = f.loop.map(id => byId.get(id)).filter(Boolean);
+        if (p.length < 4) continue;
+        for (let i = 0; i < p.length; i++) {
+          for (let j = i + 2; j < p.length; j++) {
+            if (i === 0 && j === p.length - 1) continue;
+            if (cross(p[i], p[(i + 1) % p.length], p[j], p[(j + 1) % p.length])) {
+              worst.push(`${f.solid}/${f.shade} at ${JSON.stringify(to)}`);
+            }
+          }
+        }
+      }
+    }
+    // Assert the FIXTURE: this proves nothing unless a depth actually inverted.
+    const inverted = s.vertices.some(v => v.kind === 'ray' && typeof v.binding === 'object' && v.t < 0);
+    // And that there ARE dividers to check. Without this the loop above skips
+    // every vertex the moment the fraction stops being stored, finds nothing out
+    // of place, and reports a clean house — which is how it passed against the
+    // exact fault it exists to catch.
+    const dividers = s.vertices.filter(v => v.divide).length;
+    return { bowties: [...new Set(worst)], inverted, strayed, dividers,
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)) };
+  });
+  check('a house dragged through a vanishing point does not tangle (D60)',
+    tangle.bowties.length === 0 && tangle.strayed.length === 0
+      && tangle.inverted && tangle.dividers >= 2 && tangle.finite,
+    tangle.bowties.length ? `crossed: ${tangle.bowties.slice(0, 2).join('; ')}`
+      : tangle.strayed.length ? `ridge left the building: ${tangle.strayed.slice(0, 2).join('; ')}`
+      : `five drags, a depth went negative, ${tangle.dividers} dividers all on their edges, no face crossed itself`);
+
   // The whole house must turn together when a wall's point moves.
   const turned = await rfPage.evaluate(async () => {
     const s = window.__ip.scene;

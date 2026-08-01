@@ -192,7 +192,13 @@ export function addEdge(scene, { a, b, binding = "free", role = "committed", sty
 // ---- dependency graph ----------------------------------------------------
 
 function depsOf(v) {
-  if (v.kind === "ray") return [v.origin];
+  // D60 — a vertex that DIVIDES another one's edge depends on the far end of that
+  // edge as surely as it does on its own origin. Leaving it out let the solver
+  // place a gable midpoint before the corner it divides had moved, so it halved
+  // yesterday's edge: correct arithmetic on stale input, which is the hardest
+  // kind of wrong to see. The cycle check walks this list too, so a midpoint can
+  // never come to divide something that depends on it.
+  if (v.kind === "ray") return v.divide ? [v.origin, v.divide.ofId] : [v.origin];
   if (v.kind === "intersect") return [v.defs[0].origin, v.defs[1].origin];
   return [];
 }
@@ -255,8 +261,28 @@ function solveRay(scene, v, index) {
       if (Number.isFinite(D) && D > 0) v.t = D * v.recede;
     }
   }
+  // D60 — a gable midpoint divides ANOTHER corner's depth, so it holds the
+  // FRACTION and re-derives the length every solve. It used to store the length,
+  // and that is the same defect D52 was written about: push the box through a
+  // vanishing point, the gable edge flips to the other side, and the midpoint
+  // stays behind on the old side — the ridge ends up outside the building and the
+  // roof planes cross themselves. A fraction flips with the edge for free.
   const u = bindingDirection(scene, { x: origin.x, y: origin.y }, v.binding);
   if (!u) { v.degenerate = true; return; } // x,y untouched — the last-valid cache
+  if (v.divide && typeof v.binding === "object") {
+    const of = scene.vertices.find(x => x.id === v.divide.ofId);
+    const vp = scene.vanishingPoints.find(p => p.id === v.binding.vpId);
+    if (of && vp && Number.isFinite(of.x) && Number.isFinite(of.y)) {
+      // Both distances are SIGNED projections onto the guide, taken from where
+      // the edge is right now. buildRoof used to take t1 as a bare hypot, which
+      // throws the sign away, and then stored the answer — so a gable edge that
+      // flipped through its origin left its midpoint behind on the old side.
+      const t1 = (of.x - origin.x) * u.x + (of.y - origin.y) * u.y;
+      const D = (vp.x - origin.x) * u.x + (vp.y - origin.y) * u.y;
+      const t = depthAtInterval(D, t1, v.divide.f);
+      if (Number.isFinite(t)) v.t = t;
+    }
+  }
   v.degenerate = false;
   if (v.binding === "vertical" || v.binding === "horizontal") {
     // Fixed directions cannot cross their origin; plain signed t.
@@ -291,7 +317,7 @@ function solveRay(scene, v, index) {
   // every solve, so there is no history to preserve and negating it just sends
   // the corner to the wrong side. Found by a room's far wall skewing when the
   // point moved past one of its corners.
-  const derived = Number.isFinite(v.gauge) || Number.isFinite(v.recede);
+  const derived = Number.isFinite(v.gauge) || Number.isFinite(v.recede) || !!v.divide;
   if (!derived && Number.isFinite(v.ux) && Number.isFinite(v.uy) && (v.ux * u.x + v.uy * u.y) < 0) {
     v.t = -v.t;                       // the guide reversed under it — hold position
   }

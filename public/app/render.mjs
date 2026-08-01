@@ -544,9 +544,19 @@ export function draw(ctx, view, viewport, opts = {}) {
     }
     for (const g of solids) {
       const shown = visibleFaces(g, scene, byId);
+      // D60 — a solid holding a DEGENERATE corner is not filled.
+      //
+      // When a corner is dragged exactly onto a vanishing point, the direction
+      // from it to that point stops existing; the solver marks the dependent
+      // corners degenerate and leaves them at their last valid position, which is
+      // the right thing to store. Filling a face through those stale points draws
+      // a shape nobody constructed — the crossed tangle Noah photographed. The
+      // wireframe still draws, so the drawing does not vanish under the finger;
+      // what stops is the app asserting a surface it cannot place.
+      const unplaced = [...g.verts].some(id => byId.get(id)?.degenerate);
       ctx.save();
       ctx.globalAlpha = faceOpacity;
-      for (const face of shown) fillFace(ctx, view, face, byId, c);
+      if (!unplaced) for (const face of shown) fillFace(ctx, view, face, byId, c);
       ctx.restore();
       // D40 — hidden lines. At full opacity they are simply not drawn; below it
       // the solid is see-through on purpose, so drawing them back is the honest

@@ -146,6 +146,76 @@ test("deleting the point a slope hangs from leaves the slope where it is", () =>
   assert.ok(scene.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)));
 });
 
+// D60 — the gable midpoint holds a FRACTION of its edge, not a length.
+//
+// Noah, 2026-08-01, with two screenshots of a house pulled into a crossed
+// tangle. Push a box through a vanishing point and a depth goes negative (D39):
+// the gable edge flips to the other side of its origin. A midpoint that stored a
+// LENGTH stayed behind on the old side, which put the ridge outside the building
+// and made both roof planes self-intersecting quads. This is D52's lesson, which
+// the room got right and the roof — written later — did not.
+
+// Is a quad's perimeter simple, or does it cross itself?
+function bowtie(pts) {
+  const side = (o, a, b) => Math.sign((a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x));
+  const hits = (p, q, r, t) => side(p, q, r) !== side(p, q, t) && side(r, t, p) !== side(r, t, q);
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue;
+      if (hits(pts[i], pts[(i + 1) % n], pts[j], pts[(j + 1) % n])) return true;
+    }
+  }
+  return false;
+}
+const between = (m, a, b) => (m >= Math.min(a, b) - 1e-6) && (m <= Math.max(a, b) + 1e-6);
+
+test("the gable middle stays ON its gable when a depth inverts", () => {
+  const { scene, box, roof } = house();
+  const { nearTop, rightTop, leftTop, backTop, rightBottom } = box.corners;
+  assert.ok(between(roof.midNear.x, nearTop.x, rightTop.x), "it did not start on its own edge");
+  rightBottom.t = -rightBottom.t;                 // push the box through, as D39 allows
+  solveScene(scene);
+  assert.ok(between(roof.midNear.x, nearTop.x, rightTop.x),
+    `the near gable runs ${nearTop.x.toFixed(0)}..${rightTop.x.toFixed(0)} and its middle is at ${roof.midNear.x.toFixed(0)}`);
+  assert.ok(between(roof.midFar.x, leftTop.x, backTop.x),
+    `the far gable runs ${leftTop.x.toFixed(0)}..${backTop.x.toFixed(0)} and its middle is at ${roof.midFar.x.toFixed(0)}`);
+});
+
+// The visible symptom — a roof plane crossing itself — is asserted in walk.mjs,
+// against the sequence that actually produced it on Noah's device. A unit fixture
+// was tried here first and dropped: it holds the midpoint off its own gable, which
+// the test above catches, but its numbers never fold into a bowtie, so the check
+// passed against all three planted faults. A check that cannot fail is worse than
+// no check, because it reads like proof.
+test("the middle is RE-DERIVED, not remembered: move the far corner and it follows", () => {
+  const { scene, box, roof } = house();
+  const before = roof.midNear.x;
+  box.corners.rightBottom.t *= 2;                 // stretch the gable out
+  solveScene(scene);
+  assert.ok(Math.abs(roof.midNear.x - before) > 20,
+    `the gable doubled and its middle moved ${Math.abs(roof.midNear.x - before).toFixed(1)}px`);
+  assert.ok(between(roof.midNear.x, box.corners.nearTop.x, box.corners.rightTop.x));
+});
+
+test("a divider depends on the corner it divides, so it is never solved from stale ends", () => {
+  // The arithmetic was right the whole time; it was being fed yesterday's edge,
+  // because the only declared dependency was the midpoint's own origin.
+  const { scene, box, roof } = house();
+  const order = scene.vertices.map(v => v.id);
+  const i = order.indexOf(roof.midNear.id), j = order.indexOf(box.corners.rightTop.id);
+  assert.ok(i >= 0 && j >= 0);
+  assert.equal(roof.midNear.divide.ofId, box.corners.rightTop.id,
+    "the near gable's middle does not know which corner it divides");
+  // One solve is enough — no second pass to settle.
+  box.corners.rightBottom.t = -box.corners.rightBottom.t;
+  solveScene(scene);
+  const once = roof.midNear.x;
+  solveScene(scene);
+  assert.ok(Math.abs(roof.midNear.x - once) < 1e-9,
+    "a second solve moved it, so the first one used stale input");
+});
+
 test("a roof refuses a box that is not there", () => {
   const scene = createScene({ name: "t", width: 1600, height: 1200 });
   assert.equal(buildRoof(scene, {}).ok, false);

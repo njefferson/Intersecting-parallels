@@ -8,6 +8,22 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.12.5 — ITERATION · 2026-08-01
+
+**The house stops tangling.**
+
+- Drag a corner far enough and the box pushes through a vanishing point and turns
+  inside out — which it is supposed to do. The **roof** did not come with it: the
+  ridge stayed on the side the building used to be on, so the roof planes folded
+  across themselves and the house came apart. The ridge holds *half of the gable*
+  now rather than a remembered distance, so it turns with the wall underneath it.
+- A corner dragged **exactly onto** a vanishing point has no direction to run in,
+  and the app knows it — it just kept filling the shape anyway, using the last
+  places it could work out. It draws the outline and no fill now, so what you see
+  is the part it can still stand behind.
+
+---
+
 ## 1.12.4 — ITERATION · 2026-08-01
 
 **Add cube is on the toolbar, and the toolbar holds still.**

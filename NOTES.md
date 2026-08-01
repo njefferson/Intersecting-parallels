@@ -793,6 +793,63 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D60 — a divider holds a FRACTION, and depends on what it divides (SHIPPED 1.12.5, staging)
+
+Noah's IMG_1361/1362: the house pulled into a crossed tangle when a corner was
+dragged far. Closed. Three separate faults, each of which alone was enough.
+
+**1. The gable midpoint stored a LENGTH.** Push a box through a vanishing point
+and a depth goes negative (D39) — the gable edge flips to the other side of its
+origin. A midpoint holding a length stayed behind on the old side, putting the
+ridge outside the building. This is exactly D52's lesson, written for the room's
+far wall six hours earlier: *"the corners hold a FRACTION, not a length. Store
+lengths instead and the wall skews the instant the point moves."* The room got it
+right. The roof, written after it, did not. Fixed by `divide: { ofId, f }`,
+re-derived every solve like `gauge` (D51) and `recede` (D52).
+
+**2. `t1` was an unsigned `hypot`.** `buildRoof` measured the gable edge with
+`Math.hypot`, which cannot be negative, so the sign was destroyed before the
+formula ever saw it. Both distances are signed projections onto the guide now.
+The interval formula itself (D50) was never wrong — checked against a real
+projection with a negative first interval, it is exact. My first hypothesis was
+that D50 broke under a negative `t1`; measuring killed it.
+
+**3. The divider did not DEPEND on what it divides.** `depsOf` returned only the
+origin, so the topological solve placed the midpoint before the corner it halves
+had moved. Correct arithmetic on yesterday's edge — the hardest kind of wrong to
+see, because nothing is out of range and nothing is NaN; it is just one solve
+behind. `depsOf` includes `divide.ofId` now, and the cycle check walks it too.
+
+**And a fourth thing, found by the gate rather than the report.** A corner dragged
+exactly ONTO a vanishing point has no direction to run in; the solver marks the
+dependents degenerate and leaves them at their last valid positions, which is the
+right thing to store. Rendering then filled faces through those stale points —
+drawing a surface nobody constructed. A solid with an unplaced corner draws its
+wireframe and no fill now. The drawing does not vanish under the finger; what
+stops is the app asserting something it cannot place.
+
+**Four checks, and getting them to fail was most of the work.**
+
+- Three unit tests pin the fraction, the sign and the dependency. Each was planted
+  against separately: dropping the dependency fails 3, storing the length fails 3,
+  restoring the unsigned `hypot` fails 1.
+- A fourth unit test was WRITTEN AND DELETED. It asserted "neither roof plane
+  crosses itself" and passed against all three planted faults, because that
+  fixture holds the midpoint off its gable without the numbers ever folding into
+  a crossing. It is recorded in the file as a comment so nobody adds it back.
+- The walk asserts the real thing in the real app: the report's own drag sequence,
+  every face tested for a crossing, every divider tested against the edge it
+  divides. That check needed three passes before it could fail. First it inherited
+  an overhead fixture from the checks above it, which never tangles — rebuilt from
+  a clean house. Then it counted crossings only, and a misplaced ridge does not
+  always cross — the divider-on-its-edge property was added. Then, with the
+  fraction removed, the loop found no dividers at all and reported a clean house:
+  the exact fault it exists to catch, passing. It asserts the dividers EXIST now.
+
+That last one is the third time this session an empty check has been caught by
+planting, and the second time the emptiness came from a filter matching nothing.
+Cross-app lesson is hub LESSONS 7g.
+
 ### D58 / D59 — the bar holds still, and it carries a cube (SHIPPED 1.12.4, staging)
 
 **D58 — the toolbar was rearranging itself because the DRAWING changed.** Noah
@@ -2164,41 +2221,6 @@ a staging handoff onto Noah's iPad, so the app must be reachable at a preview UR
 long before the manifest exists. *(Deploy pipeline already live from bootstrap.)*
 
 ---
-
-## OPEN — the roof tangles when a box inverts (reported 2026-08-01, NOT fixed)
-
-Noah's screenshots IMG_1361/1362: dragging a corner far pulls the house into a
-crossed tangle. Reproduced headlessly and narrowed, not yet fixed — it is a
-geometry defect and deserves a session with room to do it properly rather than
-the end of one.
-
-What is established by measurement:
-
-- It needs a box depth to go NEGATIVE — the inversion D39 made legal. At
-  `manipulate(anchor, {x:100, y:1150})` the depths read `[389, 389, -216, 212]`.
-- The BOX's own faces stay correct. D49 taught the box to pick its near corner
-  from the stored depth signs, and that holds through inversion.
-- The ROOF's two faces become self-intersecting quads — bowties. `roof36/left`
-  and `roof36/right` both fail a segment-crossing test.
-- **It is not the face loop order.** The stored loop pairs near-gable corners
-  with the near ridge end, which is structurally correct and does not change.
-  The actual fault is that `peakNear` lands at x=-115 when the near gable it
-  rises from is around x=250 — the ridge point is in the wrong PLACE, so any
-  loop through it crosses.
-- Prime suspect, unverified: the gable midpoint comes from `depthAtInterval(D,
-  t1, 0.5)` (D50), and that formula was derived and tested for POSITIVE depths.
-  `t(f) = D·f·t₁ / (D + (f−1)·t₁)` with a negative `t₁` can change sign or blow
-  up. If so, this is the same pattern a third time: a new capability (D53's roof)
-  resting on an older amendment's unstated assumption (D50 assumed t₁ > 0), with
-  every gate green because each was written against its own amendment.
-
-A separate, milder case: dragging the anchor ONTO a vanishing point gives two
-degenerate vertices and bowties in `box23/top` and `roof36/right`. The vertices
-are correctly marked degenerate, so the app knows; it just still draws them.
-
-First move next session: unit-test `depthAtInterval` with a negative `t1`
-against a real projection, the way `test/intervals.test.mjs` does for positive.
-That is a five-line test and it either confirms the suspicion or kills it.
 
 ## Verified vs needs Noah's hands
 
