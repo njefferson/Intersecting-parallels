@@ -59,16 +59,19 @@
       <button class="btn" id="touch-draws" type="button" aria-pressed="false">Touch draws</button>
     </div>
 
-    <!-- D34 / §4 (SC 2.5.1, 2.5.7): drawing without a drag. These two stay on the
-         bar because they are the non-drag path to the app's primary act — Draw
-         mode and Box mode done without a drag — and putting one behind a panel
-         would make the accessible route the slower route. D54: the GENERATORS
-         (cube, room, roof) are not on the bar, because there is no drag gesture
-         they are the alternative to. They are features, and features live in
-         Setup beside the other things that build geometry. -->
-    <div class="bar-group" role="group" aria-label="Draw without dragging">
-      <button class="btn" id="add-line" type="button">Add line</button>
+    <!-- D59 — what the bar carries. Noah, 2026-08-01: "I want to see the option
+         to add a cube on the main screen. I don't think I need a line generator?"
+         A cube is the thing you reach for to see whether a scene reads, so it is
+         here; Add line moved into Setup under Build, where Room and Roof already
+         are. It is NOT gone — it is the non-drag way to draw a line (§4, SC
+         2.5.1), and D34 put it on the bar for that reason. What D34 got wrong was
+         treating "has an alternative" and "the alternative is one tap" as the
+         same requirement: the criterion asks for a single-pointer route to exist,
+         and Setup is one. Add box stays because a box is two drags and the most
+         common thing to want without them. -->
+    <div class="bar-group" role="group" aria-label="Put something on the page">
       <button class="btn" id="add-box" type="button">Add box</button>
+      <button class="btn" id="add-cube" type="button">Add cube</button>
     </div>
 
     <div class="bar-group" role="group" aria-label="Guide for the next stroke">
@@ -133,7 +136,7 @@
              held by the same points as anything drawn by hand. -->
         <h3 class="panel-sec">Build</h3>
         <div class="setup-row">
-          <button class="btn" id="add-cube" type="button">Cube</button>
+          <button class="btn" id="add-line" type="button">Line</button>
           <button class="btn" id="add-room" type="button">Room</button>
           <button class="btn" id="add-roof" type="button">Roof</button>
         </div>

@@ -94,6 +94,28 @@ try {
     }
     const results = [];
     for (const alt of it.alternatives) {
+      // An alternative may live behind a disclosure. That is allowed — SC 2.5.1
+      // asks for a single-pointer route to EXIST — but the disclosure is then part
+      // of the route, so it has to be reachable by the same means before anything
+      // inside it counts. Checked first, and failed loudly if it is not.
+      if (alt.behind) {
+        const opener = await page.evaluate(sel => {
+          const n = document.querySelector(sel);
+          if (!n) return { missing: true };
+          const ok = n.getClientRects().length > 0
+            && n.matches("a[href],button,input,select,textarea,[tabindex]");
+          if (ok) n.click();
+          return { missing: false, ok };
+        }, alt.behind);
+        if (opener.missing) {
+          fail(`${it.id}: alternative "${alt.how}" says it is behind ${alt.behind}, which matches nothing`);
+          continue;
+        }
+        if (!opener.ok) {
+          fail(`${it.id}: alternative "${alt.how}" is behind ${alt.behind}, which is not itself keyboard reachable`);
+          continue;
+        }
+      }
       const found = await page.evaluate(sel => {
         const nodes = [...document.querySelectorAll(sel)];
         const visible = nodes.filter(n => n.getClientRects().length > 0);
@@ -107,7 +129,7 @@ try {
       } else if (alt.keyboard && found.focusable === 0) {
         fail(`${it.id}: alternative "${alt.how}" (${alt.selector}) is not keyboard reachable`);
       }
-      results.push(`${alt.selector} ×${found.count}`);
+      results.push(`${alt.selector} ×${found.count}${alt.behind ? ` behind ${alt.behind}` : ""}`);
     }
     notes.push(`  OK   ${it.id} — ${it.what}\n       ${it.alternatives.length} alternative(s): ${results.join(", ")}`);
   }

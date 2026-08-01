@@ -793,6 +793,45 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D58 / D59 — the bar holds still, and it carries a cube (SHIPPED 1.12.4, staging)
+
+**D58 — the toolbar was rearranging itself because the DRAWING changed.** Noah
+sent two screenshots seconds apart in which the zoom group had moved from the end
+of row one to the start of row two, and Setup/Points/Clear had slid from the left
+of that row to the right. Nothing had been touched but the canvas.
+
+The guide picker is a `<select>`, a select is as wide as its longest option, and
+its options are the scene's vanishing points. Adding a roof introduced *"Guide:
+VP2 roof down"*, the select grew by 25px, and the bar reflowed around it. Fixed
+width now; the full text is still in the open list, which is not constrained by it.
+
+The check compares the geometry of EVERY bar control across building a house —
+the exact sequence that produced the screenshots — rather than watching the
+select alone. That is deliberate: the select was the only scene-dependent width
+*today*, and a check written to that fact would go quiet the moment another one
+appeared. Same shape as D55: gate the property, not the instance.
+
+**D59 — Noah:** *"I want to see the option to add a cube on the main screen. I
+don't think I need a line generator?"* Add cube is on the bar beside Add box; Add
+line moved into Setup under Build.
+
+**Add line is not gone, and the reason is worth writing down.** It is the non-drag
+route to a line (SC 2.5.1), which is why D34 put it on the bar. What D34 got wrong
+was conflating *"an alternative exists"* with *"the alternative is one tap"* — the
+criterion asks only for a single-pointer route, and a disclosure is one.
+
+**The interactions gate refused it, correctly, and had to learn something.** It
+tested the default page state, so a control inside a closed panel read as "not
+keyboard reachable" — true as written, and it would have been a real failure if I
+had simply deleted the button. The declaration now carries `behind:`, naming the
+disclosure, and the gate proves THAT opener is itself keyboard-reachable before it
+believes anything inside. The route is checked end to end rather than assumed,
+which is stronger than what was there before the move.
+
+Note the contrast with D57, one release earlier: Touch draws came OUT of Setup and
+Add line went IN, and both are right. The question is never "panel or bar", it is
+what the control costs against how often it is reached for.
+
 ### D57 — the way in must cost what the way out costs (SHIPPED 1.12.3, staging)
 
 Noah, 2026-08-01: **"'Touch draw' shouldn't be buried in menus."**
@@ -2125,6 +2164,41 @@ a staging handoff onto Noah's iPad, so the app must be reachable at a preview UR
 long before the manifest exists. *(Deploy pipeline already live from bootstrap.)*
 
 ---
+
+## OPEN — the roof tangles when a box inverts (reported 2026-08-01, NOT fixed)
+
+Noah's screenshots IMG_1361/1362: dragging a corner far pulls the house into a
+crossed tangle. Reproduced headlessly and narrowed, not yet fixed — it is a
+geometry defect and deserves a session with room to do it properly rather than
+the end of one.
+
+What is established by measurement:
+
+- It needs a box depth to go NEGATIVE — the inversion D39 made legal. At
+  `manipulate(anchor, {x:100, y:1150})` the depths read `[389, 389, -216, 212]`.
+- The BOX's own faces stay correct. D49 taught the box to pick its near corner
+  from the stored depth signs, and that holds through inversion.
+- The ROOF's two faces become self-intersecting quads — bowties. `roof36/left`
+  and `roof36/right` both fail a segment-crossing test.
+- **It is not the face loop order.** The stored loop pairs near-gable corners
+  with the near ridge end, which is structurally correct and does not change.
+  The actual fault is that `peakNear` lands at x=-115 when the near gable it
+  rises from is around x=250 — the ridge point is in the wrong PLACE, so any
+  loop through it crosses.
+- Prime suspect, unverified: the gable midpoint comes from `depthAtInterval(D,
+  t1, 0.5)` (D50), and that formula was derived and tested for POSITIVE depths.
+  `t(f) = D·f·t₁ / (D + (f−1)·t₁)` with a negative `t₁` can change sign or blow
+  up. If so, this is the same pattern a third time: a new capability (D53's roof)
+  resting on an older amendment's unstated assumption (D50 assumed t₁ > 0), with
+  every gate green because each was written against its own amendment.
+
+A separate, milder case: dragging the anchor ONTO a vanishing point gives two
+degenerate vertices and bowties in `box23/top` and `roof36/right`. The vertices
+are correctly marked degenerate, so the app knows; it just still draws them.
+
+First move next session: unit-test `depthAtInterval` with a negative `t1`
+against a real projection, the way `test/intervals.test.mjs` does for positive.
+That is a five-line test and it either confirms the suspicion or kills it.
 
 ## Verified vs needs Noah's hands
 

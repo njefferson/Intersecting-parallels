@@ -1125,6 +1125,11 @@ try {
   });
 
   const edges0 = await nodragPage.evaluate(() => window.__ip.scene.edges.length);
+  // D59 — Add line lives in Setup now. It is still the non-drag route to a
+  // line (SC 2.5.1) and this still exercises it by KEYBOARD; the panel that
+  // holds it is opened by a keyboard-reachable button, so the route is one
+  // step longer and unchanged in kind.
+  await openSetup(nodragPage);
   await nodragPage.focus('#add-line');
   await nodragPage.keyboard.press('Enter');
   await nodragPage.waitForTimeout(150);
@@ -1278,7 +1283,6 @@ try {
   // threshold entirely. That was the fixture being badly conditioned, not the
   // app being wrong, and lowering the threshold to fit it would have been a test
   // written to pass. Add cube gives equal edges every run.
-  await openSetup(nodragPage);
   await nodragPage.focus('#add-cube');
   await nodragPage.keyboard.press('Enter');
   await nodragPage.waitForTimeout(200);
@@ -1564,7 +1568,6 @@ try {
   await cPg.goto(origin + '/', { waitUntil: 'networkidle' });
   await cPg.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 20000 });
 
-  await openSetup(cPg);
   await cPg.focus('#add-cube');
   await cPg.keyboard.press('Enter');
   await cPg.waitForTimeout(200);
@@ -1738,7 +1741,6 @@ try {
   shPage.on('pageerror', e => pageErrors.push(`shrink page: ${e}`));
   await shPage.goto(origin + '/', { waitUntil: 'networkidle' });
   await shPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
-  await openSetup(shPage);
   await shPage.focus('#add-cube');
   await shPage.keyboard.press('Enter');
   await shPage.waitForTimeout(200);
@@ -2423,10 +2425,10 @@ try {
 
   // Everything that moved is still there and still a real control.
   const moved = await barPage.evaluate(() => {
-    const ids = ['add-cube', 'add-room', 'add-roof',
+    const ids = ['add-room', 'add-roof',
                  'solid', 'face-opacity', 'show-hidden', 'rays', 'grid', 'eye-level',
                  'taller', 'shorter', 'stronger', 'gentler',
-                 'assist', 'snap45', 'weld', 'add-vp'];
+                 'add-line', 'assist', 'snap45', 'weld', 'add-vp'];
     document.getElementById('show-setup').click();
     const out = {};
     for (const id of ids) {
@@ -2439,6 +2441,48 @@ try {
   const missing = Object.entries(moved).filter(([, ok]) => !ok).map(([k]) => k);
   check('every control that moved off the bar is still visible and still 44px (D47)',
     missing.length === 0, missing.length ? `not reachable: ${missing.join(', ')}` : `all ${Object.keys(moved).length}`);
+
+  // D58 — the toolbar must not rearrange itself because the DRAWING changed.
+  //
+  // Noah sent two screenshots taken seconds apart in which the zoom group had
+  // moved from the end of row one to the start of row two and Setup/Points/Clear
+  // had slid from the left of that row to the right. Nothing had been touched but
+  // the canvas: the guide picker is a <select>, a select is as wide as its longest
+  // option, and its options are the scene's vanishing points — so adding a roof
+  // introduced "Guide: VP2 roof down" and the whole bar reflowed around it.
+  //
+  // The geometry of every bar control is compared before and after building a
+  // house, which is the exact sequence that produced those two screenshots.
+  const barBefore = await barPage.evaluate(() => {
+    const out = {};
+    for (const c of document.querySelectorAll('header.bar button, header.bar select')) {
+      const r = c.getBoundingClientRect();
+      out[c.id] = [Math.round(r.x), Math.round(r.y), Math.round(r.width)];
+    }
+    return { geom: out, options: document.getElementById('force').options.length };
+  });
+  const barAfter = await barPage.evaluate(async () => {
+    document.getElementById('add-cube').click();
+    if (document.getElementById('setup').dataset.on !== 'true') document.getElementById('show-setup').click();
+    document.getElementById('add-roof').click();
+    document.getElementById('setup-close').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const out = {};
+    for (const c of document.querySelectorAll('header.bar button, header.bar select')) {
+      const r = c.getBoundingClientRect();
+      out[c.id] = [Math.round(r.x), Math.round(r.y), Math.round(r.width)];
+    }
+    return { geom: out, options: document.getElementById('force').options.length };
+  });
+  const shifted = Object.keys(barBefore.geom)
+    .filter(k => barAfter.geom[k])
+    .filter(k => barBefore.geom[k].some((v, i) => v !== barAfter.geom[k][i]));
+  check('building a house does not rearrange the toolbar (D58)',
+    barAfter.options > barBefore.options && shifted.length === 0,
+    shifted.length
+      ? `${shifted.length} moved, worst ${shifted[0]} ${JSON.stringify(barBefore.geom[shifted[0]])} -> ${JSON.stringify(barAfter.geom[shifted[0]])}`
+      : `guide options ${barBefore.options} -> ${barAfter.options}, nothing on the bar moved`);
+  await barPage.evaluate(() => { document.getElementById('clear-drawing').click(); document.getElementById('clear-drawing').click(); });
 
   // D57 — Touch draws is ON THE BAR, and both directions cost one tap.
   //

@@ -8,6 +8,23 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.12.4 — ITERATION · 2026-08-01
+
+**Add cube is on the toolbar, and the toolbar holds still.**
+
+- **Add cube** sits next to **Add box** on the main screen. **Add line** moved
+  into **Setup** under *Build*, beside Room and Roof — it is still there, because
+  it is the way to draw a line without dragging, but it is not the thing you
+  reach for most.
+- The toolbar was rearranging itself while you drew. The guide picker is a
+  drop-down, a drop-down is as wide as its longest choice, and its choices are
+  your vanishing points — so adding a roof introduced *Guide: VP2 roof down*, the
+  picker grew, and the whole bar reshuffled around it: the zoom buttons dropped to
+  the second row and Setup/Points/Clear slid across it. The picker is a fixed
+  width now, so nothing you draw can move the controls.
+
+---
+
 ## 1.12.3 — ITERATION · 2026-08-01
 
 **Touch draws is on the toolbar.**

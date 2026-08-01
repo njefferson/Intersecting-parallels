@@ -56,7 +56,10 @@ export const INTERACTIONS = [
     // The gate reported it on every run rather than letting it pass quietly,
     // which is why it was still on the list to fix instead of forgotten.
     alternatives: [
-      { how: "Add line puts one at the middle of the view, along the guide the toolbar is showing (D34)", selector: "#add-line", keyboard: true },
+      // D59 — Add line moved into Setup. It is still the non-drag route to a line;
+      // `behind` names the disclosure that holds it, and the gate proves that
+      // opener is itself keyboard-reachable before it believes anything inside.
+      { how: "Add line puts one at the middle of the view, along the guide the toolbar is showing (D34)", selector: "#add-line", keyboard: true, behind: "#show-setup" },
       { how: "Its far end is selected on arrival, so the arrow keys set the length with no drag", selector: "canvas[tabindex]", keyboard: true },
       { how: "Or type that distance as a number", selector: "#inspector", keyboard: true },
     ],

@@ -87,6 +87,14 @@ button,select,input[type="number"],input[type="text"]{font:inherit;font-size:var
 }
 .btn[aria-pressed="true"]{background:var(--slate);border-color:var(--slate);color:var(--bg)}
 .btn[aria-pressed="true"]::before{visibility:visible}
+/* D58 — the guide picker is a FIXED width, so the toolbar cannot rearrange
+   itself while you draw. A <select> sizes to its longest option, and this one's
+   options are the scene's vanishing points — so adding a roof introduced
+   "Guide: VP2 roof down", the select grew, and the whole bar reflowed: the zoom
+   group dropped to the second row and Setup/Points/Clear slid from the left of
+   that row to the right. Nothing had been touched but the drawing. The full text
+   is still there in the open list, which is not constrained by this. */
+#force{width:11rem;flex:0 0 auto;text-overflow:ellipsis}
 .btn.danger{border-color:var(--danger);color:var(--danger)}
 /* An ARMED destructive button. Meaning never rides on hue (Doctrine §4), so the
    armed state is carried by weight and a doubled border as well as colour, and it
