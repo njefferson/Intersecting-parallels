@@ -725,8 +725,11 @@ export function buildRoof(scene, { corners, pitch = 0.5 }) {
 
   const solid = `roof${scene.nextId}`;
   const F = (loop, shade) => addFace(scene, { loop: loop.map(v => v.id), solid, shade });
-  F([nearTop, peakNear, peakFar, leftTop], "left");
-  F([rightTop, peakNear, peakFar, backTop], "right");
+  // D63 — wound outward, like every other face. Measured: with the house below
+  // the horizon both planes must read positive, and these two loops did not, so
+  // they are traversed the other way round. A roof is not a special case any more.
+  F([leftTop, peakFar, peakNear, nearTop], "left");
+  F([backTop, peakFar, peakNear, rightTop], "right");
 
   solveScene(scene);
   return { ok: true, ...made, solid, peakNear, peakFar, midNear, midFar,
