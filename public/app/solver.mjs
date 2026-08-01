@@ -801,6 +801,86 @@ export function addFace(scene, { loop, solid, shade }) {
   return { ok: true, face };
 }
 
+// ---- D50 — equal intervals in depth -------------------------------------
+//
+// Noah, 2026-07-31, asked what would be useful to artists. This is the thing
+// underneath all of it: putting marks at EQUAL WORLD INTERVALS going away from
+// you. Fence posts, floor tiles, window bays, the buildings along a street. On
+// paper it is done with diagonals — cross a square corner to corner, and the
+// crossing is its centre in perspective. Until now every depth in this app was
+// eyeballed, which means a "city block" would have been my guess at spacing
+// rather than the artist's.
+//
+// It needs no diagonals and no camera calibration, because the answer is exact
+// projective geometry. Along a line running to a vanishing point, let D be the
+// distance from the origin to that point and t the distance to a mark. Equal
+// world steps are NOT equal t steps — t crowds toward the vanishing point, which
+// is the whole phenomenon. Writing t for the first interval, the mark f intervals
+// out sits at
+//
+//     t(f) = D · f · t1 / (D + (f - 1) · t1)
+//
+// t(1) = t1, t(0) = 0, and t -> D as f -> infinity: the marks approach the
+// vanishing point and never reach it, which is what "infinitely far away" means.
+// Fractional f divides rather than repeats, so one formula does both.
+export function depthAtInterval(D, t1, f) {
+  if (!Number.isFinite(D) || !Number.isFinite(t1) || !Number.isFinite(f)) return null;
+  const denom = D + (f - 1) * t1;
+  if (Math.abs(denom) < 1e-9) return null;      // the mark is at the vanishing point
+  const t = (D * f * t1) / denom;
+  return Number.isFinite(t) ? t : null;
+}
+
+// The vanishing point a guide-riding corner runs toward, and how far off it is.
+function guideReach(scene, v) {
+  if (!v || v.kind !== "ray" || typeof v.binding !== "object") return null;
+  const origin = vertexById(scene, v.origin);
+  const vp = scene.vanishingPoints.find(p => p.id === v.binding.vpId);
+  if (!origin || !vp) return null;
+  const D = Math.hypot(vp.x - origin.x, vp.y - origin.y);
+  if (!(D > 0) || !Number.isFinite(D)) return null;
+  return { origin, vp, D };
+}
+
+/**
+ * Marks at equal world intervals along the guide a corner rides.
+ *
+ * `parts` divides the corner's own distance into that many equal steps; `times`
+ * repeats it that many intervals out. Both create ray vertices on the SAME guide
+ * with the same origin, so they are held by the construction like everything
+ * else: move the vanishing point and the whole run of marks moves with it.
+ */
+export function markIntervals(scene, vertexId, { parts = 0, times = 0 } = {}) {
+  const v = vertexById(scene, vertexId);
+  if (!v) return { ok: false, reason: `point "${vertexId}" does not exist` };
+  const reach = guideReach(scene, v);
+  if (!reach) {
+    return { ok: false, reason: "pick a corner that runs to a vanishing point — that is the direction to space things along" };
+  }
+  const { D } = reach;
+  if (Math.abs(v.t) < 1) {
+    return { ok: false, reason: "that corner sits on its own origin, so there is no interval to repeat" };
+  }
+  const fractions = [];
+  if (parts >= 2) for (let k = 1; k < parts; k++) fractions.push(k / parts);
+  if (times >= 2) for (let n = 2; n <= times; n++) fractions.push(n);
+  if (!fractions.length) return { ok: false, reason: "nothing to do" };
+
+  const made = [];
+  const limit = tLimit(scene, v);
+  for (const f of fractions) {
+    const t = depthAtInterval(D, v.t, f);
+    if (t === null || Math.abs(t) >= limit) continue;   // past the vanishing point: silently out of reach
+    const r = addRayVertex(scene, { origin: v.origin, binding: { ...v.binding }, t });
+    if (r.ok) made.push(r.vertex.id);
+  }
+  if (!made.length) {
+    return { ok: false, reason: "every mark would land past the vanishing point — shorten the first interval" };
+  }
+  solveScene(scene);
+  return { ok: true, made, asked: fractions.length };
+}
+
 export function deleteVertex(scene, vertexId) {
   const v = scene.vertices.find(x => x.id === vertexId);
   if (!v) return { ok: false, reason: `point "${vertexId}" does not exist` };

@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread,
+  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.8.1";
+const VERSION = "1.9.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1404,6 +1404,31 @@ function changeSpread(k) {
     ? "Stronger — the points came in, so everything converges harder"
     : "Gentler — the points went out, so the perspective calms down", { structural: true });
 }
+
+// D50 — equal intervals in depth. Divide splits the selected corner's distance
+// into equal steps; Repeat carries that step further away. Both act on a corner
+// that RIDES a vanishing point guide, because that is the direction depth runs
+// in, and both make ordinary ray corners on the same guide — so the run of marks
+// is held by the construction and moves when the point does.
+function spaceAlongGuide(mode) {
+  if (!selection || selection.type !== "vertex") {
+    toast("Select a corner that runs to a vanishing point first — that is the direction to space along", "error");
+    return;
+  }
+  const n = Number($("interval-count")?.value ?? 4);
+  if (!Number.isFinite(n) || n < 2) return;
+  beginGesture(history, scene);
+  const res = markIntervals(scene, selection.id, mode === "divide" ? { parts: n } : { times: n });
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  const short = res.made.length < res.asked
+    ? ` ${res.asked - res.made.length} would have landed past the vanishing point and were left out.`
+    : "";
+  afterEdit(mode === "divide"
+    ? `Divided into ${n} — ${res.made.length} marks, evenly spaced in depth.${short}`
+    : `Repeated ${n} intervals — ${res.made.length} marks, each the same distance apart in the world.${short}`);
+}
+$("divide-depth")?.addEventListener("click", () => spaceAlongGuide("divide"));
+$("repeat-depth")?.addEventListener("click", () => spaceAlongGuide("repeat"));
 
 $("add-cube")?.addEventListener("click", addCube);
 $("taller")?.addEventListener("click", () => stretchSolid(STRETCH));

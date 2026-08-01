@@ -1874,6 +1874,105 @@ try {
     `horizon above the face: top ${band.top}px; horizon moved below it: top ${flipped.top}px — and eye level never moved from ${flipped.eye}`);
   await hzCtx.close();
 
+  // D50 — equal intervals in depth, driven through the real controls.
+  const ivCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+  await seenWelcome(ivCtx);
+  const ivPage = await ivCtx.newPage();
+  ivPage.on('pageerror', e => pageErrors.push(`intervals page: ${e}`));
+  await ivPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await ivPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await ivPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+    document.getElementById('add-box').click();
+  });
+  await ivPage.waitForTimeout(250);
+
+  // Select a corner that runs to a vanishing point, then repeat its interval.
+  const repeated = await ivPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    const ray = s.vertices.find(v => v.kind === 'ray' && v.origin === a.id && typeof v.binding === 'object' && Math.abs(v.t) > 50);
+    window.__ip.select({ type: 'vertex', id: ray.id });
+    const before = s.vertices.length;
+    document.getElementById('interval-count').value = '4';
+    document.getElementById('repeat-depth').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const marks = s.vertices.filter(v => v.kind === 'ray' && v.origin === ray.origin
+      && typeof v.binding === 'object' && v.binding.vpId === ray.binding.vpId)
+      .map(v => v.t).sort((x, y) => x - y);
+    const vp = s.vanishingPoints.find(p => p.id === ray.binding.vpId);
+    const o = s.vertices.find(v => v.id === ray.origin);
+    return {
+      added: s.vertices.length - before,
+      marks: marks.map(t => Math.round(t)),
+      D: Math.round(Math.hypot(vp.x - o.x, vp.y - o.y)),
+      finite: s.vertices.every(v => Number.isFinite(v.x) && Number.isFinite(v.y)),
+    };
+  });
+  check('Repeat lays three more marks along the guide (D50)',
+    repeated.added === 3 && repeated.finite, JSON.stringify(repeated));
+
+  // The marks must CROWD: each step shorter than the one before, and all short of
+  // the vanishing point. That is foreshortening, and it is the whole claim.
+  const gaps = repeated.marks.slice(1).map((t, i) => t - repeated.marks[i]);
+  check('and they crowd toward the vanishing point, never reaching it (D50)',
+    gaps.length >= 3 && gaps.every((g, i) => i === 0 || g < gaps[i - 1])
+      && repeated.marks.every(t => Math.abs(t) < repeated.D),
+    `marks ${JSON.stringify(repeated.marks)}, gaps ${JSON.stringify(gaps)}, point ${repeated.D} away`);
+
+  const divided = await ivPage.evaluate(async () => {
+    document.getElementById('undo').click();
+    await new Promise(r => requestAnimationFrame(r));
+    // Undo adopts a restored scene, which clears the selection — so the corner is
+    // found again by what it IS rather than by what was selected before.
+    const s = window.__ip.scene;
+    const a = s.vertices.find(v => v.kind === 'anchor');
+    const ray = s.vertices.find(v => v.kind === 'ray' && v.origin === a.id
+      && typeof v.binding === 'object' && Math.abs(v.t) > 50);
+    window.__ip.select({ type: 'vertex', id: ray.id });
+    // Diff the ids: the box has another base corner on a VP guide, and filtering
+    // by shape alone swept it up with the new marks.
+    const was = new Set(s.vertices.map(v => v.id));
+    document.getElementById('interval-count').value = '4';
+    document.getElementById('divide-depth').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const fresh = s.vertices.filter(v => !was.has(v.id));
+    return {
+      added: fresh.length,
+      marks: fresh.map(v => Math.round(v.t)).sort((x, y) => x - y),
+      whole: Math.round(ray.t),
+    };
+  });
+  check('Divide puts three marks inside the interval, unevenly on the page (D50)',
+    divided.added === 3 && divided.marks.length === 3
+      && divided.marks.every(t => Math.abs(t) < Math.abs(divided.whole)),
+    `divisions ${JSON.stringify(divided.marks)} inside ${divided.whole}`);
+
+  // One undo takes the whole run back — it is one act, not N (D7).
+  const oneUndo = await ivPage.evaluate(async () => {
+    const before = window.__ip.scene.vertices.length;
+    document.getElementById('undo').click();
+    await new Promise(r => requestAnimationFrame(r));
+    return { before, after: window.__ip.scene.vertices.length };
+  });
+  check('a whole run of marks is ONE undo (D7)',
+    oneUndo.after === oneUndo.before - 3, `${oneUndo.before} -> ${oneUndo.after} corners`);
+
+  // And it refuses rather than half-doing it when the corner has no point to run to.
+  const noGuide = await ivPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    const up = s.vertices.find(v => v.kind === 'ray' && v.binding === 'vertical');
+    window.__ip.select({ type: 'vertex', id: up.id });
+    const before = s.vertices.length;
+    document.getElementById('repeat-depth').click();
+    await new Promise(r => requestAnimationFrame(r));
+    return { before, after: s.vertices.length, said: document.getElementById('toast')?.textContent || '' };
+  });
+  check('it refuses an upright corner, and leaves nothing behind (D50)',
+    noGuide.after === noGuide.before && /vanishing point/i.test(noGuide.said),
+    `${noGuide.before} -> ${noGuide.after} corners, said "${noGuide.said.slice(0, 60)}"`);
+  await ivCtx.close();
+
   // D47 — the toolbar cleanup. The bar must stay SHORT, everything that moved
   // must still be reachable, and neither panel may be covered by a point marker.
   const barCtx = await browser.newContext({ viewport: { width: 1180, height: 820 }, colorScheme: 'light' });

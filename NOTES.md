@@ -737,6 +737,48 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D50 — equal intervals in depth (SHIPPED 1.9.0, staging)
+
+**Noah, 2026-07-31:** *"I want to see maybe a city block generator? What else
+would be useful for artists? A house scene? Internal room scene?"* — and then
+"Go" to the answer: this first, then a scale figure, then the interior room.
+
+The reason this comes first is that a city block generator without it would have
+been MY guess at spacing rather than the artist's. Every depth in the app was
+eyeballed. Equal intervals going away from you — fence posts, floor tiles, window
+bays, the buildings along a street — is the construction an artist reaches for
+constantly, and it is the primitive underneath all three of the scenes he named.
+
+**No diagonals needed, because the answer is exact.** Along a line to a vanishing
+point, with D the distance from the origin to the point and t1 the first
+interval, the mark f intervals out sits at
+
+    t(f) = D · f · t1 / (D + (f - 1) · t1)
+
+t(1) = t1, t(0) = 0, and t → D as f → ∞. Fractional f divides instead of
+repeating, so one formula does both. This is the same answer the corner-to-corner
+diagonal gives on paper — it is projective geometry, not a fit.
+
+**Gated against something derived independently**, which is the part that makes
+it believable: the unit test builds a real 1-D projection `t = D·d/(d+k)` for an
+arbitrary camera constant k, and asserts the formula agrees to 1e-9 at 2, 3, 4, 7
+and 12 intervals and at quarter divisions. Planting naive even spacing (`t = f·t1`)
+turns the walk's measured gaps from 166/140/120 into 200/200/200 and reddens two
+unit tests — the plant produces exactly the wrong picture, which is the one thing
+an artist would notice instantly.
+
+Every mark is an ordinary ray vertex on the same guide with the same origin, so
+nothing new enters the model: the run is held by the construction and moves when
+the point does. A whole run is one `beginGesture`, so one undo. Marks that would
+land past the vanishing point are dropped and counted in the announcement rather
+than placed somewhere meaningless.
+
+**Next, in order:** the scale figure — everyone's eye is at eye level, so a
+standing figure at any depth has its eye on the horizon, which makes it nearly
+free and is the tool artists use to check a scene reads at human scale. Then the
+interior room, which is a box you are INSIDE and therefore a real new capability
+rather than more of the same.
+
 ### D49 — stop recalculating what the construction knows (FIXED 1.8.1, staging)
 
 **Noah, 2026-07-31, after a screenshot of three cubes straddling the two lines:**

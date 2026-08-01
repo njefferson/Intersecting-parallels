@@ -8,6 +8,25 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.9.0 — CAPABILITY · 2026-07-31
+
+**Equal spacing in depth — fence posts, floor tiles, window bays, city blocks.**
+
+- Select a corner that runs to a vanishing point, then **Repeat** carries its
+  distance further away, or **Divide** splits it into equal steps. Both are in
+  Setup, under *Space along a guide*.
+- The marks are spaced the way the world is, not the way the page is: each step
+  is shorter than the one before, and they crowd toward the vanishing point
+  without ever reaching it. That is the diagonal construction you would do on
+  paper, done exactly.
+- Every mark is an ordinary corner riding the same guide, so you can draw from
+  them, drag them, and they all move when you move the vanishing point. A whole
+  run is one undo.
+- If a mark would land past the vanishing point it is left out and the app says
+  how many — rather than putting a mark somewhere that means nothing.
+
+---
+
 ## 1.8.1 — ITERATION · 2026-07-31
 
 **Boxes shade correctly at the horizon, and on both sides of it.**
