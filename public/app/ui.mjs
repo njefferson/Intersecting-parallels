@@ -12,9 +12,9 @@
 import {
   createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure, buildRoom, axisPointCount, buildStreet,
+  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure, buildRoom, axisPointCount, buildStreet, circlePoints,
 } from "./solver.mjs";
-import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, buildRoof, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
+import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, buildRoof, buildCircle, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
   createView, fitView, toCanvas, toScreen, zoomAt, draw, vpAt, offscreenMarker, HANDLE_HIT,
 } from "./render.mjs";
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.13.1";
+const VERSION = "1.14.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1484,6 +1484,23 @@ function addRoom() {
   el.canvas.focus({ preventScroll: true });
   afterEdit(`Room drawn, running back to ${res.vp.label}. Turn on Solid to see the walls; move ${res.vp.label} to look somewhere else and the whole room follows.`);
 }
+// D62 — a circle in perspective: a square seen at an angle, with the ellipse the
+// camera would have made inscribed in it. Wheels, arches, domes, cups, manholes.
+function addCircle() {
+  endExtrude(false);
+  const w = scene.canvas.width, h = scene.canvas.height;
+  const anchor = selection && selection.type === "vertex"
+    ? scene.vertices.find(v => v.id === selection.id)
+    : null;
+  const at = anchor ? { x: anchor.x, y: anchor.y } : { x: Math.round(w * 0.42), y: Math.round(h * 0.66) };
+  beginGesture(history, scene);
+  const res = buildCircle(scene, { at });
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  selection = { type: "vertex", id: res.quad[2].id };
+  el.canvas.focus({ preventScroll: true });
+  afterEdit("Circle drawn, inscribed in a square lying on the ground. Drag any of its four corners, or a vanishing point, and the ellipse follows — it holds no shape of its own.");
+}
+
 // D61 — a street: buildings down both sides, crossroads, and the alleys behind.
 //
 // Noah, 2026-08-01: "buildings on both sides of a road with one point perspective
@@ -1574,6 +1591,7 @@ function addRoofToBox() {
 $("add-roof")?.addEventListener("click", addRoofToBox);
 
 $("add-room")?.addEventListener("click", addRoom);
+$("add-circle")?.addEventListener("click", addCircle);
 $("add-street")?.addEventListener("click", () => addStreet(true));
 $("add-streetplan")?.addEventListener("click", () => addStreet(false));
 
@@ -2097,6 +2115,10 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
 
   window.__ip = {
     get scene() { return scene; },
+    // D62 — the walk checks the ellipse against a conic fit, so it needs the same
+    // sampler the screen draws with rather than a copy of the maths.
+    circlePoints,
+    draw: () => render(),
     get canvas() { return { width: el.canvas.width, height: el.canvas.height }; },
     // Goes through the same panel refresh the app's own paths use, so a
     // screenshot taken after a scripted move never shows stale coordinates

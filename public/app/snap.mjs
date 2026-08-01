@@ -13,7 +13,7 @@
 import {
   SNAP_RADIUS, EPS_LEN_FACTOR,
   projectPointOnLine, bindingDirection,
-  addAnchor, addRayVertex, addIntersectVertex, addEdge, addFace, solveScene, addSlopePoint, depthAtInterval,
+  addAnchor, addRayVertex, addIntersectVertex, addEdge, addFace, solveScene, addSlopePoint, depthAtInterval, addCircle,
 } from "./solver.mjs";
 
 const DEG = 180 / Math.PI;
@@ -589,6 +589,54 @@ export function buildBox(scene, { at, height, depth, depthL, depthR }) {
 //
 // Pitch is a fraction of the box's own height, so Taller keeps working on the
 // whole house rather than leaving the roof behind.
+// D62 — a circle on the ground, inscribed in a perspective square.
+//
+// The square is built the way this app builds every rectangle: one anchor, two
+// rays running out to two different vanishing points, and a corner where they
+// cross. So the "square" is square in the WORLD and a quad on the page, which is
+// exactly what the circle needs — nothing here decides what the ellipse looks
+// like, the two points do.
+export function buildCircle(scene, { at, size } = {}) {
+  if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.y)) return { ok: false, reason: "that is not a place to put a circle" };
+  const usable = scene.vanishingPoints.filter(v => !v.locked && !v.trace);
+  if (usable.length < 2) return { ok: false, reason: "a circle in perspective needs two vanishing points — it is a square seen at an angle" };
+  const [vpA, vpB] = usable;
+  const near = Math.min(
+    Math.hypot(vpA.x - at.x, vpA.y - at.y),
+    Math.hypot(vpB.x - at.x, vpB.y - at.y),
+  );
+  const s = Number.isFinite(size) && size > 1 ? size : Math.max(40, Math.min(near * 0.22, 260));
+
+  const made = { vertices: [], edges: [] };
+  const V = r => { if (!r.ok) return null; made.vertices.push(r.vertex.id); return r.vertex; };
+  const E = (a2, b2, binding) => {
+    const r = addEdge(scene, { a: a2.id, b: b2.id, binding });
+    if (r.ok) made.edges.push(r.edge.id);
+  };
+
+  const p0 = V(addAnchor(scene, { x: at.x, y: at.y }));
+  if (!p0) return { ok: false, reason: "could not place the circle" };
+  const p1 = V(addRayVertex(scene, { origin: p0.id, binding: { vpId: vpA.id }, t: s }));
+  const p3 = V(addRayVertex(scene, { origin: p0.id, binding: { vpId: vpB.id }, t: s }));
+  if (!p1 || !p3) return { ok: false, reason: "could not run the square to its points" };
+  const p2 = V(addIntersectVertex(scene, { defs: [
+    { origin: p1.id, binding: { vpId: vpB.id } },
+    { origin: p3.id, binding: { vpId: vpA.id } },
+  ] }));
+  if (!p2) return { ok: false, reason: "could not close the square" };
+
+  const quad = [p0, p1, p2, p3];
+  E(p0, p1, { vpId: vpA.id });
+  E(p1, p2, { vpId: vpB.id });
+  E(p3, p2, { vpId: vpA.id });
+  E(p0, p3, { vpId: vpB.id });
+
+  const res = addCircle(scene, { quad: quad.map(v => v.id) });
+  if (!res.ok) return { ok: false, reason: res.reason };
+  solveScene(scene);
+  return { ok: true, ...made, quad, circle: res.circle, size: s };
+}
+
 export function buildRoof(scene, { corners, pitch = 0.5 }) {
   const c = corners ?? {};
   const { nearBottom, nearTop, leftTop, rightTop, backTop, leftBottom, rightBottom } = c;

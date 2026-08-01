@@ -53,8 +53,12 @@ export function parseProjectJson(text) {
   // Version 1 files still load — they are MIGRATED below, not refused. A drawing
   // tool that cannot open its own older files has destroyed the user's work as
   // surely as deleting it.
-  if (raw.schemaVersion !== 1 && raw.schemaVersion !== 2) {
-    return { ok: false, reason: `unknown schemaVersion ${raw.schemaVersion} — this build reads versions 1 and 2` };
+  // D62 — 3 adds circles, and a v2 file is still perfectly good: migrateScene
+  // gives it an empty list. The version list is written out rather than compared
+  // with <= on purpose, so a file from a FUTURE build is refused rather than
+  // half-read.
+  if (![1, 2, 3].includes(raw.schemaVersion)) {
+    return { ok: false, reason: `unknown schemaVersion ${raw.schemaVersion} — this build reads versions 1 to 3` };
   }
   if (!raw.canvas || !Number.isFinite(raw.canvas.width) || !Number.isFinite(raw.canvas.height) || raw.canvas.width <= 0 || raw.canvas.height <= 0) {
     return { ok: false, reason: "canvas dimensions missing or not positive numbers" };
@@ -65,7 +69,7 @@ export function parseProjectJson(text) {
   if (raw.schemaVersion === 1 && (!raw.horizon || !Number.isFinite(raw.horizon.y))) {
     return { ok: false, reason: "horizon missing" };
   }
-  if (raw.schemaVersion === 2 && (!raw.eyeLevel || !Number.isFinite(raw.eyeLevel.y))) {
+  if (raw.schemaVersion >= 2 && (!raw.eyeLevel || !Number.isFinite(raw.eyeLevel.y))) {
     return { ok: false, reason: "eye level missing" };
   }
   migrateScene(raw);

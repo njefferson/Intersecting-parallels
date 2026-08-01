@@ -8,7 +8,7 @@
 // Draw order is the spec's: grid → horizon → construction → committed →
 // vertices → ghost ray → handles.
 
-import { horizonLine } from "./solver.mjs";
+import { horizonLine, circlePoints } from "./solver.mjs";
 
 export const HANDLE_HIT = 22;   // canvas-independent screen px; 44px diameter (§4)
 const HANDLE_DOT = 7;           // what is drawn — small dot, large hit area (D6)
@@ -576,6 +576,28 @@ export function draw(ctx, view, viewport, opts = {}) {
     strokeEdges(committed);
   }
   ctx.setLineDash([]);
+
+  // D62 — circles. Drawn as committed ink, at the same weight, because an
+  // ellipse in a perspective drawing is a line like any other. It carries no
+  // position of its own: `circlePoints` reads the four corners as they are RIGHT
+  // NOW, so there is nothing here that can disagree with the drawing. A quad that
+  // has gone degenerate returns null and nothing is drawn — the four corners are
+  // still there and still draggable, which is the way back.
+  for (const circle of scene.circles ?? []) {
+    const pts = circlePoints(scene, circle, 96);
+    if (!pts) continue;
+    ctx.save();
+    ctx.strokeStyle = c.ink;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const s2 = toScreen(view, p);
+      if (i === 0) ctx.moveTo(s2.x, s2.y); else ctx.lineTo(s2.x, s2.y);
+    });
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // 5 — vertices. A degenerate one gets a RING; everything else is drawn as a
   // SQUARE handle, because since D29 every corner can be dragged and the shape

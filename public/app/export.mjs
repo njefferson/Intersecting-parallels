@@ -10,7 +10,7 @@
 // the PNG path needs a DOM.
 
 import { effectiveBinding } from "./snap.mjs";
-import { horizonLine } from "./solver.mjs";
+import { horizonLine, circlePoints } from "./solver.mjs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const INKSCAPE_NS = "http://www.inkscape.org/namespaces/inkscape";
@@ -77,6 +77,17 @@ export function buildSvg(scene, {
     }
   } else {
     for (const item of committed) lines.push(pathFor(item));
+  }
+  // D62 — circles, in the committed layer with everything else that is ink. The
+  // points come from the SAME `circlePoints` the screen draws with, so the
+  // exported ellipse is the drawn one rather than a second implementation that
+  // can drift from it. Stroked, never filled (§5.1). A quad that has gone
+  // degenerate has no ellipse and exports nothing, exactly as it draws nothing.
+  for (const circle of scene.circles ?? []) {
+    const pts = circlePoints(scene, circle, 128);
+    if (!pts) continue;
+    const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(3)} ${p.y.toFixed(3)}`).join(" ") + " Z";
+    lines.push(`      <path id="${esc(circle.id)}" d="${d}"/>`);
   }
   lines.push(`  </g>`);
 

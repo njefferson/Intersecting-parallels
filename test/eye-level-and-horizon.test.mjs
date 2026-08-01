@@ -177,7 +177,7 @@ test("a version 1 file still opens: its horizon becomes eye level, unchanged", (
 test("a file from the future is still refused, and says which versions this build reads", () => {
   const res = parseProjectJson(JSON.stringify({ schemaVersion: 99, canvas: { width: 1, height: 1 } }));
   assert.equal(res.ok, false);
-  assert.match(res.reason, /versions 1 and 2/);
+  assert.match(res.reason, /versions 1 to 3/);
 });
 
 test("a face naming a missing corner is dropped on load, and costs the drawing nothing", () => {

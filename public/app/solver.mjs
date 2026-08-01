@@ -20,7 +20,7 @@
 // the app and under node --test. Mutations return {ok:true,...} or
 // {ok:false,reason} — a rejected operation always surfaces its reason (§2.3.3).
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;   // 3 adds circles (D62)
 export const SNAP_RADIUS = 12;        // §2.4 — canvas px; the call site scales by zoom
 export const SNAP_THRESHOLD = 15;     // §12 — degrees; tunable once Noah has stylus time
 export const PARALLEL_EPS = 1e-9;     // D4 — on the cross product of unit vectors
@@ -95,11 +95,94 @@ export function migrateScene(raw) {
   }
   delete raw.horizon;
   if (!Array.isArray(raw.faces)) raw.faces = [];
+  if (!Array.isArray(raw.circles)) raw.circles = [];   // D62 — v2 had none
   for (const key of ["vanishingPoints", "vertices", "edges"]) {
     if (!Array.isArray(raw[key])) raw[key] = [];
   }
   raw.schemaVersion = SCHEMA_VERSION;
   return raw;
+}
+
+// D62 — A CIRCLE IN PERSPECTIVE, WHICH IS NOT NEW GEOMETRY.
+//
+// Noah asked for wheels, arches and domes. The temptation is a new kind of thing
+// with its own position and radius that has to be kept in step with everything
+// else. It is not one: a circle is a FACT ABOUT FOUR CORNERS — the square it is
+// inscribed in — and those are ordinary vertices the solver already holds. So a
+// circle stores four ids and nothing else. Drag a corner, drag a vanishing point,
+// invert the box it sits on, and the ellipse follows for free, because there is
+// nothing of its own to go stale. This is D49's rule ("stop recalculating what
+// the construction already knows") applied before writing the thing rather than
+// after being caught by it.
+//
+// The curve is EXACT, not an eight-point approximation. A circle drawn on a plane
+// and photographed is a conic, and the map from the plane to the page is the
+// projective transform that takes the unit square to those four corners. Send the
+// unit circle through the same transform and you have the ellipse the camera
+// would have produced — tangent to all four sides at their PERSPECTIVE midpoints,
+// which is the property the eight-point construction is trying to approximate.
+export function addCircle(scene, { quad, label }) {
+  if (!Array.isArray(quad) || quad.length !== 4) return { ok: false, reason: "a circle is inscribed in four corners" };
+  const seen = new Set(quad);
+  if (seen.size !== 4) return { ok: false, reason: "those four corners are not four different corners" };
+  for (const id of quad) {
+    if (!scene.vertices.some(v => v.id === id)) return { ok: false, reason: "one of those corners is not in the drawing" };
+  }
+  if (!Array.isArray(scene.circles)) scene.circles = [];
+  const circle = { id: newId(scene, "c"), quad: [...quad], label: label ?? "Circle" };
+  scene.circles.push(circle);
+  return { ok: true, circle };
+}
+
+// Heckbert's square-to-quad projective map, from the unit square's corners in the
+// order (0,0) (1,0) (1,1) (0,1) to the four given points. Returns null when the
+// quad is degenerate — three corners in a line has no such map, and refusing is
+// the honest answer rather than dividing by something near zero.
+export function quadTransform(p) {
+  if (!p || p.length !== 4 || p.some(q => !q || !Number.isFinite(q.x) || !Number.isFinite(q.y))) return null;
+  const [p0, p1, p2, p3] = p;
+  const dx1 = p1.x - p2.x, dx2 = p3.x - p2.x, dx3 = p0.x - p1.x + p2.x - p3.x;
+  const dy1 = p1.y - p2.y, dy2 = p3.y - p2.y, dy3 = p0.y - p1.y + p2.y - p3.y;
+  let a, b, c, d, e, f, g, h;
+  if (Math.abs(dx3) < 1e-12 && Math.abs(dy3) < 1e-12) {
+    a = p1.x - p0.x; b = p2.x - p1.x; c = p0.x;
+    d = p1.y - p0.y; e = p2.y - p1.y; f = p0.y;
+    g = 0; h = 0;
+  } else {
+    const den = dx1 * dy2 - dy1 * dx2;
+    if (!Number.isFinite(den) || Math.abs(den) < 1e-12) return null;
+    g = (dx3 * dy2 - dy3 * dx2) / den;
+    h = (dx1 * dy3 - dy1 * dx3) / den;
+    a = p1.x - p0.x + g * p1.x;
+    b = p3.x - p0.x + h * p3.x;
+    c = p0.x;
+    d = p1.y - p0.y + g * p1.y;
+    e = p3.y - p0.y + h * p3.y;
+    f = p0.y;
+  }
+  return (u, v) => {
+    const w = g * u + h * v + 1;
+    if (!Number.isFinite(w) || Math.abs(w) < 1e-9) return null;   // on the vanishing line
+    return { x: (a * u + b * v + c) / w, y: (d * u + e * v + f) / w };
+  };
+}
+
+// The ellipse, as points on the page. `steps` is how finely it is sampled; the
+// curve itself is exact and this only decides how smoothly it is drawn.
+export function circlePoints(scene, circle, steps = 72) {
+  const byId = new Map(scene.vertices.map(v => [v.id, v]));
+  const quad = circle.quad.map(id => byId.get(id));
+  if (quad.some(v => !v || !Number.isFinite(v.x) || !Number.isFinite(v.y) || v.degenerate)) return null;
+  const T = quadTransform(quad);
+  if (!T) return null;
+  const out = [];
+  for (let i = 0; i < steps; i++) {
+    const t = (i / steps) * Math.PI * 2;
+    const p = T(0.5 + 0.5 * Math.cos(t), 0.5 + 0.5 * Math.sin(t));
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;   // it crosses the horizon
+    out.push(p);
+  }
+  return out;
 }
 
 export function createScene({ name = "untitled", width, height }) {
@@ -121,6 +204,7 @@ export function createScene({ name = "untitled", width, height }) {
     vertices: [],
     edges: [],
     faces: [],
+    circles: [],
     nextId: 1,
   };
 }

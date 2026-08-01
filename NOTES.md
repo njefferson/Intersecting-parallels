@@ -862,6 +862,48 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D62 — a circle in perspective (SHIPPED 1.14.0, staging)
+
+The biggest thing the app could not draw. Wheels, arches, domes, cups, manholes —
+everything an artist reaches for after boxes.
+
+**A circle is not new geometry.** The tempting design is an object with a centre
+and a radius that has to be kept in step with everything else; that object would
+have gone stale the first time a vanishing point moved, which is the defect this
+file records four separate times. It isn't one: a circle is a FACT ABOUT FOUR
+CORNERS — the square it is inscribed in — and those are ordinary vertices the
+solver already holds. So a circle stores four ids and nothing else. Its record
+has exactly three keys and a test asserts that, because the day it grows a fourth
+is the day it can disagree with the drawing.
+
+**The curve is exact, not the eight-point construction.** A circle drawn on a
+plane and photographed is a conic, and the map from that plane to the page is the
+projective transform taking the unit square to the four corners (Heckbert's
+square-to-quad). Send the unit circle through the same transform and you have the
+ellipse the camera would have made — tangent to each side at its PERSPECTIVE
+midpoint, which is the property the eight-point method approximates. Tested by
+fitting a general conic through five of the sampled points and measuring the rest
+against it: residual under 1e-9, which is an independent check rather than a
+restatement of the code.
+
+**Two fixtures that could not fail, both fixed by planting.**
+
+- *"An unforeshortened square gives a true circle"* asserted something FALSE. I
+  put both points 10 million pixels away expecting no foreshortening, but two
+  horizon points that far apart give two nearly-parallel directions, so the square
+  collapses to a sliver — radius ran 0.01 to 141. A square on the ground in
+  two-point perspective is never unforeshortened. Replaced with inscribed-and-
+  tangent-to-all-four-sides, which is true and is the property worth holding.
+- *"The curve is an exact conic"* had a fixture too gentle to test its own name.
+  Its quad was nearly a parallelogram, and on a parallelogram a plain BILINEAR
+  blend is very close to the projective answer — so a plant swapping the exact map
+  for bilinear passed the test named for exactly that distinction, and was caught
+  only by a different test downstream. The fixture is strongly foreshortened now.
+
+Schema 3, because circles are a new array; `migrateScene` gives a v2 file an empty
+one and the project loader's version list is written out rather than compared with
+`<=`, so a file from a future build is still refused rather than half-read.
+
 ### D61 — a street, and the plan on its own (SHIPPED 1.13.0 / 1.13.1, staging)
 
 **1.13.1 adds Plan only.** Noah's own description was two steps — *"draw a grid

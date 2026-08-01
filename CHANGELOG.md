@@ -8,6 +8,26 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.14.0 — CAPABILITY · 2026-08-01
+
+**A circle in perspective — wheels, arches, domes, cups, manholes.**
+
+- Setup, under *Build*: **Circle**. It draws a square lying on the ground, seen at
+  your angle, with the circle that fits inside it. Put a corner in first and it
+  lands there.
+- **The ellipse is exact.** A circle you photograph is not a squashed circle drawn
+  by eye — it is the projection of a circle, and that is what this draws. It
+  touches each side of its square at that side's *perspective* middle, which is
+  further along than the halfway point on the page, and it is the shape a camera
+  would have made rather than an eight-point approximation of it.
+- **It holds no shape of its own.** A circle in this app is four corners and
+  nothing else. Drag a corner, drag a vanishing point, turn the whole scene
+  around — the ellipse follows, because there is nothing stored that could fall
+  out of step with the drawing.
+- It exports to SVG with everything else, from the same points that are on screen.
+
+---
+
 ## 1.13.1 — ITERATION · 2026-08-01
 
 **The street plan on its own.**

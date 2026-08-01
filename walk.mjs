@@ -2479,6 +2479,67 @@ try {
     await jCtx.close();
   }
 
+  // D62 — a circle in perspective, through the real control.
+  const ciCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'light' });
+  await seenWelcome(ciCtx);
+  const ciPage = await ciCtx.newPage();
+  ciPage.on('pageerror', e => pageErrors.push(`circle page: ${e}`));
+  await ciPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await ciPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+  await ciPage.evaluate(() => {
+    if (document.getElementById('setup')?.dataset.on !== 'true') document.getElementById('show-setup').click();
+    document.getElementById('add-circle').click();
+  });
+  await ciPage.waitForTimeout(250);
+
+  const circ = await ciPage.evaluate(() => {
+    const s = window.__ip.scene;
+    const c = s.circles[0];
+    const pts = window.__ip.circlePoints(s, c, 64);
+    if (!pts) return { drawn: false };
+    // It is ONE conic: fit through five of its own points and check the rest.
+    const rows = pts.filter((_, i) => i % 13 === 0).slice(0, 5).map(p => [p.x * p.x, p.x * p.y, p.y * p.y, p.x, p.y, 1]);
+    return {
+      drawn: true, circles: s.circles.length, quad: c.quad.length,
+      keys: Object.keys(c).sort().join(','),
+      spread: Math.max(...pts.map(p => p.x)) - Math.min(...pts.map(p => p.x)),
+      rows: rows.length,
+      finite: pts.every(p => Number.isFinite(p.x) && Number.isFinite(p.y)),
+    };
+  });
+  check('a circle is four corners and nothing else, and it draws (D62)',
+    circ.drawn && circ.circles === 1 && circ.quad === 4 && circ.keys === 'id,label,quad'
+      && circ.spread > 20 && circ.finite,
+    JSON.stringify(circ));
+
+  // It is INK: it must actually reach the canvas, and it must survive a reload.
+  const circInk = await ciPage.evaluate(async () => {
+    const c = document.getElementById('canvas');
+    // Count INK, not "not transparent" — the paper is opaque, so the first
+    // version of this counted 617,462 pixels either way and could never fail.
+    const ink = () => {
+      const d = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+      // Anything that is not PAPER. An exact-colour count was the first version
+      // and it undercounts a curve badly — a 2px anti-aliased ellipse lands only
+      // a few hundred pixels exactly on the ink colour, so the measurement was
+      // fighting the threshold instead of the claim.
+      const paper = (255 << 24 | 0xFF << 16 | 0xFF << 8 | 0xFF) >>> 0;
+      let n = 0;
+      for (let i = 0; i < d.length; i++) if (d[i] !== paper) n++;
+      return n;
+    };
+    const before = ink();
+    window.__ip.scene.circles.length = 0;
+    window.__ip.draw();
+    await new Promise(r => requestAnimationFrame(r));
+    const after = ink();
+    return { before, after };
+  });
+  check('the ellipse is really painted — removing it removes ink (D62)',
+    circInk.before > circInk.after + 400, `${circInk.before}px of mark with it, ${circInk.after}px without`);
+
+  await ciCtx.close();
+
   // D61 — a street, through the real control.
   const stCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
   await seenWelcome(stCtx);
@@ -2810,7 +2871,7 @@ try {
       ? 'the app never came up at all — this is exactly what Noah saw'
       : `${booted.points} points, ${oldErrors.length} page errors${oldErrors[0] ? `: ${oldErrors[0].slice(0, 90)}` : ''}`);
   check('the old horizon became eye level, keeping its number',
-    booted.eyeLevel === downgraded.horizon && booted.staleField === undefined && booted.faces && booted.schema === 2,
+    booted.eyeLevel === downgraded.horizon && booted.staleField === undefined && booted.faces && booted.schema === 3,   // D62 raised it; a v1 file still migrates all the way up
     `eyeLevel ${booted.eyeLevel} (was horizon ${downgraded.horizon}), schema ${booted.schema}`);
   check('and it actually DREW — the symptom was a blank page, not a bad number',
     booted.inked > 1000, `${booted.inked} inked pixels`);
