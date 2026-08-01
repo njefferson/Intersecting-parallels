@@ -1870,7 +1870,7 @@ try {
     const p = f.loop.map(id => byId.get(id));
     const midY = p.reduce((m, v) => m + v.y, 0) / p.length;
     // Horizon ABOVE the top face, eye level BELOW it: the two disagree.
-    for (const vp of s.vanishingPoints) if (vp.onHorizon) vp.y = midY - 80;
+    for (const vp of s.vanishingPoints.filter(v => v.onHorizon)) window.__ip.moveVp(vp.id, { x: vp.x, y: midY - 80 });
     document.getElementById('horizon-y').value = String(Math.round(midY + 80));
     document.getElementById('horizon-y').dispatchEvent(new Event('change'));
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -1891,7 +1891,7 @@ try {
     const byId = new Map(s.vertices.map(v => [v.id, v]));
     const p = f.loop.map(id => byId.get(id));
     const midY = p.reduce((m, v) => m + v.y, 0) / p.length;
-    for (const vp of s.vanishingPoints) if (vp.onHorizon) vp.y = midY + 80;   // now BELOW the face
+    for (const vp of s.vanishingPoints.filter(v => v.onHorizon)) window.__ip.moveVp(vp.id, { x: vp.x, y: midY + 80 });   // now BELOW the face
     window.__ip.select(null);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const c = document.getElementById('canvas');
@@ -1905,7 +1905,14 @@ try {
     }
     return { top, bottom, eye: s.eyeLevel.y };
   });
-  check('in the band where eye level and the horizon disagree, the HORIZON decides (D49)',
+  // D63 — restated, not deleted. The claim was "the horizon decides, not the
+  // authored eye-level line", and under winding NOTHING consults either: moving
+  // the points moves the corners, the corners change the winding, and the winding
+  // decides. What the check is really pinning is that the visible cap follows the
+  // POINTS and is indifferent to the eye-level line, and that is still exactly
+  // the thing worth holding. Both halves used to poke vp.y without re-solving,
+  // which is why they reported the same number twice.
+  check('the visible cap follows the POINTS, and eye level has no say in it (D63)',
     band.top > 20 && flipped.top < 20,
     `horizon above the face: top ${band.top}px; horizon moved below it: top ${flipped.top}px — and eye level never moved from ${flipped.eye}`);
   await hzCtx.close();
