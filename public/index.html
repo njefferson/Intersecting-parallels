@@ -133,24 +133,18 @@
         <button class="btn" id="setup-close" type="button" aria-label="Hide the setup panel">Hide</button>
       </div>
       <div class="panel-body">
-        <!-- D54: the generators. Each one lays a whole construction down at once,
-             held by the same points as anything drawn by hand. -->
-        <h3 class="panel-sec">Build</h3>
-        <div class="setup-row">
-          <button class="btn" id="add-line" type="button">Line</button>
-          <button class="btn" id="add-room" type="button">Room</button>
-          <button class="btn" id="add-roof" type="button">Roof</button>
-          <button class="btn" id="add-circle" type="button">Circle</button>
-        </div>
-        <!-- D65 — a point made from two lines you have drawn. Two taps: mark a
-             line, mark another, and the point appears where they cross and stays
-             bound to them. -->
         <!-- D67 — a photograph to draw over. The file never leaves the device:
              it is kept in this browser's own storage, like everything else here. -->
         <h3 class="panel-sec">Reference image</h3>
         <div class="setup-row">
-          <label class="btn" for="underlay-file">Choose image</label>
-          <input type="file" id="underlay-file" accept="image/*" class="sr-only">
+          <!-- A real button, not a <label> dressed as one. A label cannot take
+               focus, so the label version had NO keyboard route to loading an
+               image — and the a11y gate never noticed, because it looks for
+               a[href], button and [role=button], and a label is none of them.
+               Both halves of that are fixed: this is a button now, and the gate
+               counts labels styled as controls. -->
+          <button class="btn" id="underlay-pick" type="button">Choose image</button>
+          <input type="file" id="underlay-file" accept="image/*" class="sr-only" tabindex="-1" aria-hidden="true">
           <label class="sr-only" for="underlay-opacity">How strongly the image shows</label>
           <select class="btn" id="underlay-opacity">
             <option value="0.35">Faint</option>
@@ -172,6 +166,18 @@
           <button class="btn" id="underlay-fit" type="button">Refit</button>
         </div>
 
+        <!-- D54: the generators. Each one lays a whole construction down at once,
+             held by the same points as anything drawn by hand. -->
+        <h3 class="panel-sec">Build</h3>
+        <div class="setup-row">
+          <button class="btn" id="add-line" type="button">Line</button>
+          <button class="btn" id="add-room" type="button">Room</button>
+          <button class="btn" id="add-roof" type="button">Roof</button>
+          <button class="btn" id="add-circle" type="button">Circle</button>
+        </div>
+        <!-- D65 — a point made from two lines you have drawn. Two taps: mark a
+             line, mark another, and the point appears where they cross and stays
+             bound to them. -->
         <h3 class="panel-sec">Point from two lines</h3>
         <div class="setup-row">
           <button class="btn" id="mark-line" type="button">Mark line</button>

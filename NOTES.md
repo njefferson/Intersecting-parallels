@@ -896,6 +896,32 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D69 — a control the gates could not see (SHIPPED 1.18.2, staging)
+
+Noah, 2026-08-02: **"Where do I load the image?"** Two separate faults behind one
+question, and the second is the serious one.
+
+**Findability.** Reference image was the SIXTH section in Setup. It is what you do
+at the START of a drawing, so it is the first section now.
+
+**It had no keyboard route at all.** I built Choose image as a `<label class="btn">`
+wrapping a hidden file input — the standard trick, and it works under a finger. A
+label cannot take focus. So loading an image was pointer-only, and **every gate
+passed**: the a11y gate sweeps `a[href], button, [role=button]` and a label is
+none of those, so its size was never measured and its reachability was never
+asked about.
+
+Two fixes, because widening the sweep was not enough. Adding `label.btn` to the
+selector made the gate MEASURE it — and it still passed, because nothing in the
+gate ever asked whether a control can take focus. That check exists now (SC
+2.1.1), and planting the label back fails it in every theme and viewport.
+
+**The shape worth naming: a gate can only fail on questions it asks.** Every empty
+check this week was a question asked of the wrong thing; this was a question never
+asked at all, which is quieter and worse. The tell was a control that no gate had
+an opinion about — and the way to find more of them is to ask what each gate
+SELECTS, not what it asserts.
+
 ### D68 — placing the reference image (SHIPPED 1.18.1, staging)
 
 D67 put a photograph under the drawing and left it centred, which is half the

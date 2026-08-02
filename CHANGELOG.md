@@ -8,6 +8,18 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.18.2 — ITERATION · 2026-08-02
+
+**Choose image is where you'd look for it, and it works from the keyboard.**
+
+- **Reference image** is now the first thing in Setup instead of the sixth. It is
+  what you do at the start of a drawing, so it belongs at the start of the panel.
+- **Choose image** is a real button. It looked like one and behaved like one under
+  a finger, but it was a label — which cannot take keyboard focus, so there was no
+  way to load an image without a pointer at all.
+
+---
+
 ## 1.18.1 — ITERATION · 2026-08-02
 
 **Line the reference image up with the paper.**

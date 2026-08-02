@@ -27,7 +27,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.18.1";
+const VERSION = "1.18.2";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1520,6 +1520,7 @@ async function useUnderlayBlob(blob, { save = true } = {}) {
   }
 }
 
+$("underlay-pick")?.addEventListener("click", () => $("underlay-file")?.click());
 $("underlay-file")?.addEventListener("change", async ev => {
   const file = ev.target.files?.[0];
   ev.target.value = "";

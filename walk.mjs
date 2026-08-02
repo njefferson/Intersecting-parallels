@@ -2578,6 +2578,24 @@ try {
     const refit = box();
     return { start, bigger, right, down, refit };
   }, PNG);
+  // D69 — Choose image is a real, focusable button, and it is the FIRST thing in
+  // Setup. Noah, 2026-08-02: "Where do I load the image?" — it was a <label>
+  // dressed as a button, five sections down.
+  const pick = await uiPage.evaluate(() => {
+    const b = document.getElementById('underlay-pick');
+    const secs = [...document.querySelectorAll('#setup .panel-sec')].map(h => h.textContent.trim());
+    b.focus();
+    return {
+      isButton: b.tagName === 'BUTTON',
+      focused: document.activeElement === b,
+      firstSection: secs[0],
+      inputHidden: document.getElementById('underlay-file').getAttribute('aria-hidden') === 'true',
+    };
+  });
+  check('Choose image is a focusable button, first in Setup (D69)',
+    pick.isButton && pick.focused && /reference image/i.test(pick.firstSection) && pick.inputHidden,
+    JSON.stringify(pick));
+
   check('the reference image can be sized and moved by button, and Refit undoes it (D68)',
     imgPlaced.bigger[2] > imgPlaced.start[2] && imgPlaced.bigger[3] > imgPlaced.start[3]
       // scaling holds its middle: the centre must not shift while it grows

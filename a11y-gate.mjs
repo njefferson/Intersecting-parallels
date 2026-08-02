@@ -255,7 +255,11 @@ try {
       for (const vp of VIEWPORTS) {
         await page.setViewportSize({ width: vp.width, height: vp.height });
         const custom = await page.evaluate((minTarget) => {
-          const inter = [...document.querySelectorAll('a[href],button,[role="button"]')];
+          // A control is not always a <button>. A `<label class="btn">` looks and
+          // behaves like one on screen and is counted here — that blind spot hid a
+          // Choose image control with no keyboard route at all, because a label
+          // cannot take focus and nothing was looking.
+          const inter = [...document.querySelectorAll('a[href],button,[role="button"],label.btn')];
           const visible = el => {
             const r = el.getBoundingClientRect();
             return r.width > 0 && r.height > 0;
@@ -307,6 +311,18 @@ try {
           const imgsNoAlt = [...document.querySelectorAll('img')]
             .filter(i => !i.hasAttribute('alt'))
             .map(i => i.getAttribute('src') || '(no src)');
+          // SC 2.1.1 — a control has to be REACHABLE by keyboard, and nothing here
+          // was asking. Widening the sweep to include label.btn caught the size of
+          // a Choose image control but not the thing actually wrong with it: a
+          // <label> cannot take focus, so there was no keyboard route to loading an
+          // image at all, and both this gate and every other one passed.
+          const notFocusable = inter.filter(visible).filter(el => {
+            if (el.hasAttribute('disabled')) return false;             // off is not unreachable
+            const ti = el.getAttribute('tabindex');
+            if (ti !== null) return parseInt(ti, 10) < 0;
+            return !el.matches('a[href],button,input,select,textarea,summary,[contenteditable]');
+          }).map(el => `${el.id || el.tagName.toLowerCase()}: "${(el.textContent || '').trim().slice(0, 30)}"`);
+
           const linksNoName = inter
             .filter(el => !el.textContent.trim() && !el.getAttribute('aria-label') && !el.getAttribute('title'))
             .map(el => el.outerHTML.slice(0, 60));
@@ -362,6 +378,7 @@ try {
             inlineExempt: exempt,
             imgsNoAlt,
             linksNoName,
+            notFocusable,
             dupeNames,
             labelInName,
             lang: document.documentElement.lang,
@@ -378,6 +395,7 @@ try {
         }
         for (const s of custom.imgsNoAlt) fail(at, `<img> has no alt attribute: ${s}`);
         for (const l of custom.linksNoName) fail(at, `interactive element has no accessible name: ${l}`);
+        for (const n of custom.notFocusable) fail(at, `SC 2.1.1 — control cannot take keyboard focus: ${n}`);
         for (const d of custom.dupeNames) fail(at, `two controls answer to the same name — ${d} (D56)`);
         for (const l of custom.labelInName) fail(at, `SC 2.5.3 Label in Name — ${l}`);
         if (!custom.lang) fail(at, 'document has no lang attribute');
