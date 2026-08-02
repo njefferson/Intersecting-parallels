@@ -2558,7 +2558,7 @@ try {
       && madeVp.moved > 5 && madeVp.stillOn && madeVp.finite,
     JSON.stringify(madeVp));
 
-  const refusedPar = await vlPage.evaluate(() => {
+  const parallelPair = await vlPage.evaluate(() => {
     const s = window.__ip.scene;
     document.getElementById('clear-drawing').click();
     document.getElementById('clear-drawing').click();
@@ -2574,11 +2574,18 @@ try {
     const before = s.vanishingPoints.length;
     for (const id of [e1.id, e2.id]) { window.__ip.select({ type: 'edge', id }); document.getElementById('mark-line').click(); }
     document.getElementById('vp-from-lines').click();
-    return { before, after: s.vanishingPoints.length, said: document.getElementById('toast')?.textContent || '' };
+    const vp = s.vanishingPoints[s.vanishingPoints.length - 1];
+    const R = 2 * (s.canvas.width ** 2 + s.canvas.height ** 2);
+    const away = Math.hypot(vp.x - 550, vp.y - 400);
+    return { before, after: s.vanishingPoints.length,
+      atReach: Math.abs(away - R) / R < 0.05,
+      finite: s.vertices.every(x => Number.isFinite(x.x) && Number.isFinite(x.y))
+        && Number.isFinite(vp.x) && Number.isFinite(vp.y),
+      said: document.getElementById('toast')?.textContent || '' };
   });
-  check('two parallel lines are refused, and it says why (D65)',
-    refusedPar.after === refusedPar.before && /parallel|infinitely/i.test(refusedPar.said),
-    `${refusedPar.before} -> ${refusedPar.after} points, said "${refusedPar.said.slice(0, 70)}"`);
+  check('two parallel lines get a point at the reach, not an error (D66)',
+    parallelPair.after === parallelPair.before + 1 && parallelPair.atReach && parallelPair.finite,
+    JSON.stringify(parallelPair));
   await vlCtx.close();
 
   // D62 — a circle in perspective, through the real control.

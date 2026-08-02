@@ -8,6 +8,22 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.17.1 — ITERATION · 2026-08-02
+
+**Nearly-parallel lines get an answer instead of a refusal.**
+
+- Two lines within a degree of parallel cross about 36,000px away — a real point,
+  and off-page points are the ordinary case here. Refusing them threw away answers
+  the app can perfectly well give. It gives them now.
+- Tilt a line *past* parallel and the point simply comes back from the other side.
+  That was never a special case; it falls out of the arithmetic.
+- **Exactly parallel gets a point too**, stood off far enough that lines drawn to
+  it land within half a pixel of parallel across the whole page. Beyond that
+  distance, moving it further changes nothing you could see — so that is where it
+  stops.
+
+---
+
 ## 1.17.0 — CAPABILITY · 2026-08-02
 
 **A vanishing point made from two lines you have drawn — and bound to them.**

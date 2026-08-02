@@ -1438,18 +1438,63 @@ export function edgeLine(scene, edgeId) {
   return { a, b, e };
 }
 
-export function linesCross(L1, L2, minSin = 0.02) {
+// How far a point can be before moving it further stops changing the drawing.
+//
+// Noah, 2026-08-02: "If the difference cannot be discerned on the screen past a
+// certain level then all past that level can be ignored." Derived rather than
+// picked: lines aimed at a point R away deviate from truly parallel by about
+// L/R radians, so across a page of diagonal L they land about L²/R from where
+// parallel lines would. Setting that under half a pixel gives R = 2L².
+//
+// For a 1600x1200 page that is about 8 million — a large coordinate and a
+// perfectly ordinary one. Nothing is approximated up to there; past it the answer
+// is pinned to a place that draws identically to the one asked for.
+export function vpReach(scene) {
+  const w = scene?.canvas?.width ?? 1600, h = scene?.canvas?.height ?? 1200;
+  return 2 * (w * w + h * h);
+}
+
+// Where two lines cross, ALWAYS — the near-parallel case included.
+//
+// This used to refuse anything within about a degree of parallel, on the grounds
+// that the crossing "stops meaning anything". Noah, 2026-08-02, and he is right:
+// a degree of divergence over 700px crosses 36,000px away, which is a real point
+// the app already draws edge markers for. Refusing it threw away answers it could
+// perfectly well give.
+//
+// Past parallel needs no handling at all: the determinant changes sign and the
+// crossing comes back from the other side by itself. That is his second point and
+// it falls out of doing the arithmetic signed.
+//
+// So only EXACTLY parallel is left, and it gets a point rather than an error —
+// placed at the reach along the lines' own direction, where it draws the same as
+// the infinity it stands for. "Nudge it just slightly", made precise.
+export function linesCross(L1, L2, { reach = Infinity } = {}) {
   const d1 = { x: L1.b.x - L1.a.x, y: L1.b.y - L1.a.y };
   const d2 = { x: L2.b.x - L2.a.x, y: L2.b.y - L2.a.y };
   const n1 = Math.hypot(d1.x, d1.y), n2 = Math.hypot(d2.x, d2.y);
   if (!(n1 > 0) || !(n2 > 0)) return null;
   const den = d1.x * d2.y - d1.y * d2.x;
-  // |sin| between them. Below the floor they are parallel for drawing purposes:
-  // the crossing runs away to infinity and its position stops meaning anything.
-  if (Math.abs(den) / (n1 * n2) < minSin) return null;
+  const mid = { x: (L1.a.x + L1.b.x) / 2, y: (L1.a.y + L1.b.y) / 2 };
+  const cap = Number.isFinite(reach) ? reach : Infinity;
+
+  // Exactly parallel, to floating point. Stand the point off along the shared
+  // direction at the reach: it is the limit these lines are heading toward, and
+  // at that distance it is indistinguishable from it.
+  if (Math.abs(den) / (n1 * n2) < 1e-12) {
+    if (!Number.isFinite(cap)) return null;
+    return { x: mid.x + (d1.x / n1) * cap, y: mid.y + (d1.y / n1) * cap, atReach: true };
+  }
+
   const t = ((L2.a.x - L1.a.x) * d2.y - (L2.a.y - L1.a.y) * d2.x) / den;
   const p = { x: L1.a.x + t * d1.x, y: L1.a.y + t * d1.y };
-  return Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null;
+  if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+  const away = Math.hypot(p.x - mid.x, p.y - mid.y);
+  if (away > cap) {
+    // Same direction, pinned to where the difference stops showing.
+    return { x: mid.x + (p.x - mid.x) / away * cap, y: mid.y + (p.y - mid.y) / away * cap, atReach: true };
+  }
+  return p;
 }
 
 // Does this edge, or anything it hangs off, already run to `vpId`?
@@ -1481,10 +1526,8 @@ export function addVpFromLines(scene, { edgeA, edgeB, label }) {
   }
   const L1 = edgeLine(scene, edgeA), L2 = edgeLine(scene, edgeB);
   if (!L1 || !L2) return { ok: false, reason: "one of those lines is not in the drawing any more" };
-  const at = linesCross(L1, L2);
-  if (!at) {
-    return { ok: false, reason: "those two lines are parallel — they meet infinitely far away, so there is no point to put down" };
-  }
+  const at = linesCross(L1, L2, { reach: vpReach(scene) });
+  if (!at) return { ok: false, reason: "one of those lines has no length, so there is no direction to follow" };
   const vp = {
     id: newId(scene, "vp"),
     label: label ?? `VP${scene.vanishingPoints.length + 1}`,
@@ -1508,8 +1551,8 @@ export function reseatDerivedVps(scene) {
     if (!vp.from) continue;
     const L1 = edgeLine(scene, vp.from.edgeA), L2 = edgeLine(scene, vp.from.edgeB);
     if (!L1 || !L2) { delete vp.from; continue; }      // a line went; it stays put
-    const at = linesCross(L1, L2);
-    if (!at) continue;                                 // gone parallel: hold the last good place
+    const at = linesCross(L1, L2, { reach: vpReach(scene) });
+    if (!at) continue;                                 // a line lost its length: hold the last good place
     vp.x = at.x; vp.y = at.y;
   }
 }

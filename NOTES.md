@@ -896,6 +896,44 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D66 — a limit is not an error (SHIPPED 1.17.1, staging)
+
+Noah, 2026-08-02: *"For calculating vanishing points of nearly parallel lines,
+perfect calculation is unnecessary. If the difference cannot be discerned on the
+screen past a certain level then all past that level can be ignored. Beyond
+parallel, the vanishing point simply goes to the other intersection. That only
+leaves parallel being the error, and if they draw perfectly parallel lines, you
+can simply nudge it just slightly."*
+
+Right on all three counts, and D65 shipped a day earlier with all three wrong.
+
+1. **The refusal floor was over-cautious.** It rejected anything within about a
+   degree of parallel — and a degree over 700px crosses 36,000px away, which is a
+   real point this app already draws edge markers for and now has Fit points to
+   look at. It was throwing away answers it could give.
+2. **Past parallel needed no handling at all.** The determinant changes sign and
+   the crossing returns from the other side by itself. The only thing that had
+   made it look like a case was refusing the neighbourhood around it.
+3. **Exactly parallel gets a point, not an error.** `vpReach` is DERIVED rather
+   than picked: lines aimed at a point R away land about L²/R from where parallel
+   lines would across a page of diagonal L, so half a pixel gives R = 2L² — about
+   8 million for a 1600x1200 page. Large, finite, ordinary. Nothing is
+   approximated up to there; past it the answer is pinned somewhere that draws
+   identically to the one asked for.
+
+**The generalisation worth keeping: a limit is not an error.** The instinct that
+produced D65's floor was to refuse near a singularity because the arithmetic gets
+delicate. The better move is to find where the difference stops being observable
+and stop there, which turns a refusal into an answer and deletes the special case
+rather than guarding it.
+
+**And a check that could not fail.** The first version of this asserted the
+near-parallel point was "more than 5000px away" — which an UNCLAMPED answer
+satisfies just as well, so a plant removing the clamp passed. "Far away" and
+"pinned to the reach" are different claims; it asserts the second now, plus a
+companion that an ordinary crossing comes back untouched, so the clamp cannot
+quietly start acting on everything.
+
 ### D65 — a vanishing point from two drawn lines, BOUND (SHIPPED 1.17.0, staging)
 
 Noah, 2026-08-01: *"Maybe creating vanishing points as the intersection of two
