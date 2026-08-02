@@ -472,6 +472,7 @@ function solveIntersect(scene, v, index) {
 // was the cost, not the constant (Doctrine §14), so it is the shape that
 // changed. Same semantics, including how cycles are reported.
 export function solveScene(scene) {
+  reseatDerivedVps(scene);       // D65: points made from two lines, before anything reads them
   reseatSlopePoints(scene);      // D53: derived points first, then everything that binds to them
   const index = new Map();
   for (const v of scene.vertices) index.set(v.id, v);
@@ -1408,6 +1409,111 @@ export function addSlopePoint(scene, { vpId, rise, label }) {
 // Re-seat every derived point before anything is solved against it. Cheap, and
 // it means a slope point can never be stale: drag the parent and the roof turns
 // with the walls, which is the entire reason it is derived rather than placed.
+// D65 — a vanishing point made from TWO DRAWN LINES, and BOUND to them.
+//
+// Noah, 2026-08-01: "Maybe creating vanishing points as the intersection of two
+// drawn lines." Bound, on his call — move either line and the point follows.
+//
+// This is how you find a point in a photograph: draw along two edges of a
+// building that are parallel in the world, and where they cross is where they
+// vanish. It is also the half of the image-import workflow that works with no
+// image at all.
+//
+// The point stores the two EDGE ids and nothing else, and is re-derived at the
+// top of every solve — the same shape as a slope point (D53). Two refusals it
+// must make rather than fudge:
+//
+//   · lines that are parallel, or nearly so, cross at infinity. There is no point
+//     to place and a number a mile off the page is not one.
+//   · a line already bound to a vanishing point cannot help define one, or the
+//     point would depend on itself. That is a cycle, and it is refused at the
+//     moment of asking rather than discovered as a hang.
+export function edgeLine(scene, edgeId) {
+  const e = (scene.edges ?? []).find(x => x.id === edgeId);
+  if (!e) return null;
+  const a = scene.vertices.find(v => v.id === e.a);
+  const b = scene.vertices.find(v => v.id === e.b);
+  if (!a || !b || !Number.isFinite(a.x) || !Number.isFinite(b.x)) return null;
+  if (Math.hypot(b.x - a.x, b.y - a.y) < 1e-6) return null;
+  return { a, b, e };
+}
+
+export function linesCross(L1, L2, minSin = 0.02) {
+  const d1 = { x: L1.b.x - L1.a.x, y: L1.b.y - L1.a.y };
+  const d2 = { x: L2.b.x - L2.a.x, y: L2.b.y - L2.a.y };
+  const n1 = Math.hypot(d1.x, d1.y), n2 = Math.hypot(d2.x, d2.y);
+  if (!(n1 > 0) || !(n2 > 0)) return null;
+  const den = d1.x * d2.y - d1.y * d2.x;
+  // |sin| between them. Below the floor they are parallel for drawing purposes:
+  // the crossing runs away to infinity and its position stops meaning anything.
+  if (Math.abs(den) / (n1 * n2) < minSin) return null;
+  const t = ((L2.a.x - L1.a.x) * d2.y - (L2.a.y - L1.a.y) * d2.x) / den;
+  const p = { x: L1.a.x + t * d1.x, y: L1.a.y + t * d1.y };
+  return Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null;
+}
+
+// Does this edge, or anything it hangs off, already run to `vpId`?
+function edgeDependsOnVp(scene, edgeId, vpId) {
+  const e = (scene.edges ?? []).find(x => x.id === edgeId);
+  if (!e) return false;
+  if (typeof e.binding === "object" && e.binding?.vpId === vpId) return true;
+  const seen = new Set();
+  const stack = [e.a, e.b];
+  while (stack.length) {
+    const id = stack.pop();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const v = scene.vertices.find(x => x.id === id);
+    if (!v) continue;
+    if (typeof v.binding === "object" && v.binding?.vpId === vpId) return true;
+    if (v.defs) for (const d of v.defs) {
+      if (typeof d.binding === "object" && d.binding?.vpId === vpId) return true;
+      stack.push(d.origin);
+    }
+    if (v.origin) stack.push(v.origin);
+  }
+  return false;
+}
+
+export function addVpFromLines(scene, { edgeA, edgeB, label }) {
+  if (!edgeA || !edgeB || edgeA === edgeB) {
+    return { ok: false, reason: "pick two different lines — a point is where two of them cross" };
+  }
+  const L1 = edgeLine(scene, edgeA), L2 = edgeLine(scene, edgeB);
+  if (!L1 || !L2) return { ok: false, reason: "one of those lines is not in the drawing any more" };
+  const at = linesCross(L1, L2);
+  if (!at) {
+    return { ok: false, reason: "those two lines are parallel — they meet infinitely far away, so there is no point to put down" };
+  }
+  const vp = {
+    id: newId(scene, "vp"),
+    label: label ?? `VP${scene.vanishingPoints.length + 1}`,
+    x: at.x, y: at.y,
+    axis: "z", locked: false, onHorizon: false,
+    from: { edgeA, edgeB },
+  };
+  // Refuse a cycle BEFORE it exists: neither line may already run to this point.
+  if (edgeDependsOnVp(scene, edgeA, vp.id) || edgeDependsOnVp(scene, edgeB, vp.id)) {
+    return { ok: false, reason: "a line that already runs to this point cannot also define it" };
+  }
+  scene.vanishingPoints.push(vp);
+  solveScene(scene);
+  return { ok: true, vp, at };
+}
+
+// Re-derive every point that was made from two lines, before anything is solved
+// against it. Cheap, and it means such a point can never be stale.
+export function reseatDerivedVps(scene) {
+  for (const vp of scene.vanishingPoints ?? []) {
+    if (!vp.from) continue;
+    const L1 = edgeLine(scene, vp.from.edgeA), L2 = edgeLine(scene, vp.from.edgeB);
+    if (!L1 || !L2) { delete vp.from; continue; }      // a line went; it stays put
+    const at = linesCross(L1, L2);
+    if (!at) continue;                                 // gone parallel: hold the last good place
+    vp.x = at.x; vp.y = at.y;
+  }
+}
+
 export function reseatSlopePoints(scene) {
   for (const vp of scene.vanishingPoints) {
     if (!vp.trace) continue;

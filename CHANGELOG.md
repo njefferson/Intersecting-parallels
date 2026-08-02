@@ -8,6 +8,26 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.17.0 — CAPABILITY · 2026-08-02
+
+**A vanishing point made from two lines you have drawn — and bound to them.**
+
+- In Setup, under *Point from two lines*: tap a line, press **Mark line**, tap
+  another, press **Mark line**, then **Make point**. The point appears where they
+  cross.
+- **It stays bound to them.** Move either line and the point follows, and
+  everything running to that point follows with it. This is how you find a point
+  in a photograph — draw along two edges of a building that are parallel in the
+  world, and where they meet is where they vanish.
+- **Parallel lines are refused**, and it says why: they meet infinitely far away,
+  so there is no point to put down. Nearly-parallel is refused too, because a
+  crossing that leaps hundreds of pixels for a one-pixel nudge is not a point
+  either.
+- If you delete one of the lines it was made from, the point stops following and
+  stays exactly where it is — deleting a guide never moves the drawing.
+
+---
+
 ## 1.16.0 — CAPABILITY · 2026-08-01
 
 **Fit points — zoom out far enough to see where your vanishing points actually are.**

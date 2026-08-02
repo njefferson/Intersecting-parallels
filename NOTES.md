@@ -896,6 +896,35 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D65 — a vanishing point from two drawn lines, BOUND (SHIPPED 1.17.0, staging)
+
+Noah, 2026-08-01: *"Maybe creating vanishing points as the intersection of two
+drawn lines."* Bound, on his call — move either line and the point follows, and
+everything running to that point follows with it.
+
+Stored as two edge ids and nothing else, re-derived at the top of every solve —
+the same shape as a slope point (D53), and for the same reason: a derived thing
+that stores a position can go stale, and one that stores its definition cannot.
+
+**Three refusals rather than fudges.** Parallel lines meet infinitely far away, so
+there is nothing to place. NEARLY parallel is refused on the same grounds and it
+is the less obvious half: a hair of divergence puts the crossing tens of thousands
+of pixels out and moves it hundreds for a one-pixel nudge, which is a number
+rather than a point. And a line that already runs to the point cannot help define
+it — that is a cycle, refused when asked rather than found later as a hang.
+
+**The walk fixture was wrong first, and the app was right.** Two `Add line` clicks
+in a row lay both strokes along the SAME current guide, so they are parallel by
+construction — the app refused the pair correctly and the check read that refusal
+as a failure. Fixed by forcing each stroke onto a different point through the
+guide picker, which is also a truer exercise of the real controls. Third time this
+week a fixture has been the thing at fault, and the tell each time was the app
+producing a sensible refusal that the check had no case for.
+
+This is the half of the image-import workflow that needs no image. When a photo
+can be placed underneath, drawing along two building edges to recover its
+vanishing point is the whole technique.
+
 ### D64 — Fit points (SHIPPED 1.16.0, staging)
 
 Noah, 2026-08-01: *"I'd like to be able to zoom out to see VPs on the screen, at

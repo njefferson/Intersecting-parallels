@@ -12,7 +12,7 @@
 import {
   createScene, addVp, moveVp, setEyeLevel, solveScene, SNAP_RADIUS, bindingDirection, horizonLine,
   deleteVp as deleteVpFromScene, deleteVertex, moveAnchor, rebindVertex,
-  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure, buildRoom, axisPointCount, buildStreet, circlePoints,
+  clearDrawing, clearAll, manipulate, ancestorParams, migrateScene, scaleVpSpread, markIntervals, addFigure, buildRoom, axisPointCount, buildStreet, circlePoints, addVpFromLines,
 } from "./solver.mjs";
 import { chooseBinding, resolveEndpoint, resolveStrokeEnd, commitStroke, buildBox, buildRoof, buildCircle, splitBoxDepths, nearestVertex, nearestEdge, bindingName, effectiveBinding } from "./snap.mjs";
 import {
@@ -26,7 +26,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.16.0";
+const VERSION = "1.17.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1484,6 +1484,50 @@ function addRoom() {
   el.canvas.focus({ preventScroll: true });
   afterEdit(`Room drawn, running back to ${res.vp.label}. Turn on Solid to see the walls; move ${res.vp.label} to look somewhere else and the whole room follows.`);
 }
+// D65 — a point made from two lines you have drawn, and BOUND to them.
+//
+// Two taps rather than a drag: select a line, press Mark line, select another,
+// press Mark line, and Make point lights up. The marked pair is shown in the
+// button's own label so there is never a hidden mode — §3's rule that a state you
+// are in says so.
+let markedLines = [];
+
+function markLine() {
+  if (!selection || selection.type !== "edge") {
+    toast("Select a line first — tap one in Select mode, then Mark line", "error");
+    return;
+  }
+  if (markedLines.includes(selection.id)) {
+    markedLines = markedLines.filter(id => id !== selection.id);
+  } else {
+    markedLines = [...markedLines, selection.id].slice(-2);
+  }
+  refreshMarks();
+}
+
+function refreshMarks() {
+  markedLines = markedLines.filter(id => (scene.edges ?? []).some(e => e.id === id));
+  const b = $("vp-from-lines");
+  if (b) b.disabled = markedLines.length !== 2;
+  const m = $("mark-line");
+  if (m) m.setAttribute("aria-label", markedLines.length
+    ? `Mark line — ${markedLines.length} of 2 marked`
+    : "Mark line for making a vanishing point");
+  say(markedLines.length === 2
+    ? "Two lines marked. Make point puts a vanishing point where they cross."
+    : `${markedLines.length} of 2 lines marked.`);
+}
+
+function makeVpFromLines() {
+  if (markedLines.length !== 2) return;
+  beginGesture(history, scene);
+  const res = addVpFromLines(scene, { edgeA: markedLines[0], edgeB: markedLines[1] });
+  if (!res.ok) { undoHistoryInPlace(); toast(res.reason, "error"); return; }
+  markedLines = [];
+  refreshMarks();
+  afterEdit(`${res.vp.label} placed where those two lines cross, and bound to them — move either line and the point follows.`);
+}
+
 // D62 — a circle in perspective: a square seen at an angle, with the ellipse the
 // camera would have made inscribed in it. Wheels, arches, domes, cups, manholes.
 function addCircle() {
@@ -1595,6 +1639,8 @@ $("add-roof")?.addEventListener("click", addRoofToBox);
 
 $("add-room")?.addEventListener("click", addRoom);
 $("add-circle")?.addEventListener("click", addCircle);
+$("mark-line")?.addEventListener("click", markLine);
+$("vp-from-lines")?.addEventListener("click", makeVpFromLines);
 $("add-street")?.addEventListener("click", () => addStreet(true));
 $("add-streetplan")?.addEventListener("click", () => addStreet(false));
 

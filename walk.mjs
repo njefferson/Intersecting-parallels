@@ -2496,6 +2496,91 @@ try {
     await jCtx.close();
   }
 
+  // D65 — a point made from two drawn lines, through the real controls, and BOUND.
+  const vlCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'light' });
+  await seenWelcome(vlCtx);
+  const vlPage = await vlCtx.newPage();
+  vlPage.on('pageerror', e => pageErrors.push(`vp-from-lines page: ${e}`));
+  await vlPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await vlPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+
+  const madeVp = await vlPage.evaluate(async () => {
+    const s = window.__ip.scene;
+    if (document.getElementById('setup').dataset.on !== 'true') document.getElementById('show-setup').click();
+    const before = s.vanishingPoints.length;
+    // Two lines that genuinely cross, drawn through the app's own non-drag route.
+    // Both must be FORCED onto different guides: Add line lays a stroke along
+    // whatever guide is current, so two of them in a row are parallel by
+    // construction and the app is right to refuse that pair. The first version of
+    // this fixture did exactly that and read the refusal as a failure.
+    const force = document.getElementById('force');
+    const pick = vpId => {
+      force.value = `vp:${vpId}`;
+      force.dispatchEvent(new Event('change', { bubbles: true }));
+      document.getElementById('add-line').click();
+    };
+    pick(s.vanishingPoints[0].id);
+    pick(s.vanishingPoints[1].id);
+    const [e1, e2] = s.edges.slice(-2);
+    const v = id => s.vertices.find(x => x.id === id);
+    await new Promise(r => requestAnimationFrame(r));
+
+    const mark = id => { window.__ip.select({ type: 'edge', id }); document.getElementById('mark-line').click(); };
+    mark(e1.id);
+    const armedAfterOne = !document.getElementById('vp-from-lines').disabled;
+    mark(e2.id);
+    const armedAfterTwo = !document.getElementById('vp-from-lines').disabled;
+    document.getElementById('vp-from-lines').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const vp = s.vanishingPoints[s.vanishingPoints.length - 1];
+    const onBoth = [e1, e2].every(e => {
+      const a2 = v(e.a), b2 = v(e.b);
+      const d = (b2.x - a2.x) * (vp.y - a2.y) - (b2.y - a2.y) * (vp.x - a2.x);
+      return Math.abs(d) / (Math.hypot(b2.x - a2.x, b2.y - a2.y) || 1) < 1e-6;
+    });
+    // BOUND: swing one line and the point must go with it.
+    const was = { x: vp.x, y: vp.y };
+    window.__ip.manipulate(v(e2.a).id, { x: 500, y: 1050 });
+    await new Promise(r => requestAnimationFrame(r));
+    const moved = Math.hypot(vp.x - was.x, vp.y - was.y);
+    const stillOn = (() => {
+      const a2 = v(e2.a), b2 = v(e2.b);
+      const d = (b2.x - a2.x) * (vp.y - a2.y) - (b2.y - a2.y) * (vp.x - a2.x);
+      return Math.abs(d) / (Math.hypot(b2.x - a2.x, b2.y - a2.y) || 1) < 1e-6;
+    })();
+    return { said: document.getElementById("toast")?.textContent || "", before, after: s.vanishingPoints.length, armedAfterOne, armedAfterTwo,
+      onBoth, moved: Math.round(moved), stillOn, derived: !!vp.from,
+      finite: s.vertices.every(x => Number.isFinite(x.x) && Number.isFinite(x.y)) };
+  });
+  check('two marked lines make a point where they cross, BOUND to them (D65)',
+    madeVp.after === madeVp.before + 1 && madeVp.armedAfterOne === false
+      && madeVp.armedAfterTwo === true && madeVp.onBoth && madeVp.derived
+      && madeVp.moved > 5 && madeVp.stillOn && madeVp.finite,
+    JSON.stringify(madeVp));
+
+  const refusedPar = await vlPage.evaluate(() => {
+    const s = window.__ip.scene;
+    document.getElementById('clear-drawing').click();
+    document.getElementById('clear-drawing').click();
+    document.getElementById('add-line').click();
+    document.getElementById('add-line').click();
+    const [e1, e2] = s.edges.slice(-2);
+    const v = id => s.vertices.find(x => x.id === id);
+    // Make them exactly parallel.
+    window.__ip.manipulate(v(e1.a).id, { x: 200, y: 400 });
+    window.__ip.manipulate(v(e1.b).id, { x: 900, y: 400 });
+    window.__ip.manipulate(v(e2.a).id, { x: 200, y: 800 });
+    window.__ip.manipulate(v(e2.b).id, { x: 900, y: 800 });
+    const before = s.vanishingPoints.length;
+    for (const id of [e1.id, e2.id]) { window.__ip.select({ type: 'edge', id }); document.getElementById('mark-line').click(); }
+    document.getElementById('vp-from-lines').click();
+    return { before, after: s.vanishingPoints.length, said: document.getElementById('toast')?.textContent || '' };
+  });
+  check('two parallel lines are refused, and it says why (D65)',
+    refusedPar.after === refusedPar.before && /parallel|infinitely/i.test(refusedPar.said),
+    `${refusedPar.before} -> ${refusedPar.after} points, said "${refusedPar.said.slice(0, 70)}"`);
+  await vlCtx.close();
+
   // D62 — a circle in perspective, through the real control.
   const ciCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'light' });
   await seenWelcome(ciCtx);
