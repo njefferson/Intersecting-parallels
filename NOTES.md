@@ -923,10 +923,22 @@ than oversights: the canvas, which is a drawing surface with its own labelled
 keyboard route rather than a target, and the file input hidden behind Choose
 image, which is unreachable by design and reached through a real button.
 
-**Honest about the planting.** Shrinking a `<select>` to 20px is caught. Removing
-the label stretch is NOT caught, and I have not worked out why — the union of a
-20px checkbox and an unstretched label should read about 20px tall and fail. That
-one is unverified and should be the first thing picked up.
+**The planting, and the bit that was unverified — now resolved.** Shrinking a
+`<select>` to 20px is caught. Removing the label stretch was NOT caught, and the
+reason turned out to be the fixture rather than the gate: *"Include construction
+lines (horizon and guides)"* WRAPS to two lines at 390px, so the label measures
+47px tall with the stretch and 47px without it. The plant never produced an
+undersized target to catch.
+
+Planted properly — a SHORT label with the stretch removed — it reports
+**82.9x23.3px** and fails; the same short label with the stretch restored passes.
+So the rule is load-bearing and the check is real.
+
+Worth keeping as its own shape: **a plant that does not change the measured
+quantity proves nothing about the check, and looks exactly like a check that
+cannot fail.** The tell was that the two states measured identically; the fix was
+to measure them rather than to reason about them. A long label is a bad fixture
+for a size test precisely because wrapping hides the thing under test.
 
 ### D69 — a control the gates could not see (SHIPPED 1.18.2, staging)
 
