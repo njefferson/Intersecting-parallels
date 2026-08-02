@@ -35,10 +35,8 @@ Noah decides what counts as a version — the first slot, what the app IS.
   everything running to that point follows with it. This is how you find a point
   in a photograph — draw along two edges of a building that are parallel in the
   world, and where they meet is where they vanish.
-- **Parallel lines are refused**, and it says why: they meet infinitely far away,
-  so there is no point to put down. Nearly-parallel is refused too, because a
-  crossing that leaps hundreds of pixels for a one-pixel nudge is not a point
-  either.
+- Lines that are parallel, or nearly so, are handled rather than refused — see
+  1.17.1 just above, which corrected this the same day.
 - If you delete one of the lines it was made from, the point stops following and
   stays exactly where it is — deleting a guide never moves the drawing.
 
