@@ -259,7 +259,33 @@ try {
           // behaves like one on screen and is counted here — that blind spot hid a
           // Choose image control with no keyboard route at all, because a label
           // cannot take focus and nothing was looking.
-          const inter = [...document.querySelectorAll('a[href],button,[role="button"],label.btn')];
+          // D70 — what this SELECTS is the gate's real coverage, and it was
+          // narrower than the app. An audit of visible controls against this list
+          // found ten it had never had an opinion about: five <select> and five
+          // coordinate <input>. They are natively focusable, so SC 2.1.1 was never
+          // at risk — but their TARGET SIZE had never once been measured.
+          //
+          // Deliberately still excluded: the canvas, which is a drawing surface
+          // with its own labelled keyboard route rather than a target, and inputs
+          // hidden behind a button on purpose (the file picker), which are
+          // unreachable by design and reached through a real button instead.
+          // The target of a labelled control is the control AND its label, because
+          // the label activates it. Measuring the bare box reports a 20px
+          // checkbox that is in fact a 44px row, which would push a design toward
+          // an inflated checkbox to satisfy a number rather than a person.
+          const targetRect = el => {
+            const r = el.getBoundingClientRect();
+            const lab = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+            if (!lab) return r;
+            const l = lab.getBoundingClientRect();
+            return {
+              width: Math.max(r.right, l.right) - Math.min(r.left, l.left),
+              height: Math.max(r.bottom, l.bottom) - Math.min(r.top, l.top),
+            };
+          };
+          const inter = [...document.querySelectorAll(
+            'a[href],button,[role="button"],label.btn,select,input:not([type="hidden"]),textarea',
+          )].filter(el => !el.closest('.sr-only') && !el.classList.contains('sr-only'));
           const visible = el => {
             const r = el.getBoundingClientRect();
             return r.width > 0 && r.height > 0;
@@ -293,10 +319,12 @@ try {
                 || hasAdjacentText(el.nextSibling, 'next');
           };
           const measured = inter.filter(visible).map(el => {
-            const r = el.getBoundingClientRect();
+            const r = targetRect(el);
             return {
               el,
-              t: el.textContent.trim().slice(0,32),
+              t: (el.textContent.trim()
+                  || (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.textContent.trim())
+                  || el.id || el.tagName.toLowerCase()).slice(0, 32),
               w: +r.width.toFixed(1), h: +r.height.toFixed(1),
               tooSmall: r.width < minTarget || r.height < minTarget,
               inline: isInlineInText(el),
@@ -323,9 +351,21 @@ try {
             return !el.matches('a[href],button,input,select,textarea,summary,[contenteditable]');
           }).map(el => `${el.id || el.tagName.toLowerCase()}: "${(el.textContent || '').trim().slice(0, 30)}"`);
 
-          const linksNoName = inter
-            .filter(el => !el.textContent.trim() && !el.getAttribute('aria-label') && !el.getAttribute('title'))
-            .map(el => el.outerHTML.slice(0, 60));
+          // A form control is usually named by a <label for>, which is the RIGHT
+          // way to do it — this check only knew about text content and aria-label,
+          // so widening the sweep to inputs made it report every correctly
+          // labelled field in the app. An accessible name has several legitimate
+          // sources and a check that knows one of them is a check that punishes
+          // the other three.
+          const namedBy = el => {
+            if (el.getAttribute('aria-label') || el.getAttribute('title')) return true;
+            if (el.textContent.trim()) return true;
+            const by = el.getAttribute('aria-labelledby');
+            if (by && by.split(/\s+/).some(id => document.getElementById(id))) return true;
+            if (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`)) return true;
+            return !!el.closest('label');
+          };
+          const linksNoName = inter.filter(el => !namedBy(el)).map(el => el.outerHTML.slice(0, 60));
 
           // D56 — two controls on one surface must not answer to the SAME NAME.
           //

@@ -896,6 +896,38 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D70 — auditing what a gate SELECTS (SHIPPED 1.18.3, staging)
+
+D69 ended with "the way to find more is to audit what each gate selects, not what
+it asserts". This is that audit, run rather than promised.
+
+A throwaway script listed every visible control against the a11y gate's own
+selector. **Ten it had never had an opinion about**: five `<select>` and five
+coordinate `<input>`. Natively focusable, so SC 2.1.1 was never at risk — but
+their target size had never once been measured, in any theme or viewport, since
+the gate was written.
+
+Widening it found two real failures immediately: the Export checkboxes at
+**13x20px**. Fixed by stretching the label — a checkbox's label toggles it, so the
+target is the union, and the box stays visually small because inflating it to 44px
+would satisfy a number rather than a person. The gate measures that union now,
+which is what the criterion actually means.
+
+Widening also broke the naming check, and that is worth recording: it only knew
+about text content and `aria-label`, so every correctly `<label for>`-named field
+in the app came back as unnamed. **A check that knows one of four legitimate
+sources punishes the other three.**
+
+Two things stay deliberately outside the sweep, and they are exclusions rather
+than oversights: the canvas, which is a drawing surface with its own labelled
+keyboard route rather than a target, and the file input hidden behind Choose
+image, which is unreachable by design and reached through a real button.
+
+**Honest about the planting.** Shrinking a `<select>` to 20px is caught. Removing
+the label stretch is NOT caught, and I have not worked out why — the union of a
+20px checkbox and an unstretched label should read about 20px tall and fail. That
+one is unverified and should be the first thing picked up.
+
 ### D69 — a control the gates could not see (SHIPPED 1.18.2, staging)
 
 Noah, 2026-08-02: **"Where do I load the image?"** Two separate faults behind one

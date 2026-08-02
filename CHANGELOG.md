@@ -8,6 +8,20 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.18.3 — ITERATION · 2026-08-02
+
+**The accessibility gate now checks every control, not most of them.**
+
+- It had never measured a single drop-down or number field — ten controls it had
+  no opinion about. It does now, and that immediately found two checkboxes in
+  Export whose boxes are 13x20px.
+- Those are fixed the honest way: the label beside a checkbox toggles it, so the
+  label is stretched to fill the row and the whole 44px row is the target. The box
+  stays small on purpose — inflating a checkbox to 44px looks wrong and is not
+  what the rule is asking for.
+
+---
+
 ## 1.18.2 — ITERATION · 2026-08-02
 
 **Choose image is where you'd look for it, and it works from the keyboard.**
