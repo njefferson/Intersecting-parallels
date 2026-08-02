@@ -27,7 +27,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.18.0";
+const VERSION = "1.18.1";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1535,6 +1535,46 @@ $("underlay-opacity")?.addEventListener("change", () => {
   render();
 });
 
+// D68 — placing the image. A photograph is only useful once it lines up with the
+// paper: the horizon in the picture has to sit where you want your horizon, and
+// its scale has to match what you are drawing. Pinch does that on a photo app;
+// pinch is a path-based gesture (SC 2.5.1) so every step here is also a button,
+// and the buttons are the ONLY route rather than the fallback, which keeps them
+// honest — nothing can quietly work only under a pinch.
+//
+// Steps are a fraction of the image rather than fixed pixels, so a nudge feels
+// the same on a small photo as on a large one.
+function nudgeUnderlay(fn) {
+  if (!underlay) { toast("Choose a reference image first", "error"); return; }
+  fn(underlay);
+  render();
+  say(`Reference image ${Math.round(underlay.width)} by ${Math.round(underlay.height)}, at ${Math.round(underlay.x)}, ${Math.round(underlay.y)}.`);
+}
+
+function scaleUnderlay(k) {
+  nudgeUnderlay(u => {
+    // Scale about its own MIDDLE, so the thing you are looking at stays put
+    // instead of walking off while you resize it.
+    const cx = u.x + u.width / 2, cy = u.y + u.height / 2;
+    u.width *= k; u.height *= k;
+    u.x = cx - u.width / 2; u.y = cy - u.height / 2;
+  });
+}
+
+const UNDERLAY_STEP = 0.04;      // a twenty-fifth of the image per press
+$("underlay-bigger")?.addEventListener("click", () => scaleUnderlay(1.1));
+$("underlay-smaller")?.addEventListener("click", () => scaleUnderlay(1 / 1.1));
+$("underlay-left")?.addEventListener("click", () => nudgeUnderlay(u => { u.x -= u.width * UNDERLAY_STEP; }));
+$("underlay-right")?.addEventListener("click", () => nudgeUnderlay(u => { u.x += u.width * UNDERLAY_STEP; }));
+$("underlay-up")?.addEventListener("click", () => nudgeUnderlay(u => { u.y -= u.height * UNDERLAY_STEP; }));
+$("underlay-down")?.addEventListener("click", () => nudgeUnderlay(u => { u.y += u.height * UNDERLAY_STEP; }));
+$("underlay-fit")?.addEventListener("click", () => nudgeUnderlay(u => {
+  const cw = scene.canvas.width, ch = scene.canvas.height;
+  const k = Math.min(cw / u.img.naturalWidth, ch / u.img.naturalHeight);
+  u.width = u.img.naturalWidth * k; u.height = u.img.naturalHeight * k;
+  u.x = (cw - u.width) / 2; u.y = (ch - u.height) / 2;
+}));
+
 $("underlay-clear")?.addEventListener("click", async () => {
   if (!underlay) { toast("There is no reference image to remove", "error"); return; }
   URL.revokeObjectURL(underlay.url);
@@ -2238,6 +2278,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     draw: () => render(),
     // D67 — the walk checks the image is really kept on the device, not just drawn.
     loadUnderlay,
+    underlay: () => underlay && { x: underlay.x, y: underlay.y, width: underlay.width, height: underlay.height },
     // D64 — the walk checks that Fit points actually brings every point onto
     // the screen, which is a fact about the VIEW rather than about the scene.
     view: () => ({ scale: view.scale, tx: view.tx, ty: view.ty }),

@@ -2553,6 +2553,38 @@ try {
   });
   check('removing the image clears it from this device too (D67)',
     kept.afterRemove, JSON.stringify(kept));
+
+  // D68 — placing it. Every step is a button, and Refit undoes the lot.
+  const imgPlaced = await uiPage.evaluate(async b64 => {
+    const bin = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([bin], 'ref.png', { type: 'image/png' }));
+    const input = document.getElementById('underlay-file');
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 400));
+    const box = () => {
+      const u = window.__ip.underlay();
+      return u ? [Math.round(u.x), Math.round(u.y), Math.round(u.width), Math.round(u.height)] : null;
+    };
+    const start = box();
+    document.getElementById('underlay-bigger').click();
+    const bigger = box();
+    document.getElementById('underlay-right').click();
+    const right = box();
+    document.getElementById('underlay-down').click();
+    const down = box();
+    document.getElementById('underlay-fit').click();
+    const refit = box();
+    return { start, bigger, right, down, refit };
+  }, PNG);
+  check('the reference image can be sized and moved by button, and Refit undoes it (D68)',
+    imgPlaced.bigger[2] > imgPlaced.start[2] && imgPlaced.bigger[3] > imgPlaced.start[3]
+      // scaling holds its middle: the centre must not shift while it grows
+      && Math.abs((imgPlaced.bigger[0] + imgPlaced.bigger[2] / 2) - (imgPlaced.start[0] + imgPlaced.start[2] / 2)) <= 1
+      && imgPlaced.right[0] > imgPlaced.bigger[0] && imgPlaced.down[1] > imgPlaced.right[1]
+      && JSON.stringify(imgPlaced.refit) === JSON.stringify(imgPlaced.start),
+    JSON.stringify(imgPlaced));
   await uiCtx.close();
 
   // D65 — a point made from two drawn lines, through the real controls, and BOUND.

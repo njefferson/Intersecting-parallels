@@ -896,6 +896,26 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D68 — placing the reference image (SHIPPED 1.18.1, staging)
+
+D67 put a photograph under the drawing and left it centred, which is half the
+job: an underlay is only useful once the horizon IN the picture sits where you
+want your horizon, and its scale matches what you are drawing.
+
+Bigger / Smaller / four arrows / Refit. Steps are a FRACTION of the image rather
+than fixed pixels, so a nudge feels the same on a small photo as a large one.
+Scaling holds the image's own middle — grow it from a corner and whatever you were
+looking at walks off the screen while you resize, which is the kind of thing that
+is obvious once and invisible in a changelog.
+
+Every step is a button and the buttons are the ONLY route, not a fallback beside a
+pinch. That is deliberate: an accessible path that exists beside a gesture tends to
+rot, because nobody uses it. Here there is nothing else to use.
+
+Planted by scaling from the corner instead of the centre — the check watches the
+midpoint across a resize, not just the dimensions, so it catches a change that
+leaves the size correct and the position wrong.
+
 ### D67 — a reference image (SHIPPED 1.18.0, staging)
 
 Noah, 2026-08-01: *"I want to consider importing and drawing over an image

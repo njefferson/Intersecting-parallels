@@ -8,6 +8,20 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.18.1 — ITERATION · 2026-08-02
+
+**Line the reference image up with the paper.**
+
+- **Bigger**, **Smaller** and four arrows place the image; **Refit** puts it back
+  where it started. A photo you cannot align to the page only does half the job —
+  the horizon in the picture has to sit where you want your horizon.
+- Growing it holds its middle, so whatever you were looking at stays under your
+  eye instead of walking off while you resize.
+- Every step is a button rather than a pinch, and the buttons are the only route,
+  which is what keeps them honest.
+
+---
+
 ## 1.18.0 — CAPABILITY · 2026-08-02
 
 **Draw over a photograph.**
