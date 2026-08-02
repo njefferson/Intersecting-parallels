@@ -2496,6 +2496,65 @@ try {
     await jCtx.close();
   }
 
+  // D67 — a reference image, drawn UNDER the work and stored on the device.
+  const uiCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'light' });
+  await seenWelcome(uiCtx);
+  const uiPage = await uiCtx.newPage();
+  uiPage.on('pageerror', e => pageErrors.push(`underlay page: ${e}`));
+  await uiPage.goto(origin + '/', { waitUntil: 'networkidle' });
+  await uiPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+
+  // A 2x1 magenta PNG, so its pixels are unmistakable against anything the app draws.
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAF0lEQVR4nGP8z8Dwn4GBgYEJxIAxAAAA//8DAAKrAcAAAAAASUVORK5CYII=';
+  const under = await uiPage.evaluate(async b64 => {
+    if (document.getElementById('setup').dataset.on !== 'true') document.getElementById('show-setup').click();
+    const c = document.getElementById('canvas');
+    const count = () => {
+      const d = new Uint32Array(c.getContext('2d').getImageData(0, 0, c.width, c.height).data.buffer);
+      const paper = (255 << 24 | 0xFF << 16 | 0xFF << 8 | 0xFF) >>> 0;
+      let n = 0;
+      for (let i = 0; i < d.length; i++) if (d[i] !== paper) n++;
+      return n;
+    };
+    const before = count();
+    const bin = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+    const file = new File([bin], 'ref.png', { type: 'image/png' });
+    const input = document.getElementById('underlay-file');
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 400));
+    const withImg = count();
+    // It must PAN with the drawing rather than sit on the glass.
+    const v0 = window.__ip.view();
+    document.getElementById('zoom-in').click();
+    await new Promise(r => requestAnimationFrame(r));
+    const zoomed = window.__ip.view().scale !== v0.scale;
+    document.getElementById('zoom-fit').click();
+    await new Promise(r => requestAnimationFrame(r));
+    // Assert it is KEPT before asserting it can be removed. Without this, the
+    // removal check passes just as well against an app that never stored it —
+    // "gone" and "never there" look identical from the far side.
+    const storedWhilePresent = !!(await window.__ip.loadUnderlay(window.__ip.scene.id));
+    document.getElementById('underlay-clear').click();
+    await new Promise(r => setTimeout(r, 250));
+    const after = count();
+    return { before, withImg, after, zoomed, storedWhilePresent };
+  }, PNG);
+  check('a reference image draws under the work, and Remove takes it away (D67)',
+    under.withImg > under.before + 2000 && Math.abs(under.after - under.before) < 500
+      && under.zoomed && under.storedWhilePresent,
+    JSON.stringify(under));
+
+  const kept = await uiPage.evaluate(async () => {
+    const rec = await window.__ip.loadUnderlay(window.__ip.scene.id);
+    return { afterRemove: rec === null || rec === undefined };
+  });
+  check('removing the image clears it from this device too (D67)',
+    kept.afterRemove, JSON.stringify(kept));
+  await uiCtx.close();
+
   // D65 — a point made from two drawn lines, through the real controls, and BOUND.
   const vlCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'light' });
   await seenWelcome(vlCtx);
@@ -2916,7 +2975,10 @@ try {
 
   // Rewrite the stored record into exactly the shape a pre-1.5.0 build wrote.
   const downgraded = await oldPage.evaluate(() => new Promise((resolve, reject) => {
-    const req = indexedDB.open('intersecting-parallels', 1);
+    // No version: open whatever the app has. Pinning 1 here broke the moment
+    // D67 took the schema to 2, and this check is about the SCENE surviving a
+    // reload, not about which version of the store it lives in.
+    const req = indexedDB.open('intersecting-parallels');
     req.onerror = () => reject(req.error);
     req.onsuccess = () => {
       const db = req.result;

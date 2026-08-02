@@ -896,6 +896,35 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D67 — a reference image (SHIPPED 1.18.0, staging)
+
+Noah, 2026-08-01: *"I want to consider importing and drawing over an image
+later."* The other half of D65 — the technique is to draw along two edges of a
+building in a photo and let their crossing give you its vanishing point.
+
+**The storage decision, made rather than discovered**, which is what NOTES said
+to do when this was first raised. The image is a blob in IndexedDB (schema 2),
+not base64 in the project JSON: in the JSON it turns a 30KB project into a 4MB
+one carried on every save and load. The cost is stated in the changelog rather
+than left to be found — a project file copied to another device arrives without
+its image, because the image was never in it.
+
+Drawn in CANVAS coordinates, so it pans and zooms with the work. An underlay
+fixed to the glass cannot be lined up with anything and is no use. Fitted to the
+page keeping its aspect: a stretched photograph makes every angle in it a lie,
+and angles are the entire point of the app.
+
+**A check that could not fail, again, and the same shape as always.** "Removing
+the image clears it from this device" passed against a build that never stored it
+— gone and never-there look identical from the far side. It asserts the image IS
+kept while present, before asserting it can be removed. That is the seventh empty
+check this week and the second of exactly this kind: an assertion about an absence
+with nothing establishing the presence first.
+
+Also caught: the walk opened IndexedDB pinned to version 1, which broke the moment
+the schema went to 2. Unpinned — that check is about a scene surviving a reload,
+not about which version of the store it lives in.
+
 ### D66 — a limit is not an error (SHIPPED 1.17.1, staging)
 
 Noah, 2026-08-02: *"For calculating vanishing points of nearly parallel lines,

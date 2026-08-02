@@ -125,9 +125,10 @@ export function parseProjectJson(text) {
 // ---- IndexedDB (§6: not localStorage — size and synchronous blocking) ----
 
 const DB_NAME = "intersecting-parallels";
-const DB_VERSION = 1;
+const DB_VERSION = 2;   // 2 adds the reference-image store (D67)
 const STORE = "scenes";
 const META = "meta";
+const IMAGES = "images";
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -136,6 +137,15 @@ function openDb() {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
       if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: "key" });
+      // D67 — the reference image lives HERE, not in the project JSON.
+      //
+      // Noah asked to draw over a photograph, and the storage choice is the part
+      // worth deciding rather than discovering: a photo as base64 in the JSON
+      // turns a 30KB project file into a 4MB one, and every save and load carries
+      // it. A blob in IndexedDB keeps the file small and the image local. The
+      // cost is real and stated: a project file moved to another device arrives
+      // without its backing image, because the image was never in it.
+      if (!db.objectStoreNames.contains(IMAGES)) db.createObjectStore(IMAGES, { keyPath: "id" });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -212,4 +222,37 @@ export function makeAutosaver(getScene, getPrefs, delayMs = 2000) {
     poke() { if (timer) clearTimeout(timer); timer = setTimeout(flush, delayMs); },
     flush,
   };
+}
+
+
+// D67 — the reference image. One per scene, replaced rather than accumulated:
+// this is a thing you are tracing, not a library.
+export async function saveUnderlay(sceneId, blob, meta = {}) {
+  if (!blob) return { ok: false, reason: "no image" };
+  try {
+    const db = await openDb();
+    await tx(db, IMAGES, "readwrite", s2 => s2.put({ id: sceneId, blob, ...meta }));
+    db.close();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: `could not keep that image on this device: ${e?.message ?? e}` };
+  }
+}
+
+export async function loadUnderlay(sceneId) {
+  try {
+    const db = await openDb();
+    const rec = await tx(db, IMAGES, "readonly", s2 => s2.get(sceneId));
+    db.close();
+    return rec ?? null;
+  } catch { return null; }
+}
+
+export async function clearUnderlay(sceneId) {
+  try {
+    const db = await openDb();
+    await tx(db, IMAGES, "readwrite", s2 => s2.delete(sceneId));
+    db.close();
+    return { ok: true };
+  } catch (e) { return { ok: false, reason: String(e?.message ?? e) }; }
 }

@@ -145,6 +145,21 @@
         <!-- D65 — a point made from two lines you have drawn. Two taps: mark a
              line, mark another, and the point appears where they cross and stays
              bound to them. -->
+        <!-- D67 — a photograph to draw over. The file never leaves the device:
+             it is kept in this browser's own storage, like everything else here. -->
+        <h3 class="panel-sec">Reference image</h3>
+        <div class="setup-row">
+          <label class="btn" for="underlay-file">Choose image</label>
+          <input type="file" id="underlay-file" accept="image/*" class="sr-only">
+          <label class="sr-only" for="underlay-opacity">How strongly the image shows</label>
+          <select class="btn" id="underlay-opacity">
+            <option value="0.35">Faint</option>
+            <option value="0.6" selected>Half</option>
+            <option value="0.85">Strong</option>
+          </select>
+          <button class="btn" id="underlay-clear" type="button">Remove</button>
+        </div>
+
         <h3 class="panel-sec">Point from two lines</h3>
         <div class="setup-row">
           <button class="btn" id="mark-line" type="button">Mark line</button>

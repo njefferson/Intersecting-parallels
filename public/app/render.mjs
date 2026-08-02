@@ -358,7 +358,7 @@ export function draw(ctx, view, viewport, opts = {}) {
     ghost = null, selection = null, activeVpId = null, hoverId = null,
     extrudeHint = null,
     showSolid = false, showRays = false, showEyeLevel = true,
-    faceOpacity = 1, showHidden = false,
+    faceOpacity = 1, showHidden = false, underlay = null,
   } = opts;
   const scene = view.scene;
   const c = themeColors(theme);
@@ -388,6 +388,30 @@ export function draw(ctx, view, viewport, opts = {}) {
   ctx.lineWidth = 1;
   ctx.setLineDash([]);
   ctx.strokeRect(o.x + 0.5, o.y + 0.5, e.x - o.x, e.y - o.y);
+
+  // 0 — the reference image, UNDER everything.
+  //
+  // D67 — drawing over a photograph. Noah, 2026-08-01: "I want to consider
+  // importing and drawing over an image later." It is the other half of D65: the
+  // technique is to draw along two edges of a building in the photo and let their
+  // crossing give you its vanishing point.
+  //
+  // Placed in CANVAS coordinates so it pans and zooms with the drawing rather than
+  // sitting on the glass — an underlay you cannot align to is no use. Faded by its
+  // own opacity so your lines stay readable on top of it, and never drawn over,
+  // which is why it is step zero rather than a layer with an order to argue about.
+  if (underlay && underlay.img && underlay.opacity > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, underlay.opacity);
+    ctx.beginPath();
+    ctx.rect(o.x, o.y, e.x - o.x, e.y - o.y);
+    ctx.clip();
+    const w = (underlay.width ?? scene.canvas.width) * view.scale;
+    const h = (underlay.height ?? scene.canvas.height) * view.scale;
+    const at = toScreen(view, { x: underlay.x ?? 0, y: underlay.y ?? 0 });
+    try { ctx.drawImage(underlay.img, at.x, at.y, w, h); } catch { /* a broken image is not a crash */ }
+    ctx.restore();
+  }
 
   // 1 — grid
   if (showGrid) {

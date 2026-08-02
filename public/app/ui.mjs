@@ -21,12 +21,13 @@ import {
 import {
   createHistory, beginGesture, undo as undoHistory, redo as redoHistory, canUndo, canRedo,
   makeAutosaver, loadLastScene, listScenes, loadSceneById, saveScene, parseProjectJson,
+  saveUnderlay, loadUnderlay, clearUnderlay,
 } from "./state.mjs";
 import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.17.1";
+const VERSION = "1.18.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -108,6 +109,7 @@ function render() {
       showConstruction: prefs.showConstruction,
       showSolid: prefs.solid, showRays: prefs.rays, showEyeLevel: prefs.eyeLevel,
       showGrid: prefs.grid, faceOpacity: prefs.faceOpacity, showHidden: prefs.showHidden,
+      underlay,
       ghost, selection, activeVpId,
       extrudeHint: extrudeArrow(),
     });
@@ -1484,6 +1486,64 @@ function addRoom() {
   el.canvas.focus({ preventScroll: true });
   afterEdit(`Room drawn, running back to ${res.vp.label}. Turn on Solid to see the walls; move ${res.vp.label} to look somewhere else and the whole room follows.`);
 }
+// D67 — a photograph to draw over, kept on the device and drawn UNDER the work.
+//
+// The image is placed in canvas coordinates, so it pans and zooms with the
+// drawing — an underlay you cannot line up with is no use. It is stored as a blob
+// in IndexedDB rather than inside the project JSON, which keeps a project file
+// small and the photograph private; the cost, stated rather than discovered, is
+// that a project moved to another device arrives without its image.
+let underlay = null;
+
+async function useUnderlayBlob(blob, { save = true } = {}) {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error("that file is not an image this browser can read"));
+      i.src = url;
+    });
+    // Fit it to the paper, keeping its shape: a photograph stretched to the page
+    // would make every angle in it a lie, and angles are the whole point here.
+    const cw = scene.canvas.width, ch = scene.canvas.height;
+    const k = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
+    const w = img.naturalWidth * k, h = img.naturalHeight * k;
+    underlay = { img, url, x: (cw - w) / 2, y: (ch - h) / 2, width: w, height: h,
+      opacity: parseFloat($("underlay-opacity")?.value ?? "0.6") };
+    if (save) await saveUnderlay(scene.id, blob);
+    render();
+    return { ok: true };
+  } catch (e) {
+    URL.revokeObjectURL(url);
+    return { ok: false, reason: e?.message ?? String(e) };
+  }
+}
+
+$("underlay-file")?.addEventListener("change", async ev => {
+  const file = ev.target.files?.[0];
+  ev.target.value = "";
+  if (!file) return;
+  const res = await useUnderlayBlob(file);
+  if (!res.ok) { toast(res.reason, "error"); return; }
+  say("Reference image placed under the drawing. It stays on this device.");
+});
+
+$("underlay-opacity")?.addEventListener("change", () => {
+  if (!underlay) return;
+  underlay.opacity = parseFloat($("underlay-opacity").value);
+  render();
+});
+
+$("underlay-clear")?.addEventListener("click", async () => {
+  if (!underlay) { toast("There is no reference image to remove", "error"); return; }
+  URL.revokeObjectURL(underlay.url);
+  underlay = null;
+  await clearUnderlay(scene.id);
+  render();
+  say("Reference image removed. Nothing you drew has changed.");
+});
+
 // D65 — a point made from two lines you have drawn, and BOUND to them.
 //
 // Two taps rather than a drag: select a line, press Mark line, select another,
@@ -2176,6 +2236,8 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     // sampler the screen draws with rather than a copy of the maths.
     circlePoints,
     draw: () => render(),
+    // D67 — the walk checks the image is really kept on the device, not just drawn.
+    loadUnderlay,
     // D64 — the walk checks that Fit points actually brings every point onto
     // the screen, which is a fact about the VIEW rather than about the scene.
     view: () => ({ scale: view.scale, tx: view.tx, ty: view.ty }),

@@ -8,6 +8,26 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## 1.18.0 — CAPABILITY · 2026-08-02
+
+**Draw over a photograph.**
+
+- Setup, under *Reference image*: **Choose image**, pick a photo, and it sits
+  under your drawing. Faint, Half or Strong controls how much it shows;
+  **Remove** takes it away and changes nothing you have drawn.
+- It **pans and zooms with the drawing**, not with the screen — an image you
+  cannot line up with would be no use. It is fitted to the page keeping its own
+  shape, because a stretched photograph makes every angle in it a lie, and angles
+  are the point.
+- Together with *Point from two lines*, this is the whole technique for reading a
+  photo: draw along two edges of a building that are parallel in the world, make
+  a point where they cross, and the rest of your drawing runs to it.
+- **The photo never leaves your device.** It is kept in this browser's own
+  storage rather than inside the project file, which keeps project files small —
+  the trade is that a project copied to another device arrives without its image.
+
+---
+
 ## 1.17.1 — ITERATION · 2026-08-02
 
 **Nearly-parallel lines get an answer instead of a refusal.**
