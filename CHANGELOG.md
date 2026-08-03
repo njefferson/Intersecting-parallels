@@ -25,6 +25,28 @@ reader would otherwise rediscover, and they show in the app beside the fixes.
 
 ---
 
+## 1.21.1 — ITERATION · 2026-08-03
+
+**The report now says which device you are actually on.**
+
+From the first report Noah sent from his own device, which said
+*"Macintosh; Intel Mac OS X 10_15_7"* — the string an iPad sends too.
+
+- **Device.** Whether this is a touch device or a desktop, how many touch
+  points, the screen size, and whether the app is running from your home screen
+  or in a browser tab. Safari on an iPad deliberately reports itself as a Mac,
+  so the browser string alone could not tell those two apart — and on an app
+  built for the iPad first, that was the one thing most worth knowing.
+- **Offline.** Which cached copies of the app your device is holding, whether
+  the offline worker has taken over yet, and — the one that matters — **whether
+  a newer version is sitting there waiting for you to close every tab.** An app
+  that will not update looks perfectly fine from the outside; it is just old,
+  and nothing in the report could previously say so.
+- A setting that is switched off used to print as `forced=` with nothing after
+  it, which read like the report had broken off mid-word. It says `forced=none`.
+
+---
+
 ## 1.21.0 — CAPABILITY · 2026-08-03
 
 **One (i), and everything about the app behind it.**

@@ -2,6 +2,17 @@
 // §7d: one source, so the notes on screen cannot drift from the release.
 export const RELEASES = [
   {
+    "version": "1.21.1",
+    "kind": "ITERATION",
+    "date": "2026-08-03",
+    "head": "The report now says which device you are actually on.",
+    "points": [
+      "Device. Whether this is a touch device or a desktop, how many touch",
+      "Offline. Which cached copies of the app your device is holding, whether",
+      "A setting that is switched off used to print as `forced=` with nothing after"
+    ]
+  },
+  {
     "version": "1.21.0",
     "kind": "CAPABILITY",
     "date": "2026-08-03",
@@ -56,17 +67,6 @@ export const RELEASES = [
     "points": [
       "Reference image is now the first thing in Setup instead of the sixth. It is",
       "Choose image is a real button. It looked like one and behaved like one under"
-    ]
-  },
-  {
-    "version": "1.18.1",
-    "kind": "ITERATION",
-    "date": "2026-08-02",
-    "head": "Line the reference image up with the paper.",
-    "points": [
-      "Bigger, Smaller and four arrows place the image; Refit puts it back",
-      "Growing it holds its middle, so whatever you were looking at stays under your",
-      "Every step is a button rather than a pinch, and the buttons are the only route,"
     ]
   }
 ];

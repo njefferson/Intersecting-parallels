@@ -28,7 +28,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.21.0";
+const VERSION = "1.21.1";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1496,6 +1496,65 @@ function addRoom() {
 //
 // Privacy: this app holds no location and no account, so there is nothing to
 // coarsen — and saying that plainly is better than an opt-in nobody needs.
+// What the user-agent string CANNOT tell you, which on this project is most of
+// what matters. iPadOS Safari sends the macOS UA — "Macintosh; Intel Mac OS X
+// 10_15_7" — so the first real report from Noah's own device was indistinguishable
+// from a desktop Mac, on a project whose every decision is iPad-first. A 1180x581
+// viewport is equally plausible either way.
+//
+// maxTouchPoints is the honest discriminator: iPadOS reports 5, a Mac reports 0,
+// and neither can be spoofed by a compatibility UA. Everything here is a fact
+// about the DEVICE that the browser string either hides or actively misstates.
+function deviceLines() {
+  const L = [];
+  const touch = navigator.maxTouchPoints ?? 0;
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  // Stated as a guess, and labelled one. A wrong guess presented as a fact is
+  // worse than the UA string it replaces.
+  const guess = touch > 0 && coarse
+    ? "a touch device (tablet or phone) — the browser string may claim otherwise"
+    : "a desktop or laptop with a mouse or trackpad";
+  L.push(`  looks like: ${guess}`);
+  L.push(`  touch points ${touch} · coarse pointer ${coarse} · screen ${screen.width}x${screen.height} at ${devicePixelRatio}x`);
+  L.push(`  installed to the home screen: ${standalone ? "YES, running as an app" : "no, running in a browser tab"}`);
+  return L;
+}
+
+// A PWA that will not update is the classic offline-app fault, and it is exactly
+// invisible from the outside: the app LOOKS fine, it is just old. The version at
+// the top of this report is whatever the service worker served, so on its own it
+// cannot distinguish "1.21.0 is current" from "1.21.0 is what the cache still
+// holds". These lines say which caches exist and whether a newer worker is
+// sitting there waiting — gathered asynchronously, so they are kept here and
+// refreshed rather than computed inline.
+let swState = ["  (not checked yet)"];
+async function refreshSwState() {
+  const L = [];
+  try {
+    if (!("serviceWorker" in navigator)) {
+      swState = ["  this browser has no service worker, so the app is not available offline"];
+      return;
+    }
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) L.push("  no service worker registered — the app will NOT work offline");
+    else {
+      L.push(`  controlling this page: ${navigator.serviceWorker.controller ? "yes" : "NO — a reload is needed before it takes over"}`);
+      if (reg.waiting) L.push("  A NEWER VERSION IS WAITING. Close every tab of this app and reopen it.");
+      if (reg.installing) L.push("  a newer version is downloading right now");
+    }
+    const names = ("caches" in self) ? await caches.keys() : [];
+    const mine = names.filter(n => n.startsWith("intersecting-parallels-"));
+    L.push(`  caches held: ${mine.join(", ") || "none"}`);
+    const stale = mine.filter(n => n !== `intersecting-parallels-${VERSION}`);
+    if (stale.length) L.push(`  older caches still present: ${stale.join(", ")} — usually harmless, cleared on the next update`);
+  } catch (e) {
+    L.push(`  could not be read: ${e}`);
+  }
+  swState = L;
+}
+refreshSwState();
+
 function diagnosticText() {
   const L = [];
   const hz = horizonLine(scene);
@@ -1536,8 +1595,19 @@ function diagnosticText() {
   L.push(`  reference image: ${underlay ? `${Math.round(underlay.width)}x${Math.round(underlay.height)} at ${Math.round(underlay.x)}, ${Math.round(underlay.y)}, opacity ${underlay.opacity}` : "none"}`);
   L.push("");
 
+  L.push("DEVICE");
+  L.push(...deviceLines());
+  L.push("");
+
+  L.push("OFFLINE");
+  L.push(...swState);
+  L.push("");
+
   L.push("SETTINGS");
-  L.push("  " + Object.entries(prefs).map(([k, v]) => `${k}=${v}`).join(" "));
+  // An empty value printed as `forced=` reads like the report broke off
+  // mid-word. A setting that is off says so.
+  L.push("  " + Object.entries(prefs)
+    .map(([k, v]) => `${k}=${v === "" ? "none" : v}`).join(" "));
   L.push("");
   L.push("PRIVACY: this app has no account, no network and no location. Nothing here");
   L.push("identifies you beyond the browser string above, which you can delete.");
@@ -1548,6 +1618,10 @@ function showDiagnostic() {
   const t = $("diag-text");
   if (t) t.value = diagnosticText();
   $("dlg-diag")?.showModal();
+  // Re-read the worker state and rewrite in place. The first render uses what
+  // was gathered at boot, so it is never blank; this keeps a second opening
+  // honest if an update landed in between.
+  refreshSwState().then(() => { if (t && $("dlg-diag")?.open) t.value = diagnosticText(); });
 }
 
 $("open-diag")?.addEventListener("click", () => { $("dlg-notes")?.close(); showDiagnostic(); });
@@ -2389,6 +2463,11 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
 
   if ("serviceWorker" in navigator) {
     try { await navigator.serviceWorker.register("/sw.js"); } catch { /* offline support unavailable; the app still runs */ }
+    // AFTER registration, not before. The module-load call races it and comes
+    // back "no service worker registered" on a first load — which is not merely
+    // stale, it is the opposite of the truth, and it would have been reported as
+    // a fault on the one screen whose job is to report faults accurately.
+    await refreshSwState();
   }
 
   // A deliberate, read-mostly hook onto the running app, used by walk.mjs to

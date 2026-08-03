@@ -9,7 +9,7 @@ file's first content, per the handoff.
 
 ## STAGED CANDIDATE — waiting on Noah
 
-**Version 1.21.0**, on `staging`, at
+**Version 1.21.1**, on `staging`, at
 **https://staging.intersecting-parallels.pages.dev**
 
 That is the preview to open on the iPad. Production is
@@ -912,6 +912,44 @@ used to end this amendment — "the corners are adjustable afterwards precisely
 because they are constrained" — was true of the data model and false of the app:
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
+
+### D75 — the report answers the question the browser string dodges (SHIPPED 1.21.1, staging)
+
+**The §7f loop closed for the first time, and it worked.** Noah opened the app on
+his own device, pressed Report a problem, and sent the text — no screenshot, no
+description. That is the whole of what §7f asks for, and it took one release.
+
+**And the first real report exposed the gap immediately.** It said
+`Macintosh; Intel Mac OS X 10_15_7 … Version/26.5.2 Safari`, viewport 1180x581.
+**iPadOS Safari sends the macOS user-agent**, so that string is what an iPad
+reports too, and 1180x581 is equally plausible as an iPad in landscape or a Mac
+window. On a project where every decision is iPad-first, the single fact most
+worth having was the one the report could not carry — and worse, it carried a
+confident-looking wrong answer instead of an absence.
+
+`navigator.maxTouchPoints` is the honest discriminator: iPadOS reports 5, a Mac
+reports 0, and a compatibility UA cannot spoof it. The report now gives touch
+points, pointer coarseness, screen size, device pixel ratio, and whether the app
+is running from the home screen or a browser tab. The plain-language line is
+**labelled a guess**, because a wrong guess presented as a fact is worse than the
+string it replaces.
+
+**Offline state, for the fault that is invisible from outside.** A PWA that will
+not update looks perfectly fine — it is just old. The version at the top of the
+report is whatever the service worker served, so on its own it cannot distinguish
+"1.21.0 is current" from "1.21.0 is what the cache still holds". It now lists the
+caches present, whether the worker is controlling the page, and whether a newer
+version is waiting on a tab close.
+
+**Building it found a real ordering bug in the app, not just in the check.**
+`refreshSwState()` at module load races `serviceWorker.register()` and comes back
+*"no service worker registered"* on a first load. That is not stale — it is the
+**opposite of the truth**, reported on the one screen whose job is to be accurate
+about faults. It runs after registration now. The walk caught it because the
+check asked for `controlling this page: yes|NO` and got neither.
+
+Three checks, three plants, one each. And `forced=` now prints `forced=none`: an
+empty value read like the report had broken off mid-word.
 
 ### D74 — the gate checks its own coverage now (tooling, no release)
 

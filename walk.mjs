@@ -3406,6 +3406,27 @@ try {
     check('and it states the privacy position instead of leaving it to be guessed (§7f)',
       /no account, no network and no location/.test(clean), clean.slice(-140));
 
+    // The first real report Noah sent said "Macintosh; Intel Mac OS X 10_15_7"
+    // — which is what iPadOS Safari sends too. On an iPad-first project the one
+    // fact most worth having was the one the report could not carry, and a
+    // 1180x581 viewport is equally plausible either way. maxTouchPoints cannot
+    // be spoofed by a compatibility UA; the browser string can.
+    check('§7f — the report says what the browser string HIDES about the device',
+      /DEVICE/.test(clean) && /looks like: /.test(clean) && /touch points \d+/.test(clean)
+        && /screen \d+x\d+ at [\d.]+x/.test(clean)
+        && /installed to the home screen: (YES|no)/.test(clean),
+      JSON.stringify(clean.split('\n').filter(l => /looks like|touch points|home screen/.test(l))));
+    // A PWA that will not update is invisible from outside: the app looks fine,
+    // it is just old. The version at the top is whatever the worker served, so
+    // on its own it cannot tell "current" from "what the cache still holds".
+    check('§7f — and whether the offline cache is current, which the version alone cannot say',
+      /OFFLINE/.test(clean) && /caches held: intersecting-parallels-\d+\.\d+\.\d+/.test(clean)
+        && /controlling this page: (yes|NO)/.test(clean),
+      JSON.stringify(clean.split('\n').filter(l => /caches held|controlling this page/.test(l))));
+    check('and no setting prints as a bare "key=" with nothing after it',
+      !/ \w+= /.test(clean) && !/\w+=$/m.test(clean) && /forced=none/.test(clean),
+      JSON.stringify((clean.split('\n').find(l => /forced=/.test(l)) || '').slice(0, 120)));
+
     // Break the horizon with the point's OWN control, then ask the report. A
     // fault the walk plants through a back door proves the formatter; a fault
     // planted through the panel proves the report is looking at the live scene.

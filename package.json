@@ -1,6 +1,6 @@
 {
   "name": "intersecting-parallels",
-  "version": "1.21.0",
+  "version": "1.21.1",
   "private": true,
   "type": "module",
   "description": "Tooling for intersecting-parallels.pages.dev. The deployed site is public/ and has no build step; these scripts run the accessibility gate.",
