@@ -913,6 +913,36 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D74 — the gate checks its own coverage now (tooling, no release)
+
+Two omissions in three days, identical in shape: §7d's release notes and §7f's
+diagnostic each shipped without ever being measured, because **a gate cannot fail
+on a screen it never opens** and nothing compared the gate's list of surfaces to
+the app's. D70 stated that rule and I still broke it twice, which is the tell:
+a rule I have to remember is a rule I will forget on a long day.
+
+So `a11y-gate.mjs` now reads `public/index.html`, extracts every `<dialog id>`,
+and fails if any of them has no state that opens it — and fails the other way too,
+if a state names a surface the app no longer has, because that state has silently
+stopped measuring anything. Each state carries an explicit `surface:` id so the
+two lists can be compared at all. Planted both directions: adding a `dlg-credits`
+nobody audits fails; renaming a state's surface fails twice, once for the orphan
+and once for the newly-unaudited dialog.
+
+**And a second check, from a mistake I nearly made an hour ago.** SC 2.5.3 says a
+control's visible words must appear in its accessible name. My existing check does
+a substring test — so an (i) button with `aria-label="Information — …"` passes,
+because `"information".includes("i")`. It would have passed for a reason that has
+nothing to do with the criterion, leaving a control whose spoken label is one
+letter that no voice user can say. **A check satisfiable by coincidence is worse
+than no check, because it reports coverage it does not have.** A control now fails
+if its visible text is a single alphanumeric character and it carries an
+`aria-label`; the honest markup is `aria-hidden` on the glyph and an `.sr-only`
+name, which is what the (i) ships with. Planted with the exact markup I nearly
+wrote, and it fails on all four surface/theme combinations.
+
+No version bump: this changes no byte the reader receives.
+
 ### D73 — one information surface, and it is an (i) (SHIPPED 1.21.0, staging)
 
 Doctrine §7e, built rather than deferred. The App had an About panel that covered

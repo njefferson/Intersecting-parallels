@@ -70,30 +70,30 @@ const PAGES = [
       // thing anyone sees, so it is audited in the commit that introduces it. It
       // opens by itself, which is why it has no `open` selector and instead asks
       // for a clean slate.
-      { name: 'welcome', open: null, firstRun: true,
+      { name: 'welcome', open: null, firstRun: true, surface: 'dlg-welcome',
         registry: ['.dlg-head h2', '.dlg-body', '.dlg-body li', '.dlg-body .hint'] },
       { name: 'canvas', open: null },
       // D47 — the Setup panel is a surface in its own right: nine controls that
       // used to be on the toolbar and were measured there. Opened here so they
       // keep their 44px and their contrast rather than quietly leaving coverage
       // when they moved.
-      { name: 'setup', open: '#show-setup', opened: '#setup[data-on="true"]', registry: ['.panel-head h2', '.panel-sec', '.btn'] },
-      { name: 'export', open: '#open-export', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body label', '.hint'] },
+      { name: 'setup', open: '#show-setup', opened: '#setup[data-on="true"]', surface: 'setup', registry: ['.panel-head h2', '.panel-sec', '.btn'] },
+      { name: 'export', open: '#open-export', surface: 'dlg-export', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body label', '.hint'] },
       // Not '.empty' here: whether the saved-projects list is empty depends on
       // whether autosave has fired yet, and a registry entry that matches only
       // sometimes is a flaky gate. Its pair (--muted on --surface) is the same
       // one '.hint' registers, so the colours are covered without the flake.
-      { name: 'project', open: '#open-project', registry: ['.dlg-head h2', '.dlg-body label', '.dlg-body h3'] },
-      { name: 'about', open: '#open-about', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body a', '.dlg-body li'] },
+      { name: 'project', open: '#open-project', surface: 'dlg-project', registry: ['.dlg-head h2', '.dlg-body label', '.dlg-body h3'] },
+      { name: 'about', open: '#open-about', surface: 'dlg-about', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body a', '.dlg-body li'] },
       // §7d and §7f. Both shipped without joining this list, and neither was
       // measured once — the doctrine says a new surface is audited in the commit
       // that introduces it, and twice running it was not. The lesson is the one
       // 1.18.3 already paid for: audit what the gate SELECTS. A gate cannot fail
       // on a surface it never opens.
-      { name: 'notes', open: '#build-stamp', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body h3', '.dlg-body li'] },
+      { name: 'notes', open: '#build-stamp', surface: 'dlg-notes', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body h3', '.dlg-body li'] },
       // Two clicks, because the report is reached from inside What changed. A
       // surface behind another surface is still a surface.
-      { name: 'diag', open: ['#build-stamp', '#open-diag'], opened: '#dlg-diag[open]',
+      { name: 'diag', open: ['#build-stamp', '#open-diag'], opened: '#dlg-diag[open]', surface: 'dlg-diag',
         registry: ['.dlg-head h2', '.dlg-body .hint', '#diag-text'] },
     ],
   },
@@ -114,6 +114,36 @@ const failures = [];
 const notes = [];
 const exemptions = new Set();
 const fail = (where, msg) => failures.push(`${where}: ${msg}`);
+
+// ---- coverage: does this gate OPEN every surface the app has? --------------
+//
+// Twice in three days a surface shipped without ever being measured — §7d's
+// release notes and §7f's diagnostic — and both times the omission was silent,
+// because a gate cannot fail on a screen it never opens. The list above was the
+// single point of failure and nothing checked it against the app.
+//
+// So the app's own markup is the source of truth for what surfaces exist, and
+// PAGES is compared against it. Adding a <dialog> and forgetting the state now
+// fails HERE, in the commit that adds it, rather than in three days' time when
+// someone happens to look. D70's rule, made mechanical: audit what the gate
+// SELECTS, not what it asserts.
+{
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const inApp = [...html.matchAll(/<dialog[^>]*\sid="([^"]+)"/g)].map(m => m[1]);
+  const covered = new Set(PAGES.flatMap(p => p.states.map(s => s.surface).filter(Boolean)));
+  const unaudited = inApp.filter(id => !covered.has(id));
+  if (unaudited.length) {
+    fail('coverage',
+      `${unaudited.length} surface(s) exist in index.html but no state opens them: ${unaudited.join(', ')}. `
+      + 'A gate cannot fail on a screen it never opens — add a state to PAGES in this commit.');
+  }
+  // And the reverse: a state naming a surface that no longer exists is coverage
+  // that silently stopped applying.
+  const stale = [...covered].filter(id => !inApp.includes(id) && !html.includes(`id="${id}"`));
+  if (stale.length) {
+    fail('coverage', `PAGES names ${stale.join(', ')}, which the app no longer has — that state measures nothing.`);
+  }
+}
 
 const server = await serveRoot();
 const origin = `http://127.0.0.1:${server.address().port}`;
@@ -434,7 +464,26 @@ try {
             return !aria.includes(seen);
           }).map(el => `${el.id || el.tagName.toLowerCase()}: shows "${shownText(el)}", named "${el.getAttribute('aria-label')}"`);
 
+          // SC 2.5.3, the case the check above cannot see. A control showing ONE
+          // letter and carrying an aria-label passes "the visible words appear in
+          // the label" by pure substring accident — "Information" contains "i",
+          // so an (i) button would have sailed through while leaving a control
+          // whose spoken label is a single letter, which nobody can say.
+          //
+          // The criterion is about text a reader would SPEAK. One character is a
+          // symbol wearing letter's clothing, so the honest markup is the same as
+          // for any icon: mark the glyph aria-hidden and give the control a real
+          // name in an .sr-only span. Then there is no visible text for 2.5.3 to
+          // be about, and voice control gets a phrase instead of a keystroke.
+          const glyphNamed = inter.filter(visible).filter(el => {
+            if (!el.getAttribute('aria-label')) return false;
+            const seen = shownText(el);
+            return seen.length === 1 && /[a-z0-9]/i.test(seen);
+          }).map(el => `${el.id || el.tagName.toLowerCase()}: shows the single character "${shownText(el)}" `
+            + `and is named "${el.getAttribute('aria-label')}" — mark the glyph aria-hidden and name it with an .sr-only span instead`);
+
           return {
+            glyphNamed,
             smallTargets: small,
             inlineExempt: exempt,
             imgsNoAlt,
@@ -459,6 +508,7 @@ try {
         for (const n of custom.notFocusable) fail(at, `SC 2.1.1 — control cannot take keyboard focus: ${n}`);
         for (const d of custom.dupeNames) fail(at, `two controls answer to the same name — ${d} (D56)`);
         for (const l of custom.labelInName) fail(at, `SC 2.5.3 Label in Name — ${l}`);
+        for (const l of custom.glyphNamed) fail(at, `SC 2.5.3 (one-letter label) — ${l}`);
         if (!custom.lang) fail(at, 'document has no lang attribute');
         if (custom.h1 !== 1) fail(at, `expected exactly one <h1>, found ${custom.h1}`);
         if (VERBOSE) console.log(`  ${at} targets ok, lang="${custom.lang}", h1=${custom.h1}`);
