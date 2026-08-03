@@ -23,11 +23,12 @@ import {
   makeAutosaver, loadLastScene, listScenes, loadSceneById, saveScene, parseProjectJson,
   saveUnderlay, loadUnderlay, clearUnderlay,
 } from "./state.mjs";
+import { RELEASES, STILL_OPEN } from "./notes.mjs";
 import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.18.3";
+const VERSION = "1.19.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1486,6 +1487,42 @@ function addRoom() {
   el.canvas.focus({ preventScroll: true });
   afterEdit(`Room drawn, running back to ${res.vp.label}. Turn on Solid to see the walls; move ${res.vp.label} to look somewhere else and the whole room follows.`);
 }
+// §7d — the patch notes surface. Reached from the version stamp, because that is
+// what a reader looks at when they want to know what changed. Never a modal that
+// interrupts: it opens on request only.
+function renderNotes() {
+  const body = $("notes-body");
+  if (!body) return;
+  body.textContent = "";
+  const h = (tag, text, cls) => {
+    const n = document.createElement(tag);
+    if (text) n.textContent = text;
+    if (cls) n.className = cls;
+    return n;
+  };
+  if (STILL_OPEN.length) {
+    body.appendChild(h("h3", "Still open"));
+    body.appendChild(h("p", "Things that do not work yet, so you do not have to find them.", "hint"));
+    const ul = document.createElement("ul");
+    for (const item of STILL_OPEN) ul.appendChild(h("li", item));
+    body.appendChild(ul);
+  }
+  for (const r of RELEASES) {
+    body.appendChild(h("h3", `${r.version} — ${r.date}`));
+    if (r.head) body.appendChild(h("p", r.head));
+    if (r.points.length) {
+      const ul = document.createElement("ul");
+      for (const p of r.points) ul.appendChild(h("li", p));
+      body.appendChild(ul);
+    }
+  }
+}
+
+$("build-stamp")?.addEventListener("click", () => {
+  renderNotes();
+  $("dlg-notes")?.showModal();
+});
+
 // D67 — a photograph to draw over, kept on the device and drawn UNDER the work.
 //
 // The image is placed in canvas coordinates, so it pans and zooms with the
@@ -2212,7 +2249,13 @@ $("open-about").addEventListener("click", () => {
 
 // The build stamp is written at BOOT, not when some dialog opens: its whole
 // purpose is that a screenshot taken at any moment says which build it is.
-if (el.build) el.build.textContent = VERSION;
+// §7d + SC 2.5.3 — the name must CONTAIN what the button says, and what it says
+// is the version, which is only known at runtime. Naming it "App version" in the
+// markup showed 1.18.3 and answered to something else entirely.
+if (el.build) {
+  el.build.textContent = VERSION;
+  el.build.setAttribute("aria-label", `${VERSION} — what changed`);
+}
 
 const autosaver = makeAutosaver(() => scene, () => prefs);
 

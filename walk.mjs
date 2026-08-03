@@ -2578,6 +2578,33 @@ try {
     const refit = box();
     return { start, bigger, right, down, refit };
   }, PNG);
+  // §7d — the patch notes are IN the app, behind the version stamp, and they say
+  // what is still broken as well as what was fixed.
+  const notes = await uiPage.evaluate(() => {
+    const stamp = document.getElementById('build-stamp');
+    const shown = stamp.textContent.trim();
+    stamp.click();
+    const dlg = document.getElementById('dlg-notes');
+    const body = document.getElementById('notes-body');
+    const heads = [...body.querySelectorAll('h3')].map(h => h.textContent.trim());
+    const out = {
+      opensFromStamp: dlg.open,
+      stampSaysVersion: /^\d+\.\d+\.\d+$/.test(shown),
+      nameHasVersion: (stamp.getAttribute('aria-label') || '').includes(shown),
+      saysStillOpen: heads.some(h => /still open/i.test(h)),
+      releases: heads.filter(h => /^\d+\.\d+\.\d+ —/.test(h)).length,
+      items: body.querySelectorAll('li').length,
+    };
+    dlg.close();
+    out.closes = !dlg.open;
+    return out;
+  });
+  check('the version stamp opens patch notes that say what is still broken (§7d)',
+    notes.opensFromStamp && notes.stampSaysVersion && notes.nameHasVersion
+      && notes.saysStillOpen && notes.releases >= 3 && notes.releases <= 6
+      && notes.items > 6 && notes.closes,
+    JSON.stringify(notes));
+
   // D69 — Choose image is a real, focusable button, and it is the FIRST thing in
   // Setup. Noah, 2026-08-02: "Where do I load the image?" — it was a <label>
   // dressed as a button, five sections down.
@@ -2868,7 +2895,12 @@ try {
     const stage = document.getElementById('stage');
     return {
       height: Math.round(header.getBoundingClientRect().height),
-      controls: header.querySelectorAll('button, select').length,
+      // Controls in the bar's GROUPS. The title and the version stamp sit outside
+      // any group and are not things you reach for — the stamp became a button
+      // when it started opening the patch notes (§7d), and counting it would have
+      // made a status readout compete with the cap on actual controls. The cap
+      // itself has not moved: it caught a real regression at 21 and stays at 20.
+      controls: header.querySelectorAll('.bar-group button, .bar-group select').length,
       stageShare: Math.round(stage.getBoundingClientRect().height / window.innerHeight * 100),
     };
   });

@@ -896,6 +896,48 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D71 — patch notes in the app, from one source (SHIPPED 1.19.0, staging)
+
+The hub gained **Doctrine §7d** on 2026-08-03, and its CLAUDE.md names this repo
+among those that inherit it: *"each needs the surface built; none has one yet."*
+Built here.
+
+Tap the version stamp — that is where a reader looks when they want to know what
+changed, so putting the notes anywhere else costs a hunt. Six releases, bounded,
+because a list that grows by accumulation eventually becomes the app.
+
+**Still open comes first, above the fixes.** §7d: *an app that lists only its
+fixes is an advertisement.* The four things currently on it are real — the snap
+radius, ungated target spacing, a reference image never tested against a real
+photograph, and the missing §7e/§7f surfaces.
+
+**One source, enforced.** `notes-build.mjs` derives `public/app/notes.mjs` from
+CHANGELOG.md; `npm run notes:check` fails if the committed file has fallen behind,
+and it runs in CI. That is the difference between "one source" as a rule and as an
+intention — planted by editing a version in the generated file, and it fails.
+
+**Three things went wrong building it, all caught by gates I already had.**
+
+1. The parser used `(?=\n## |\n*$)` with the `m` flag, and `\n*$` matches at the
+   end of EVERY line under `/m` — so every release body captured empty and the app
+   showed six headings with no bullets. It splits on headings now, and REFUSES to
+   write rather than emit empty notes: a generator that silently produces nothing
+   is worse than one that throws.
+2. My own SC 2.5.3 check failed the stamp — it showed "1.18.3" and answered to
+   "App version", so saying what is written on it did nothing. The name is built
+   from the version at runtime now. A check added yesterday catching today's work
+   is the point of adding it.
+3. The stamp became a button, which took the toolbar to 21 against D47's cap of
+   20. The cap did NOT move. What changed is what it counts: controls inside the
+   bar's GROUPS, where the title and the version stamp sit outside any group and
+   are not things you reach for. A status readout should not compete with the
+   budget for actual controls.
+
+**Still owed from the hub's new baseline:** §7e's (i) surface (what the app is and
+is not, install instructions with platforms named, data sources, how to report a
+problem, licence) and §7f's text diagnostic. Both are on the Still open list where
+a reader can see them.
+
 ### D70 — auditing what a gate SELECTS (SHIPPED 1.18.3, staging)
 
 D69 ended with "the way to find more is to audit what each gate selects, not what

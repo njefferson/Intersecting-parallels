@@ -8,6 +8,34 @@ Noah decides what counts as a version — the first slot, what the app IS.
 
 ---
 
+## Still open
+
+§7d: an app that lists only its fixes is an advertisement. These are the things a
+reader would otherwise rediscover, and they show in the app beside the fixes.
+
+- The snap radius is a fixed number rather than something you can tune to your
+  own hand and stylus.
+- Target *spacing* is not checked by the accessibility gate — only target size is.
+- The reference image has never been tested against a real photograph, only a
+  two-pixel test image, so how well the opacity steps read is unknown.
+- There is no (i) surface yet, and no diagnostic report to send instead of a
+  screenshot.
+
+---
+
+## 1.19.0 — CAPABILITY · 2026-08-03
+
+**The app tells you what changed, and what is still broken.**
+
+- Tap the **version number** in the corner. You get the last six releases in
+  plain words, and above them a **Still open** list — the things that do not work
+  yet, so you find them here rather than by running into them.
+- The notes come from the same file the release itself is written in, so what you
+  read on screen cannot drift from what actually shipped. A check fails the build
+  if it ever does.
+
+---
+
 ## 1.18.3 — ITERATION · 2026-08-02
 
 **The accessibility gate now checks every control, not most of them.**

@@ -17,11 +17,13 @@
     "render:art": "node render-art.mjs",
     "interactions": "node check-interactions.mjs",
     "walk": "node walk.mjs",
-    "walk:shots": "node walk.mjs --shots"
+    "walk:shots": "node walk.mjs --shots",
+    "notes": "node notes-build.mjs",
+    "notes:check": "node notes-build.mjs --check"
   },
   "devDependencies": {
     "axe-core": "4.10.2",
     "playwright-core": "1.56.0"
   },
-  "//browser": "playwright-core 1.56.0 ships chromium revision 1194, which matches /opt/pw-browsers/chromium-1194 in the session sandbox. These are a MATCHED PAIR (hub LESSONS §8): the gate launches that executablePath when present, and a playwright-core expecting a different revision connects and then hangs on a protocol mismatch with no error. If the sandbox browser changes, re-pin here and re-verify."
+  "//browser": "playwright-core 1.56.0 ships chromium revision 1194, which matches /opt/pw-browsers/chromium-1194 in the session sandbox. These are a MATCHED PAIR (hub LESSONS \u00a78): the gate launches that executablePath when present, and a playwright-core expecting a different revision connects and then hangs on a protocol mismatch with no error. If the sandbox browser changes, re-pin here and re-verify."
 }

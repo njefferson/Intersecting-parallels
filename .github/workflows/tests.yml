@@ -35,3 +35,7 @@ jobs:
       - run: npm ci
 
       - run: npm test
+      # §7d — the notes on screen are generated from CHANGELOG.md. This fails if
+      # the committed file has fallen behind, which is what makes "one source"
+      # a rule rather than an intention.
+      - run: npm run notes:check

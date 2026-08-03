@@ -39,7 +39,10 @@
     <h1 class="title">Intersecting Parallels</h1>
     <!-- Doctrine §5: the running version is ON SCREEN, so a screenshot says
          which build it came from without anyone having to remember. -->
-    <span class="build" id="build-stamp" aria-label="App version"></span>
+    <!-- §7d — the version stamp IS the way in to the patch notes. A reader who
+         wants to know what changed looks at the version first; putting the notes
+         anywhere else costs them a hunt. -->
+    <button class="build" id="build-stamp" type="button" aria-label="Version — what changed"></button>
 
     <div class="bar-group" role="group" aria-label="Drawing mode">
       <button class="btn" id="mode-place" type="button" aria-pressed="true">Place</button>
@@ -418,6 +421,20 @@
       <label class="sr-only" for="pr-file">Choose a project file to open</label>
       <input type="file" id="pr-file" accept="application/json,.json" class="sr-only">
     </div>
+  </form>
+</dialog>
+
+<!-- §7d — what changed, and what is still broken. Generated from CHANGELOG.md
+     by notes-build.mjs; nothing here is typed twice, and `npm run notes:check`
+     fails if it drifts. Bounded to six releases: a list that grows by
+     accumulation eventually becomes the app. -->
+<dialog id="dlg-notes" aria-labelledby="notes-title">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h2 id="notes-title">What changed</h2>
+      <button class="btn" type="submit" value="close" aria-label="Close what changed">Close</button>
+    </div>
+    <div class="dlg-body" id="notes-body"></div>
   </form>
 </dialog>
 

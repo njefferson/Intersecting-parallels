@@ -109,7 +109,13 @@ button,select,input[type="number"],input[type="text"]{font:inherit;font-size:var
 /* The build stamp. A real colour token, never opacity: an opacity is invisible
    to a contrast gate, which is how two sibling apps shipped a stamp that
    measured 2.54:1 while the gate read 4.79:1 (hub LESSONS §8). */
+/* §7d — the stamp is a BUTTON now (it opens the patch notes), so it needs a
+   target like any other. It stays visually a stamp: the 44px is height, not a
+   box drawn around it. */
 .build{
+  min-height:2.75rem;
+  background:none;border:0;cursor:pointer;
+  padding:0 .25rem;
   font-size:0.75rem;
   font-variant-numeric:tabular-nums;
   color:var(--muted);
