@@ -26,6 +26,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          # No step here pushes, so the runner has no use for a git
+          # credential — and checkout leaves one in .git/config by default,
+          # where any later step (or anything a dependency pulls in) can
+          # read it. zizmor: artipacked. SECURITY.md threat #2.
+          persist-credentials: false
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:

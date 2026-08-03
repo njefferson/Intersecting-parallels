@@ -17,6 +17,21 @@ built at **intersecting-parallels.pages.dev**. Static, self-contained, no build
 step; npm is dev tooling only (the accessibility gate). `public/` is the
 deployed site.
 
+## FIRST, before anything else: what has the hub done since?
+```
+node ../noahjefferson/doctrine-sync.mjs --repo .
+```
+It names what has landed in the hub since this repo last reconciled — files,
+commits, and **which sections of DOCTRINE.md**. Read them, do anything this repo
+now owes, then `--adopt`. The marker lives in `.doctrine-sync`.
+
+This exists because the hub moves fast and a link is only followed if somebody
+remembers to follow it. It is not theoretical: the first run of it here reported
+`SECURITY.md`, which listed this repo under *"Not in reach this session"* — its
+security baseline had never been run, and running it found a git credential
+persisted on the runner beside a live Cloudflare token in every workflow.
+Twenty releases had shipped over that. See hub LESSONS §30.
+
 ## Source of truth
 `NOTES.md`, first, every session — thesis, the name and its graveyard, the
 settled design (the D1–D10 amendments to `vpdrawingappspec.md`), Project facts,
