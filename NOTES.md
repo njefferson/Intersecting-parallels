@@ -896,6 +896,64 @@ because they are constrained" — was true of the data model and false of the ap
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
 
+### D72 — the diagnostic report (SHIPPED 1.20.0, staging)
+
+Doctrine §7f: **ask Noah for a text report, never for a screenshot.** Built here,
+reached from inside What changed — the version stamp already gathers "tell me
+about this build", and a second entry point on the toolbar would be a control
+nobody presses twice a year.
+
+**It leads with what is WRONG.** That ordering is the whole design. A dump that
+opens with an inventory and buries the fault four sections down is a dump; the
+first thing under the build line is either the list of faults or the sentence
+*nothing the app can detect*. Saying so out loud matters as much as the list —
+a report that goes quiet when it finds nothing is indistinguishable from a
+report that never looked.
+
+**Every fault carries its reason, not a flag.** `corner v5 could NOT be placed —
+its guide has no direction from where it sits (usually a corner dragged onto its
+own vanishing point)`. That is the class of fault the report exists for: a
+degenerate corner keeps its last valid position on screen (solver.mjs line 390,
+`x,y untouched — the last-valid cache`), so it looks *perfectly fine* in a
+screenshot. The screenshot is not merely less useful here — it is actively
+misleading, and no amount of asking for a better one would help.
+
+**Twelve checks in the walk, all twelve planted against.** Six content faults in
+one run (no build line, going quiet when clean, horizon with no reason,
+degenerate corner with no reason, no inventory, no privacy statement) → exactly
+six failures, one per plant, no cross-talk. Then the ordering moved to the
+bottom, Refresh made a no-op, and Copy truncated to one line → exactly three.
+Then the entry point removed → the route check fails with `reachable:false`.
+
+The Copy plant is the one worth keeping: it still *announced* "Diagnostic report
+copied", and the check caught it because it compares the clipboard to the text
+on screen rather than trusting the announcement. A check that reads the app's own
+claim of success is not a check.
+
+**The fault planted the way a person would hit it.** Not by writing `degenerate:
+true` into the scene — by moving a vanishing point onto a corner's origin through
+`moveVp`, the same path the panel uses. `manipulate` cannot produce this state at
+all (`clampT` bounds a ray short of its own VP, solver.mjs 614), so dragging the
+corner is not the route; dragging the POINT is. Planting through a back door
+would have proved the formatter and nothing else.
+
+**And the gate found a real bug the moment it was pointed at the new surface.**
+The §7d release-notes list scrolls, and had no keyboard route into it —
+`scrollable-region-focusable`, serious, both themes. It shipped in 1.19.0 without
+ever being measured, because **adding a surface and adding it to the a11y gate's
+`PAGES` are two separate acts and I only did the first.** That is D70's lesson
+arriving a second time in three days, from the same blind spot: a gate cannot
+fail on a surface it never opens. Both `notes` and `diag` are in `PAGES` now — 8
+surfaces, up from 6 — and `open` accepts a *route* rather than one selector, so a
+surface reached through another surface can be audited at all. The step
+attribution was itself planted: break step 1, it says step 1; break step 2, it
+says step 2.
+
+**Still owed from the hub's baseline:** §7e's (i) surface — what the app is and
+is not, install instructions with every platform NAMED, data sources with terms,
+how to report a problem, licence, and the first-run orientation moved (never
+copied) behind it. It is on the Still open list where a reader can see it.
+
 ### D71 — patch notes in the app, from one source (SHIPPED 1.19.0, staging)
 
 The hub gained **Doctrine §7d** on 2026-08-03, and its CLAUDE.md names this repo

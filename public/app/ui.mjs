@@ -28,7 +28,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.19.0";
+const VERSION = "1.20.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1487,6 +1487,83 @@ function addRoom() {
   el.canvas.focus({ preventScroll: true });
   afterEdit(`Room drawn, running back to ${res.vp.label}. Turn on Solid to see the walls; move ${res.vp.label} to look somewhere else and the whole room follows.`);
 }
+// §7f — the diagnostic report. Ask for THIS, never for a screenshot.
+//
+// It leads with what is WRONG, because a dump that buries the fault under state
+// is a dump. Corners the solver could not place, points that are derived and from
+// what, and anything holding a stale-able value are named first with the reason;
+// the inventory follows for context.
+//
+// Privacy: this app holds no location and no account, so there is nothing to
+// coarsen — and saying that plainly is better than an opt-in nobody needs.
+function diagnosticText() {
+  const L = [];
+  const hz = horizonLine(scene);
+  L.push(`Intersecting Parallels ${VERSION}`);
+  L.push(`${new Date().toISOString()} · ${navigator.userAgent}`);
+  L.push(`viewport ${Math.round(viewport().width)}x${Math.round(viewport().height)} · zoom ${(view.scale * 100).toFixed(0)}%`);
+  L.push("");
+
+  const bad = [];
+  for (const v of scene.vertices) {
+    if (v.degenerate) bad.push(`corner ${v.id} could NOT be placed — its guide has no direction from where it sits (usually a corner dragged onto its own vanishing point)`);
+    else if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) bad.push(`corner ${v.id} is not a number: ${v.x}, ${v.y}`);
+  }
+  for (const c of scene.circles ?? []) {
+    if (!circlePoints(scene, c, 8)) bad.push(`circle ${c.id} cannot be drawn — its four corners do not make a usable square`);
+  }
+  if (!hz) bad.push("no horizon: fewer than two points are marked On horizon, so eye level is standing in for it");
+  L.push(bad.length ? "WHAT IS WRONG" : "WHAT IS WRONG\n  nothing the app can detect");
+  for (const b2 of bad) L.push("  · " + b2);
+  L.push("");
+
+  L.push("POINTS");
+  for (const vp of scene.vanishingPoints) {
+    const where = (vp.x < 0 || vp.x > scene.canvas.width || vp.y < 0 || vp.y > scene.canvas.height) ? " (off the paper)" : "";
+    const how = vp.from ? " — made from two lines, follows them"
+      : vp.trace ? " — a slope, hangs off " + vp.trace.vpId : "";
+    L.push(`  ${vp.label} at ${vp.x.toFixed(0)}, ${vp.y.toFixed(0)}${where}${vp.locked ? " LOCKED" : ""}${vp.onHorizon ? " on horizon" : ""}${how}`);
+  }
+  L.push(`  horizon: ${hz ? `derived from the points, y=${hz.a.y.toFixed(0)} at x=${hz.a.x.toFixed(0)}` : "none — needs two points on it"}`);
+  L.push(`  eye level: y=${scene.eyeLevel.y.toFixed(0)} (drawn reference; visibility does not use it)`);
+  L.push("");
+
+  L.push("DRAWING");
+  L.push(`  ${scene.vertices.length} corners, ${scene.edges.length} lines, ${scene.faces.length} faces, ${(scene.circles ?? []).length} circles`);
+  const solids = [...new Set(scene.faces.map(f => f.solid))];
+  L.push(`  ${solids.length} solid${solids.length === 1 ? "" : "s"}: ${solids.join(", ") || "none"}`);
+  L.push(`  derived corners: ${scene.vertices.filter(v => v.gauge || v.recede || v.divide).length} (heights, fractions and dividers that re-measure every solve)`);
+  L.push(`  reference image: ${underlay ? `${Math.round(underlay.width)}x${Math.round(underlay.height)} at ${Math.round(underlay.x)}, ${Math.round(underlay.y)}, opacity ${underlay.opacity}` : "none"}`);
+  L.push("");
+
+  L.push("SETTINGS");
+  L.push("  " + Object.entries(prefs).map(([k, v]) => `${k}=${v}`).join(" "));
+  L.push("");
+  L.push("PRIVACY: this app has no account, no network and no location. Nothing here");
+  L.push("identifies you beyond the browser string above, which you can delete.");
+  return L.join("\n");
+}
+
+function showDiagnostic() {
+  const t = $("diag-text");
+  if (t) t.value = diagnosticText();
+  $("dlg-diag")?.showModal();
+}
+
+$("open-diag")?.addEventListener("click", () => { $("dlg-notes")?.close(); showDiagnostic(); });
+$("diag-refresh")?.addEventListener("click", () => { const t = $("diag-text"); if (t) t.value = diagnosticText(); });
+$("diag-copy")?.addEventListener("click", async () => {
+  const t = $("diag-text");
+  if (!t) return;
+  try {
+    await navigator.clipboard.writeText(t.value);
+    say("Diagnostic report copied. Send that text rather than a screenshot.");
+  } catch {
+    t.select();
+    toast("Could not reach the clipboard — the text is selected, copy it by hand", "error");
+  }
+});
+
 // §7d — the patch notes surface. Reached from the version stamp, because that is
 // what a reader looks at when they want to know what changed. Never a modal that
 // interrupts: it opens on request only.

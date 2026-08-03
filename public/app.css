@@ -113,7 +113,7 @@ button,select,input[type="number"],input[type="text"]{font:inherit;font-size:var
    target like any other. It stays visually a stamp: the 44px is height, not a
    box drawn around it. */
 .build{
-  min-height:2.75rem;
+  min-height:2.75rem;min-width:2.75rem;
   background:none;border:0;cursor:pointer;
   padding:0 .25rem;
   font-size:0.75rem;
@@ -282,6 +282,18 @@ dialog::backdrop{background:rgba(4,7,18,.62)}
 .check{display:flex;align-items:center;gap:.5rem;min-height:2.75rem}
 .check input{width:1.25rem;height:1.25rem;flex:0 0 auto}
 .check label{display:flex;align-items:center;min-height:2.75rem;flex:1 1 auto;cursor:pointer}
+/* §7f — the report is SELECTABLE TEXT, which means the page-wide user-select:none
+   has to be lifted here or it cannot be copied by hand when the clipboard is
+   unavailable. */
+/* A scrollable body is keyboard-reachable, so it needs to SHOW that it has
+   focus like every other stop does. */
+.dlg-body:focus-visible{outline:2px solid var(--slate);outline-offset:-2px}
+#diag-text:focus-visible{outline:2px solid var(--slate);outline-offset:1px}
+#diag-text{
+  width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8125rem;
+  background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:.5rem;
+  padding:.5rem;-webkit-user-select:text;user-select:text;
+}
 .dlg-body h3{font-size:.9375rem;margin:1rem 0 .375rem}
 .dlg-body p{margin:.5rem 0}
 .dlg-body a{color:var(--slate)}

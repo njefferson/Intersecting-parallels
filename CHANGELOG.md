@@ -18,8 +18,39 @@ reader would otherwise rediscover, and they show in the app beside the fixes.
 - Target *spacing* is not checked by the accessibility gate — only target size is.
 - The reference image has never been tested against a real photograph, only a
   two-pixel test image, so how well the opacity steps read is unknown.
-- There is no (i) surface yet, and no diagnostic report to send instead of a
-  screenshot.
+- There is still no (i) surface. What the app is, what it is not, and how to put
+  it on a home screen are spread across About and the first-run panel instead of
+  sitting behind one control.
+- The diagnostic report only lists faults the app can *detect*. Something drawn
+  wrong that the solver was perfectly happy to place will not appear in it.
+
+---
+
+## 1.20.0 — CAPABILITY · 2026-08-03
+
+**Send this instead of a screenshot.**
+
+- **What changed** now has a **Diagnostic report** button at the bottom. It
+  writes out everything the app knows about your drawing as plain text you can
+  read, and **Copy** puts the lot on the clipboard.
+- It **leads with what is wrong**, not with an inventory. A corner the app could
+  not work out gets named along with the reason — usually a vanishing point
+  sitting on top of the corner's own origin. That is the kind of fault a
+  screenshot cannot show you, because the corner keeps its last good position on
+  screen and looks perfectly fine.
+- It also names circles that cannot be drawn, and says plainly when there is no
+  horizon because fewer than two points are marked On horizon.
+- When nothing is wrong it says so, rather than going quiet and leaving you to
+  guess whether it looked.
+- It states its own privacy position at the bottom: no account, no network, no
+  location. Nothing in the report identifies you beyond the browser string, and
+  you can delete that line before sending it.
+
+**Fixed along the way**
+
+- The release notes list could be scrolled with a finger but not reached from a
+  keyboard at all. Found by pointing the accessibility gate at that screen for
+  the first time — it had shipped without ever being measured.
 
 ---
 

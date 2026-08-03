@@ -2,6 +2,20 @@
 // §7d: one source, so the notes on screen cannot drift from the release.
 export const RELEASES = [
   {
+    "version": "1.20.0",
+    "kind": "CAPABILITY",
+    "date": "2026-08-03",
+    "head": "Send this instead of a screenshot.",
+    "points": [
+      "What changed now has a Diagnostic report button at the bottom. It",
+      "It leads with what is wrong, not with an inventory. A corner the app could",
+      "It also names circles that cannot be drawn, and says plainly when there is no",
+      "When nothing is wrong it says so, rather than going quiet and leaving you to",
+      "It states its own privacy position at the bottom: no account, no network, no",
+      "The release notes list could be scrolled with a finger but not reached from a"
+    ]
+  },
+  {
     "version": "1.19.0",
     "kind": "CAPABILITY",
     "date": "2026-08-03",
@@ -53,22 +67,12 @@ export const RELEASES = [
       "Together with Point from two lines, this is the whole technique for reading a",
       "The photo never leaves your device. It is kept in this browser's own"
     ]
-  },
-  {
-    "version": "1.17.1",
-    "kind": "ITERATION",
-    "date": "2026-08-02",
-    "head": "Nearly-parallel lines get an answer instead of a refusal.",
-    "points": [
-      "Two lines within a degree of parallel cross about 36,000px away — a real point,",
-      "Tilt a line past parallel and the point simply comes back from the other side.",
-      "Exactly parallel gets a point too, stood off far enough that lines drawn to"
-    ]
   }
 ];
 export const STILL_OPEN = [
   "The snap radius is a fixed number rather than something you can tune to your",
   "Target *spacing* is not checked by the accessibility gate — only target size is.",
   "The reference image has never been tested against a real photograph, only a",
-  "There is no (i) surface yet, and no diagnostic report to send instead of a"
+  "There is still no (i) surface. What the app is, what it is not, and how to put",
+  "The diagnostic report only lists faults the app can *detect*. Something drawn"
 ];

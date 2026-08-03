@@ -85,6 +85,16 @@ const PAGES = [
       // one '.hint' registers, so the colours are covered without the flake.
       { name: 'project', open: '#open-project', registry: ['.dlg-head h2', '.dlg-body label', '.dlg-body h3'] },
       { name: 'about', open: '#open-about', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body a', '.dlg-body li'] },
+      // §7d and §7f. Both shipped without joining this list, and neither was
+      // measured once — the doctrine says a new surface is audited in the commit
+      // that introduces it, and twice running it was not. The lesson is the one
+      // 1.18.3 already paid for: audit what the gate SELECTS. A gate cannot fail
+      // on a surface it never opens.
+      { name: 'notes', open: '#build-stamp', registry: ['.dlg-head h2', '.dlg-body', '.dlg-body h3', '.dlg-body li'] },
+      // Two clicks, because the report is reached from inside What changed. A
+      // surface behind another surface is still a surface.
+      { name: 'diag', open: ['#build-stamp', '#open-diag'], opened: '#dlg-diag[open]',
+        registry: ['.dlg-head h2', '.dlg-body .hint', '#diag-text'] },
     ],
   },
 ];
@@ -147,13 +157,24 @@ try {
           .catch(() => fail(where, 'the first-run panel did not open on a clean slate'));
       }
       if (state.open) {
-        await page.click(state.open);
+        // A surface reached through another surface needs the whole route, not
+        // one click. Each hop is waited for, so a broken FIRST step fails here
+        // rather than looking like a broken second one.
+        const route = Array.isArray(state.open) ? state.open : [state.open];
         // D47 — a surface is not always a dialog. The Setup panel is a docked
         // panel, so what is waited for is "something opened", named by the
         // surface itself, rather than assuming every one of them is modal.
         const openedSelector = state.opened ?? 'dialog[open]';
-        await page.waitForFunction(sel => !!document.querySelector(sel), openedSelector, { timeout: 5000 })
-          .catch(() => fail(where, `clicking ${state.open} opened no ${openedSelector}`));
+        for (let i = 0; i < route.length; i++) {
+          const step = route[i];
+          const last = i === route.length - 1;
+          await page.waitForSelector(step, { state: 'visible', timeout: 5000 })
+            .catch(() => fail(where, `${step} never appeared, so the route to this surface is broken at step ${i + 1}`));
+          await page.click(step).catch(() => fail(where, `could not click ${step} (step ${i + 1} of the route)`));
+          const want = last ? openedSelector : 'dialog[open]';
+          await page.waitForFunction(sel => !!document.querySelector(sel), want, { timeout: 5000 })
+            .catch(() => fail(where, `clicking ${step} opened no ${want}`));
+        }
       }
       await page.addScriptTag({ content: axeSrc });
 

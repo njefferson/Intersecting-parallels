@@ -3353,6 +3353,145 @@ try {
     `${zoomed.before.toFixed(2)} -> in ${zoomed.inz.toFixed(2)} -> out ${zoomed.outz.toFixed(2)} -> fit ${zoomed.fit.toFixed(2)}`);
   await oCtx.close();
 
+  // §7f — the diagnostic report. Noah is asked for THIS rather than for a
+  // screenshot, and that only holds if the text answers the question a
+  // screenshot cannot: not "what does it look like" but WHY something is wrong.
+  // So these checks are about the faults it names and the REASONS it gives for
+  // them. That the inventory underneath is present is the easy half.
+  {
+    const dCtx = await browser.newContext({
+      viewport: { width: 1194, height: 834 }, colorScheme: 'dark',
+      permissions: ['clipboard-read', 'clipboard-write'],
+    });
+    await seenWelcome(dCtx);
+    const dPage = await dCtx.newPage();
+    dPage.on('pageerror', e => pageErrors.push(`diagnostic page: ${e}`));
+    await dPage.goto(origin + '/', { waitUntil: 'networkidle' });
+    await dPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+
+    // The route a reader actually takes: the version stamp, then What changed,
+    // then the report. Driven as three real clicks, because the whole of §7f is
+    // that someone can FIND this without being told a selector.
+    const routed = await dPage.evaluate(async () => {
+      document.getElementById('build-stamp').click();
+      await new Promise(r => requestAnimationFrame(r));
+      const notesOpen = !!document.querySelector('#dlg-notes[open]');
+      const btn = document.getElementById('open-diag');
+      if (!btn) return { notesOpen, reachable: false };
+      btn.click();
+      await new Promise(r => requestAnimationFrame(r));
+      return {
+        notesOpen, reachable: true,
+        diagOpen: !!document.querySelector('#dlg-diag[open]'),
+        notesClosed: !document.querySelector('#dlg-notes[open]'),
+        text: document.getElementById('diag-text')?.value ?? '',
+      };
+    });
+    check('the version stamp opens What changed, and the report is reachable from it (§7f)',
+      routed.notesOpen && routed.reachable && routed.diagOpen && routed.notesClosed,
+      JSON.stringify({ notesOpen: routed.notesOpen, reachable: routed.reachable, diagOpen: routed.diagOpen, notesClosed: routed.notesClosed }));
+
+    const clean = routed.text ?? '';
+    const at = s => clean.indexOf(s);
+    check('the report LEADS with what is wrong, before any inventory (§7f)',
+      at('WHAT IS WRONG') > -1 && at('WHAT IS WRONG') < at('POINTS')
+        && at('POINTS') < at('DRAWING') && at('DRAWING') < at('SETTINGS'),
+      `WHAT IS WRONG@${at('WHAT IS WRONG')} POINTS@${at('POINTS')} DRAWING@${at('DRAWING')} SETTINGS@${at('SETTINGS')}`);
+    check('and it says so plainly when there is nothing wrong, rather than going quiet',
+      /WHAT IS WRONG\n\s+nothing the app can detect/.test(clean),
+      JSON.stringify(clean.split('\n').slice(4, 7)));
+    check('it names the build and the browser, which is what a bug report needs',
+      clean.startsWith('Intersecting Parallels ') && /Mozilla\//.test(clean) && /viewport \d+x\d+/.test(clean),
+      JSON.stringify(clean.split('\n').slice(0, 3)));
+    check('and it states the privacy position instead of leaving it to be guessed (§7f)',
+      /no account, no network and no location/.test(clean), clean.slice(-140));
+
+    // Break the horizon with the point's OWN control, then ask the report. A
+    // fault the walk plants through a back door proves the formatter; a fault
+    // planted through the panel proves the report is looking at the live scene.
+    const noHz = await dPage.evaluate(async () => {
+      document.querySelector('#dlg-diag .dlg-head .btn').click();
+      await new Promise(r => requestAnimationFrame(r));
+      const id = window.__ip.scene.vanishingPoints.find(p => p.onHorizon).id;
+      document.getElementById(`vp-${id}-horizon`).click();
+      await new Promise(r => requestAnimationFrame(r));
+      document.getElementById('build-stamp').click();
+      document.getElementById('open-diag').click();
+      await new Promise(r => requestAnimationFrame(r));
+      return { horizon: !!window.__ip.horizon(), text: document.getElementById('diag-text').value };
+    });
+    check('turning a point off the horizon really removes the horizon (setup for the next one)',
+      noHz.horizon === false, `horizon still ${noHz.horizon}`);
+    check('the report names the missing horizon WITH ITS REASON, not just a flag (§7f)',
+      /no horizon: fewer than two points are marked On horizon/.test(noHz.text)
+        && /eye level is standing in for it/.test(noHz.text)
+        && !/nothing the app can detect/.test(noHz.text),
+      JSON.stringify(noHz.text.split('\n').filter(l => /wrong|horizon/i.test(l)).slice(0, 4)));
+
+    // A corner the solver could not place is the fault the report exists for:
+    // it is invisible in a screenshot, because the corner keeps its last valid
+    // position on screen and looks fine. Planted the only way a person can —
+    // by moving the vanishing point onto the corner's own origin.
+    const degen = await dPage.evaluate(async () => {
+      document.querySelector('#dlg-diag .dlg-head .btn').click();
+      await new Promise(r => requestAnimationFrame(r));
+      document.getElementById('add-box').click();
+      await new Promise(r => requestAnimationFrame(r));
+      const s = window.__ip.scene;
+      const ray = s.vertices.find(v => v.kind === 'ray' && typeof v.binding === 'object');
+      if (!ray) return { planted: false };
+      const origin = s.vertices.find(v => v.id === ray.origin);
+      window.__ip.moveVp(ray.binding.vpId, { x: origin.x, y: origin.y });
+      await new Promise(r => requestAnimationFrame(r));
+      const count = window.__ip.scene.vertices.filter(v => v.degenerate).length;
+      document.getElementById('build-stamp').click();
+      document.getElementById('open-diag').click();
+      await new Promise(r => requestAnimationFrame(r));
+      return { planted: true, count, id: ray.id, text: document.getElementById('diag-text').value };
+    });
+    check('a vanishing point moved onto a corner\'s origin really breaks that corner (setup)',
+      degen.planted && degen.count > 0, JSON.stringify({ planted: degen.planted, count: degen.count }));
+    check('the report names every corner it could not place, with the reason (§7f)',
+      new RegExp(`corner ${degen.id} could NOT be placed`).test(degen.text ?? '')
+        && /its guide has no direction from where it sits/.test(degen.text ?? '')
+        && (degen.text ?? '').split('\n').filter(l => /could NOT be placed/.test(l)).length === degen.count,
+      JSON.stringify((degen.text ?? '').split('\n').filter(l => /could NOT/.test(l)).slice(0, 3)));
+    check('and the inventory below it still reports the drawing that is there',
+      /\d+ corners, \d+ lines, \d+ faces/.test(degen.text ?? '')
+        && /\d+ solids?: /.test(degen.text ?? ''),
+      JSON.stringify((degen.text ?? '').split('\n').filter(l => /corners,/.test(l))));
+
+    // Refresh has to re-read the scene, or the report goes stale in the hand of
+    // the person copying it — the exact failure it is meant to prevent.
+    const refreshed = await dPage.evaluate(async () => {
+      const t = document.getElementById('diag-text');
+      const stale = t.value;
+      const id = window.__ip.scene.vanishingPoints.find(p => !p.onHorizon)?.id
+        ?? window.__ip.scene.vanishingPoints[0].id;
+      window.__ip.moveVp(id, { x: 137, y: 241 });
+      const beforePress = t.value;
+      document.getElementById('diag-refresh').click();
+      return { changedByItself: beforePress !== stale, afterPress: t.value !== stale, has: /137, 241/.test(t.value) };
+    });
+    check('Refresh re-reads the scene rather than showing what it showed before (§7f)',
+      refreshed.changedByItself === false && refreshed.afterPress && refreshed.has,
+      JSON.stringify(refreshed));
+
+    // Copy is the whole point of the surface: if it silently fails, the reader
+    // is back to sending a screenshot.
+    const copied = await dPage.evaluate(async () => {
+      document.getElementById('diag-copy').click();
+      await new Promise(r => setTimeout(r, 200));
+      let clip = '';
+      try { clip = await navigator.clipboard.readText(); } catch (e) { clip = `ERROR ${e}`; }
+      return { clip, said: document.getElementById('live')?.textContent || '', shown: document.getElementById('diag-text').value };
+    });
+    check('Copy puts the whole report on the clipboard and says it did (§7f)',
+      copied.clip === copied.shown && copied.clip.length > 200 && /copied/i.test(copied.said),
+      `${copied.clip.length} chars vs ${copied.shown.length} shown, said "${copied.said}"`);
+    await dCtx.close();
+  }
+
   // D28 — the first-run panel, against §4's six requirements for the way out,
   // at the ordinary viewport AND the small-phone-at-200%-text case the doctrine
   // names. Nothing here is judged by eye: each one is measured.

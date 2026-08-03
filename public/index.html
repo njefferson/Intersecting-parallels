@@ -434,7 +434,39 @@
       <h2 id="notes-title">What changed</h2>
       <button class="btn" type="submit" value="close" aria-label="Close what changed">Close</button>
     </div>
-    <div class="dlg-body" id="notes-body"></div>
+    <!-- tabindex, because this list scrolls: a region you can only reach with a
+         pointer is unreachable to anyone driving the app from a keyboard, and
+         the release notes are exactly the kind of long body that scrolls. -->
+    <div class="dlg-body" id="notes-body" tabindex="0"></div>
+    <div class="dlg-foot">
+      <button class="btn" type="button" id="open-diag">Diagnostic report</button>
+      <button class="btn" type="submit" value="close">Close</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- §7f — the text diagnostic. Noah is asked for THIS, never for a screenshot.
+     A screenshot cannot be searched or pasted into a diff, and it cannot show
+     the one thing that matters most: WHY a corner would not place. The report
+     leads with what is wrong and only then inventories the drawing. -->
+<dialog id="dlg-diag" aria-labelledby="diag-title">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h2 id="diag-title">Diagnostic report</h2>
+      <button class="btn" type="submit" value="close" aria-label="Close diagnostic report">Close</button>
+    </div>
+    <div class="dlg-body">
+      <p class="hint">Send this text with a problem report — not a screenshot. Read
+      it first if you like: it is the whole of what the app knows, and it holds no
+      account, no location and nothing you have not already seen.</p>
+      <label class="sr-only" for="diag-text">Diagnostic report text</label>
+      <textarea id="diag-text" rows="16" readonly spellcheck="false"></textarea>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" type="button" id="diag-refresh">Refresh</button>
+      <button class="btn" type="button" id="diag-copy">Copy</button>
+      <button class="btn" type="submit" value="close">Close</button>
+    </div>
   </form>
 </dialog>
 
