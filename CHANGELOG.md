@@ -25,6 +25,33 @@ reader would otherwise rediscover, and they show in the app beside the fixes.
 
 ---
 
+## 1.22.0 — CAPABILITY · 2026-08-03
+
+**The app tells you when it has gone out of date.**
+
+Noah, on reading the first diagnostic report: *"the app could not show if it was
+old and stuck."* It was worse than not showing it.
+
+- **When a new version is ready, a bar appears saying so** — with **Reload** and
+  **Later**, and the reassurance that your drawing is saved. It never interrupts
+  a drawing and it is never a pop-up. Later means later.
+- **The new version now waits its turn.** Before this, a new version took over
+  the moment it arrived — but the page you had open carried on running the OLD
+  code against the new files underneath it. Old app, new parts, no reload, and
+  nothing said. Now the new version sits still until you press Reload, so until
+  then you have a consistent old app rather than an inconsistent new one.
+- **A brand-new visitor is never told a new version is ready**, which would be
+  nonsense thirty seconds after arriving.
+
+**Fixed along the way**
+
+- The offer could be missed entirely. The app started listening for a new
+  version a fraction of a second after the browser had already begun fetching
+  one, so on some loads the announcement never came at all — the exact failure
+  this whole thing exists to prevent.
+
+---
+
 ## 1.21.1 — ITERATION · 2026-08-03
 
 **The report now says which device you are actually on.**

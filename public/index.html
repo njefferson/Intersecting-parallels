@@ -138,6 +138,17 @@
       <button class="btn" id="touch-exit" type="button">Turn off</button>
     </div>
 
+    <!-- An offline app that will not update looks perfectly fine. It is just
+         old, and nothing about it says so — which is the whole failure. A
+         standing flag rather than a toast (§3): it is a state you are IN until
+         you act, and it carries both ways out. Never modal, because it must not
+         interrupt a drawing, and Later really means later. -->
+    <div class="mode-flag" id="update-flag" data-on="false">
+      <span id="update-say">A new version is ready. Your drawing is saved.</span>
+      <button class="btn" id="update-now" type="button">Reload</button>
+      <button class="btn" id="update-later" type="button">Later</button>
+    </div>
+
     <!-- D47 — the toolbar was four rows of thirty-three controls on an iPad,
          eating a third of the drawing surface. Everything that is SET rather than
          REACHED FOR moved here. It is a panel and not a dialog on purpose: Taller

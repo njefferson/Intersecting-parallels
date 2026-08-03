@@ -9,7 +9,7 @@
 // deleted here — the user's drawings live in IndexedDB and an update that
 // cleared them would be destroying the work the app exists to hold.
 
-const CACHE = "intersecting-parallels-1.21.1";
+const CACHE = "intersecting-parallels-1.22.0";
 
 const SHELL = [
   "/",
@@ -29,12 +29,29 @@ const SHELL = [
   "/apple-touch-icon.png",
 ];
 
+// NO skipWaiting here, deliberately, and this used to have one.
+//
+// skipWaiting makes the new worker take over at once — which sounds like the
+// helpful thing and is not. The page that is OPEN has already loaded the
+// previous release's HTML and JavaScript; taking over underneath it leaves the
+// old code running against the new cache, and the old cache is deleted on
+// activate, so anything the old page asks for afterwards is served the NEW
+// file. Old markup, new modules, no reload, and nothing said. Noah, 2026-08-03:
+// "the app could not show if it was old and stuck."
+//
+// So the new worker WAITS. The page notices it waiting, offers a reload, and
+// only then is SKIP_WAITING sent. Until the reader accepts, they keep a
+// consistent old app rather than an inconsistent new one.
 self.addEventListener("install", event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await cache.addAll(SHELL);
-    await self.skipWaiting();
   })());
+});
+
+// The reader's decision, relayed. Nothing else may trigger it.
+self.addEventListener("message", event => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", event => {

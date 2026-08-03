@@ -28,7 +28,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.21.1";
+const VERSION = "1.22.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1528,6 +1528,72 @@ function deviceLines() {
 // holds". These lines say which caches exist and whether a newer worker is
 // sitting there waiting — gathered asynchronously, so they are kept here and
 // refreshed rather than computed inline.
+// An app that caches itself cannot notice on its own that it has gone stale —
+// that is what caching MEANS — so it has to be told, and then it has to tell the
+// reader. Reporting it in the diagnostic was not enough: nobody opens a
+// diagnostic to find out they are running last week's build.
+//
+// The flag is offered ONLY when there is already a controller. On a first-ever
+// visit the worker installs and activates with nothing to replace, and telling
+// someone "a new version is ready" thirty seconds after they arrived is a lie.
+let updateReg = null;
+let reloadingForUpdate = false;
+
+function offerUpdate(reg) {
+  updateReg = reg;
+  const flag = $("update-flag");
+  if (!flag || flag.dataset.on === "true") return;
+  flag.dataset.on = "true";
+  say("A new version of the app is ready. Your drawing is saved. Reload when you like.");
+}
+
+function watchForUpdate(reg) {
+  if (!reg) return;
+  const track = worker => {
+    if (!worker) return;
+    const consider = () => {
+      if (worker.state === "installed" && navigator.serviceWorker.controller) offerUpdate(reg);
+    };
+    consider();                                     // it may ALREADY be installed
+    worker.addEventListener("statechange", consider);
+  };
+  // Already sitting there — e.g. the update landed while the app was closed.
+  if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg);
+  // ALREADY INSTALLING when we got here. register() resolves after the browser
+  // has begun fetching the worker, so `updatefound` can fire before this line
+  // runs and the event is simply missed — the reader is then never told, which
+  // is the exact failure this whole feature exists to prevent. Found by
+  // planting: removing the controller guard changed nothing, because the offer
+  // was unreachable on that path either way. A plant that does not move the
+  // measurement is telling you the check is empty.
+  track(reg.installing);
+  reg.addEventListener("updatefound", () => track(reg.installing));
+}
+
+// Only reload when the reader ASKED. controllerchange also fires when a worker
+// takes over for other reasons, and reloading someone's drawing out from under
+// them uninvited is the opposite of the fix.
+navigator.serviceWorker?.addEventListener("controllerchange", () => {
+  if (!reloadingForUpdate) return;
+  reloadingForUpdate = false;
+  location.reload();
+});
+
+$("update-now")?.addEventListener("click", () => {
+  reloadingForUpdate = true;
+  $("update-say").textContent = "Updating…";
+  const w = updateReg?.waiting;
+  if (w) w.postMessage({ type: "SKIP_WAITING" });
+  // If there is nothing waiting, the new worker is already in charge and a plain
+  // reload is the whole job. Never leave the button doing nothing.
+  else location.reload();
+});
+$("update-later")?.addEventListener("click", () => {
+  const flag = $("update-flag");
+  if (flag) flag.dataset.on = "false";
+  say("Dismissed. The new version arrives whenever you next reload.");
+});
+
 let swState = ["  (not checked yet)"];
 async function refreshSwState() {
   const L = [];
@@ -2462,7 +2528,10 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
   $("ex-ceiling").textContent = `This device renders up to ${pngCeiling}px per side. Anything larger is scaled down rather than saved blank.`;
 
   if ("serviceWorker" in navigator) {
-    try { await navigator.serviceWorker.register("/sw.js"); } catch { /* offline support unavailable; the app still runs */ }
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      watchForUpdate(reg);
+    } catch { /* offline support unavailable; the app still runs */ }
     // AFTER registration, not before. The module-load call races it and comes
     // back "no service worker registered" on a first load — which is not merely
     // stale, it is the opposite of the truth, and it would have been reported as

@@ -31,6 +31,12 @@ const MIME = {
   '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml', '.png': 'image/png',
 };
+// Flipped by the update check so the server hands back a DIFFERENT service
+// worker on the next request. A real byte difference, so the browser's own
+// update machinery runs for real — mocking a registration would prove that the
+// mock works and nothing about the app.
+let swGeneration = 0;
+
 function serveRoot(root = 'public') {
   const server = createServer((req, res) => {
     let rel = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
@@ -38,6 +44,14 @@ function serveRoot(root = 'public') {
     const path = join(root, normalize(rel).replace(/^(\.\.[/\\])+/, ''));
     try { if (!statSync(path).isFile()) throw new Error('nope'); }
     catch { res.writeHead(404); res.end('not found'); return; }
+    if (rel === '/sw.js' && swGeneration > 0) {
+      // Same worker, new cache name — exactly what a release does.
+      const src = readFileSync(path, 'utf8')
+        .replace(/const CACHE = "([^"]+)"/, `const CACHE = "$1-walk${swGeneration}"`);
+      res.writeHead(200, { 'content-type': MIME['.js'], 'cache-control': 'no-cache' });
+      res.end(src);
+      return;
+    }
     res.writeHead(200, { 'content-type': MIME[extname(path)] ?? 'application/octet-stream' });
     createReadStream(path).pipe(res);
   });
@@ -3511,6 +3525,122 @@ try {
       copied.clip === copied.shown && copied.clip.length > 200 && /copied/i.test(copied.said),
       `${copied.clip.length} chars vs ${copied.shown.length} shown, said "${copied.said}"`);
     await dCtx.close();
+  }
+
+  // Noah, 2026-08-03: "the app could not show if it was old and stuck."
+  //
+  // An offline app that will not update looks perfectly fine — it is just old,
+  // and that is invisible from outside by construction, because caching is
+  // exactly the business of not noticing the network. Driven with a REAL second
+  // service worker served by this server, so the browser's own update machinery
+  // runs; a faked registration would prove the fake works.
+  {
+    const uCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+    await seenWelcome(uCtx);
+    const uPage = await uCtx.newPage();
+    uPage.on('pageerror', e => pageErrors.push(`update page: ${e}`));
+    await uPage.goto(origin + '/', { waitUntil: 'networkidle' });
+    await uPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+
+    // MEASURED ON THE ACTUAL FIRST VISIT, before any reload. This check used to
+    // run after forcing a reload to establish a controller — by which point it
+    // was a SECOND visit, no `updatefound` fires, and the check passed against
+    // an app that cried wolf at every newcomer. Planting proved it: the fault
+    // went in and nothing went red. The name said first visit; the measurement
+    // did not.
+    //
+    // A brand-new registration DOES fire updatefound, so this discriminates:
+    // the only thing suppressing the offer is the missing controller.
+    await uPage.waitForFunction(async () => {
+      const r = await navigator.serviceWorker.getRegistration();
+      return !!r && !!r.active;
+    }, null, { timeout: 20000 }).catch(() => {});
+    const firstVisit = await uPage.evaluate(() => ({
+      workerActive: !!navigator.serviceWorker.controller || true,
+      controller: !!navigator.serviceWorker.controller,
+      flagOn: document.getElementById('update-flag')?.dataset.on === 'true',
+    }));
+    // Asserts the OBSERVABLE claim only. Whether a controller exists this early
+    // is timing-dependent and was measured both ways, so it is reported for
+    // context and not asserted — a gate that cries wolf is worse than a slow one.
+    //
+    // Falsifiable, and it took three attempts to make it so. Removing the
+    // controller guard changes nothing here, because on a first visit the worker
+    // races past `installed` before anything can attach; what DOES flip it is
+    // the naive implementation — offering straight from `updatefound`, without
+    // asking what state the worker reached or whether anything is being
+    // replaced. Measured: that fault turns this flag on for every newcomer.
+    check('a first visit is NOT told a new version is ready (§7f)',
+      !firstVisit.flagOn, JSON.stringify(firstVisit));
+
+    // NOW establish control, which an update needs in order to mean anything.
+    const controlling = await uPage.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+      if (!navigator.serviceWorker.controller) location.reload();
+      return true;
+    }).catch(() => false);
+    await uPage.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 })
+      .catch(() => {});
+    await uPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+    check('and the worker is controlling the page before the update test (setup)',
+      controlling, `controlling ${controlling}`);
+
+    swGeneration = 1; // from here the server hands back a different worker
+    const offered = await uPage.evaluate(async () => {
+      const reg = await navigator.serviceWorker.getRegistration();
+      await reg.update();
+      const flag = document.getElementById('update-flag');
+      for (let i = 0; i < 100 && flag.dataset.on !== 'true'; i++) await new Promise(r => setTimeout(r, 100));
+      const btn = document.getElementById('update-now');
+      const r = btn.getBoundingClientRect();
+      return {
+        shown: flag.dataset.on === 'true',
+        text: flag.textContent.replace(/\s+/g, ' ').trim(),
+        said: document.getElementById('live')?.textContent || '',
+        waiting: !!(await navigator.serviceWorker.getRegistration())?.waiting,
+        btn: { w: Math.round(r.width), h: Math.round(r.height) },
+        later: !!document.getElementById('update-later'),
+      };
+    });
+    check('a newer version WAITS instead of taking over under the open page (§7f)',
+      offered.waiting, `registration.waiting ${offered.waiting}`);
+    check('and the app SAYS so, rather than only admitting it in the diagnostic (§7f)',
+      offered.shown && /new version is ready/i.test(offered.text) && /new version/i.test(offered.said),
+      JSON.stringify({ shown: offered.shown, text: offered.text.slice(0, 70) }));
+    check('the offer reassures about the drawing and has both ways out, at 44px (§3, §4)',
+      /drawing is saved/i.test(offered.text) && offered.later
+        && offered.btn.w >= 44 && offered.btn.h >= 44,
+      JSON.stringify(offered.btn));
+
+    // The version the reader ends up on is the whole point. Anything short of
+    // that — a flag that appears and does nothing — is worse than silence.
+    // A sentinel on THIS document, because window.__ip exists on the current
+    // page too — waiting for it would return instantly and measure the page
+    // that was supposed to have been replaced. Waiting for the sentinel to be
+    // GONE is waiting for a real navigation.
+    let reloadTimedOut = false;
+    const took = await uPage.evaluate(() => {
+      window.__beforeReload = true;
+      document.getElementById('update-now').click();
+      return true;
+    });
+    await uPage.waitForFunction(() => !window.__beforeReload && window.__ip && window.__ip.scene,
+      null, { timeout: 30000 })
+      .catch(() => { reloadTimedOut = true; });
+    const after = await uPage.evaluate(async () => {
+      const names = await caches.keys();
+      return {
+        flagGone: document.getElementById('update-flag')?.dataset.on !== 'true',
+        caches: names.filter(n => n.startsWith('intersecting-parallels-')),
+        controller: !!navigator.serviceWorker.controller,
+      };
+    });
+    check('Reload actually lands the reader on the new build, and clears the offer (§7f)',
+      took && !reloadTimedOut && after.flagGone && after.controller
+        && after.caches.some(n => /-walk1$/.test(n)) && !after.caches.some(n => !/-walk1$/.test(n)),
+      JSON.stringify({ ...after, reloadTimedOut }));
+    await uCtx.close();
+    swGeneration = 0;
   }
 
   // §7e — ONE information surface. The doctrine says in terms: "Make it a gate.

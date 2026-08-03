@@ -2,6 +2,18 @@
 // §7d: one source, so the notes on screen cannot drift from the release.
 export const RELEASES = [
   {
+    "version": "1.22.0",
+    "kind": "CAPABILITY",
+    "date": "2026-08-03",
+    "head": "The app tells you when it has gone out of date.",
+    "points": [
+      "When a new version is ready, a bar appears saying so — with Reload and",
+      "The new version now waits its turn. Before this, a new version took over",
+      "A brand-new visitor is never told a new version is ready, which would be",
+      "The offer could be missed entirely. The app started listening for a new"
+    ]
+  },
+  {
     "version": "1.21.1",
     "kind": "ITERATION",
     "date": "2026-08-03",
@@ -57,16 +69,6 @@ export const RELEASES = [
     "points": [
       "It had never measured a single drop-down or number field — ten controls it had",
       "Those are fixed the honest way: the label beside a checkbox toggles it, so the"
-    ]
-  },
-  {
-    "version": "1.18.2",
-    "kind": "ITERATION",
-    "date": "2026-08-02",
-    "head": "Choose image is where you'd look for it, and it works from the keyboard.",
-    "points": [
-      "Reference image is now the first thing in Setup instead of the sixth. It is",
-      "Choose image is a real button. It looked like one and behaved like one under"
     ]
   }
 ];

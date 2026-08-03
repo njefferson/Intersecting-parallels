@@ -9,7 +9,7 @@ file's first content, per the handoff.
 
 ## STAGED CANDIDATE — waiting on Noah
 
-**Version 1.21.1**, on `staging`, at
+**Version 1.22.0**, on `staging`, at
 **https://staging.intersecting-parallels.pages.dev**
 
 That is the preview to open on the iPad. Production is
@@ -912,6 +912,57 @@ used to end this amendment — "the corners are adjustable afterwards precisely
 because they are constrained" — was true of the data model and false of the app:
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
+
+### D76 — an app that caches itself must say when it is stale (SHIPPED 1.22.0, staging)
+
+Noah, 2026-08-03, on the first diagnostic report: *"Knowing that the app could
+not show if it was old and stuck seems like something all my apps need to fix."*
+
+**It was worse than not showing it.** `sw.js` called `skipWaiting()` in install,
+so a new worker took over the instant it arrived — while the OPEN PAGE carried on
+running the previous release's HTML and modules. Then `activate` deleted the old
+cache, so anything that page requested afterwards was served the NEW file. Old
+markup, new modules, no reload, nothing said. The version stamp on screen said
+whatever the old bundle said, which is why the report could not tell "current"
+from "what the cache still holds".
+
+**The new worker waits now.** No `skipWaiting` on install; a `message` listener
+takes `SKIP_WAITING` and nothing else triggers it. Until the reader accepts, they
+keep a CONSISTENT OLD APP rather than an inconsistent new one — which is the
+right trade, because an old app that works is a smaller problem than a mixed one
+that does not.
+
+**And the app says so**, in a standing flag with Reload and Later (§3), never a
+modal, carrying "Your drawing is saved" because that is the thing anyone would
+actually worry about. Reporting it only in the diagnostic was not enough: nobody
+opens a diagnostic to discover they are running last week's build.
+
+**Three attempts to make one check falsifiable, and the third found a real bug.**
+The claim was "a first visit is not told a new version is ready".
+
+1. First version passed with the fault planted. It measured AFTER a forced
+   reload — so it was a second visit, no `updatefound` fires, and the check was
+   empty. The name said first visit; the measurement did not.
+2. Rewritten to measure before any reload. The plant STILL changed nothing —
+   and that is the tell §6 is really about. **A plant that does not move the
+   measured quantity is not a weak plant, it is a message that the code path is
+   unreachable.** It was: on a first visit the worker races past `installed`
+   before `register()` resolves, so the guard was never what suppressed the
+   offer, and the offer could be missed on a real update too.
+3. `watchForUpdate` now tracks `reg.installing` at attach time as well as on
+   `updatefound`, and re-checks state rather than waiting for a transition it
+   may have missed. The check discriminates against the realistic naive
+   implementation — offering straight from `updatefound` — which turns the flag
+   on for every newcomer. Measured both ways.
+
+**The walk drives a REAL second service worker.** The test server rewrites the
+cache name in `sw.js` on demand, so the browser's own update machinery runs for
+real: worker waits, flag appears, Reload lands the reader on the new build, old
+cache gone. A mocked registration would have proved the mock works.
+
+One clause was dropped from that check on purpose: whether a controller exists
+that early is timing-dependent and was observed both ways, so it is reported and
+not asserted. A gate that cries wolf is worse than a slow one.
 
 ### D75 — the report answers the question the browser string dodges (SHIPPED 1.21.1, staging)
 
