@@ -105,7 +105,20 @@
       <button class="btn danger" id="clear-drawing" type="button" data-armed="false">Clear</button>
       <button class="btn" id="open-export" type="button">Export</button>
       <button class="btn" id="open-project" type="button">Project</button>
-      <button class="btn" id="open-about" type="button">About</button>
+      <!-- §7e — ONE information surface, and this is its control: a letter i, in
+           the app's own chrome, always in the same place. Not a tab (tabs are for
+           what the reader came for) and not a footer link (nobody has clicked
+           one).
+
+           The glyph is aria-hidden and the name is a real sentence. An
+           aria-label of "Information…" against a visible "i" would pass SC 2.5.3
+           only by the accident that "information" contains the letter — and a
+           control whose spoken label is one letter is not one anybody can say.
+           Marking the glyph decorative is the honest form of the same markup. -->
+      <button class="btn info" id="open-about" type="button">
+        <span aria-hidden="true">i</span>
+        <span class="sr-only">Information — what this app is, what it is not, how to install it, and what changed</span>
+      </button>
     </div>
   </header>
 
@@ -473,40 +486,120 @@
 <dialog id="dlg-about" aria-labelledby="about-title">
   <form method="dialog" class="dlg">
     <div class="dlg-head">
-      <h2 id="about-title">About</h2>
-      <button class="btn" type="submit" value="close" aria-label="Close about">Close</button>
+      <h2 id="about-title">Information</h2>
+      <button class="btn" type="submit" value="close" aria-label="Close information">Close</button>
     </div>
-    <div class="dlg-body">
+    <div class="dlg-body" tabindex="0">
       <p><strong>Intersecting Parallels</strong> — where you stand and what you see.</p>
-      <p>Draw lines that are bound to vanishing points. Move a point and every
-      line bound to it re-solves, so the drawing stays a coherent construction
-      instead of a set of strokes. Export the outline and finish it wherever you
-      like.</p>
-      <h3>What it is</h3>
+
+      <h3>What this is</h3>
+      <p>A drawing tool for perspective construction. You put vanishing points on
+      the page, and every line you draw is bound to one of them — so when you move
+      a point, the whole drawing re-solves and follows it. That is the difference
+      between a construction and a set of strokes that merely look right.</p>
       <ul>
-        <li>Free, and yours to keep — no account, no sign-up.</li>
-        <li>Everything is stored on this device. Nothing is uploaded, and there is no analytics.</li>
-        <li>Works offline once loaded; add it to your home screen to launch it like an app.</li>
-        <li>It is not a paint app: no brushes, no pressure, no colour. It builds the geometry.</li>
+        <li>Free, and yours to keep — no account, no sign-up, no trial.</li>
+        <li>Everything stays on this device. Nothing is uploaded, and there is no
+          analytics of any kind.</li>
+        <li>Works with the aeroplane mode on, once it has loaded the first time.</li>
+        <li>Export the outline as SVG or PNG and finish it wherever you like.</li>
       </ul>
+
+      <!-- §7e.2 — the limits stated as plainly as the capabilities. A reader who
+           finds these out by trying is a reader the app wasted time. -->
+      <h3>What this is not</h3>
+      <ul>
+        <li><strong>Not a paint app.</strong> No brushes, no pressure, no opacity,
+          no colour. It builds the geometry and hands it over.</li>
+        <li><strong>Not a 3D modeller.</strong> There is no camera you fly around
+          and no mesh underneath. A box here is a flat drawing that obeys
+          perspective rules, not a solid the app could rotate for you.</li>
+        <li><strong>Not curvilinear.</strong> Straight-line perspective only —
+          fisheye and panoramic projections bow lines that this app keeps straight.</li>
+        <li><strong>Not a tracer.</strong> It will show a photograph underneath so
+          you can draw over it, but it will not find the lines in it for you.</li>
+        <li><strong>Drawing still needs a drag.</strong> Every corner can be typed
+          or nudged with the arrow keys, but starting a line or a box needs a
+          pointer. That one is on the list of what is still broken.</li>
+      </ul>
+
+      <!-- §7e.3 — every platform NAMED, never sniffed. iOS fires no
+           beforeinstallprompt, so a detected "Install" button is a button that
+           does not exist for half the readers; two named menus cannot go stale
+           the way a capability check can. -->
+      <h3>Put it on your home screen</h3>
+      <p>It then opens like an app, full screen, with no browser bars — and works
+      offline.</p>
+      <ul>
+        <li><strong>iPhone and iPad (Safari)</strong> — the Share button (a square
+          with an arrow out of the top), then <em>Add to Home Screen</em>.</li>
+        <li><strong>iPhone and iPad (Chrome)</strong> — the Share button, then
+          <em>Add to Home Screen</em>. Chrome on iOS uses Safari underneath.</li>
+        <li><strong>Android (Chrome)</strong> — the ⋮ menu, then <em>Add to Home
+          screen</em> or <em>Install app</em>, depending on your version.</li>
+        <li><strong>Android (Firefox)</strong> — the ⋮ menu, then <em>Install</em>.</li>
+        <li><strong>Windows, Mac and Linux (Chrome or Edge)</strong> — the install
+          icon at the right-hand end of the address bar, or the ⋮ / … menu, then
+          <em>Install</em>.</li>
+        <li><strong>Firefox on the desktop</strong> — no install; bookmark it. It
+          still works offline.</li>
+      </ul>
+
       <h3>Keyboard</h3>
       <ul>
         <li>Arrow keys nudge a focused vanishing point; Shift makes larger steps.</li>
-        <li>Every point has exact x and y boxes in the Vanishing points panel.</li>
+        <li>Every point has exact x and y boxes in the Points panel.</li>
         <li>Undo and redo are in the toolbar, one step per gesture.</li>
       </ul>
+
+      <!-- §7e.5 — every feed and dataset with its terms. This app has none, and
+           saying that precisely is the discharge of the obligation: "no data
+           sources" is only meaningful next to what the app DOES hold. -->
+      <h3>Where the drawing comes from</h3>
+      <p>Nowhere but you. This app has no feeds, no datasets, no maps and no
+      external service of any kind, so there is nothing here to credit or attribute.
+      What it holds is:</p>
+      <ul>
+        <li><strong>Your drawings</strong>, in this browser's own storage on this
+          device. Clearing the browser's site data deletes them.</li>
+        <li><strong>A reference photograph</strong>, if you load one. It is read
+          from your device and stored beside the drawing. It is never uploaded,
+          and the app cannot see it once you remove it.</li>
+        <li><strong>Your settings.</strong> That is the whole list.</li>
+      </ul>
+      <p>The typefaces are whatever your own device provides — none are downloaded.</p>
+
+      <h3>If something is wrong</h3>
+      <p><strong>Report a problem</strong> at the bottom of this panel writes out
+      everything the app knows about your drawing as plain text, and copies it.
+      Send that rather than a screenshot — a picture cannot show why a corner would
+      not go where you put it, and that is usually the part that matters. Read it
+      first if you like; it holds no account and no location.</p>
+      <p>Send it to
+      <a href="https://github.com/njefferson/Intersecting-parallels/issues">the issue
+      tracker on GitHub</a>, or to whoever gave you this app.</p>
+
       <h3>Accessibility</h3>
       <p>Everything on the canvas is reachable from the panel, because a canvas
-      cannot be tabbed into. If something here is hard to use, that is a bug
-      worth reporting.</p>
+      cannot be tabbed into. Contrast, target sizes and keyboard routes are checked
+      by a gate that blocks every release, across eight screens, two themes and two
+      phone widths. If something here is hard to use, that is a bug worth
+      reporting.</p>
       <p><a href="https://noahjefferson.pages.dev/accessibility">The accessibility statement</a> ·
       <a href="https://noahjefferson.pages.dev/">Noah Jefferson's apps</a></p>
+
       <h3>Licence</h3>
       <p>PolyForm Noncommercial 1.0.0 —
       <a href="https://github.com/njefferson/Intersecting-parallels">source on GitHub</a>.</p>
       <p class="hint" id="about-version">version</p>
     </div>
+    <!-- §7e.4 and §7e.6 — what changed and how to report a problem are REACHABLE
+         here, and neither is copied here: both buttons open the one surface that
+         already exists elsewhere. Two copies of the same prose drift, and the one
+         nobody is looking at is the one that goes stale. -->
     <div class="dlg-foot">
+      <button class="btn" type="button" id="about-notes">What changed</button>
+      <button class="btn" type="button" id="about-diag">Report a problem</button>
       <button class="btn" type="button" id="show-welcome">Show the introduction again</button>
       <button class="btn" type="submit" value="close">Close</button>
     </div>

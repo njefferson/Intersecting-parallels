@@ -28,7 +28,7 @@ import {
   buildSvg, renderPng, probeCanvasCeiling, clampExportSize, deliver,
 } from "./export.mjs";
 
-const VERSION = "1.20.0";
+const VERSION = "1.21.0";
 const NUDGE = 1, NUDGE_BIG = 20;
 // D13: in SCREEN px, because that is where a hand's noise lives — canvas px
 // shrink with zoom and stop describing the gesture. D19 removed the companion
@@ -1551,6 +1551,9 @@ function showDiagnostic() {
 }
 
 $("open-diag")?.addEventListener("click", () => { $("dlg-notes")?.close(); showDiagnostic(); });
+// §7e.6 — reachable from the information surface as well. The same dialog, not a
+// second copy of it: one surface with two doors.
+$("about-diag")?.addEventListener("click", () => { $("dlg-about")?.close(); showDiagnostic(); });
 $("diag-refresh")?.addEventListener("click", () => { const t = $("diag-text"); if (t) t.value = diagnosticText(); });
 $("diag-copy")?.addEventListener("click", async () => {
   const t = $("diag-text");
@@ -1595,10 +1598,15 @@ function renderNotes() {
   }
 }
 
-$("build-stamp")?.addEventListener("click", () => {
+function showNotes() {
   renderNotes();
   $("dlg-notes")?.showModal();
-});
+}
+$("build-stamp")?.addEventListener("click", showNotes);
+// §7e.4 — the patch notes are the "somewhere they already go" §7d asks for, and
+// the information surface is required to list them too. One generated source,
+// two doors; nothing is written twice.
+$("about-notes")?.addEventListener("click", () => { $("dlg-about")?.close(); showNotes(); });
 
 // D67 — a photograph to draw over, kept on the device and drawn UNDER the work.
 //

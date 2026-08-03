@@ -18,11 +18,36 @@ reader would otherwise rediscover, and they show in the app beside the fixes.
 - Target *spacing* is not checked by the accessibility gate — only target size is.
 - The reference image has never been tested against a real photograph, only a
   two-pixel test image, so how well the opacity steps read is unknown.
-- There is still no (i) surface. What the app is, what it is not, and how to put
-  it on a home screen are spread across About and the first-run panel instead of
-  sitting behind one control.
 - The diagnostic report only lists faults the app can *detect*. Something drawn
   wrong that the solver was perfectly happy to place will not appear in it.
+- Starting a line or a box still needs a drag. Every corner can be typed or
+  nudged with the arrow keys once it exists, but the first gesture cannot.
+
+---
+
+## 1.21.0 — CAPABILITY · 2026-08-03
+
+**One (i), and everything about the app behind it.**
+
+- The **About** button in the corner is now an **(i)**. Same place, same one tap,
+  and it holds the lot: what this app is, what it is *not*, how to put it on your
+  home screen, what changed, what it keeps and where, how to report a problem,
+  the accessibility statement and the licence.
+- **What it is not** is written out as plainly as what it is — not a paint app,
+  not a 3D modeller, not curvilinear, not a tracer, and it still needs a drag to
+  start a line. Better to read that in ten seconds than find it out in ten
+  minutes.
+- **Home-screen instructions name every platform**: iPhone and iPad in Safari and
+  in Chrome, Android in Chrome and Firefox, Windows/Mac/Linux in Chrome and Edge,
+  and desktop Firefox where there is no install at all. Nothing is detected —
+  iOS never announces itself as installable, so a clever button would have been
+  an invisible one for half of you.
+- **What changed** and **Report a problem** are both reachable from the (i) as
+  well as from where they already lived. One copy of each, two ways in.
+- **The introduction is still there.** *Show the introduction again* has always
+  been in this panel; it now sits behind the (i) with everything else, and it is
+  the same panel you saw on your first run rather than a second copy that could
+  drift away from it.
 
 ---
 

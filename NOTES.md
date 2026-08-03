@@ -7,6 +7,23 @@ file's first content, per the handoff.
 
 ---
 
+## STAGED CANDIDATE — waiting on Noah
+
+**Version 1.21.0**, on `staging`, at
+**https://staging.intersecting-parallels.pages.dev**
+
+That is the preview to open on the iPad. Production is
+https://intersecting-parallels.pages.dev and is a release behind until Noah says
+"promote".
+
+This block is the durable "waiting on Noah" signal Doctrine §7 asks for: a
+staged build that only exists in a finished session's chat is an invisible one.
+It is kept current by `test/release.test.mjs`, which fails if the version here
+drifts from the version that would actually deploy — hub LESSONS §26 is the
+reason it is a gate rather than a habit.
+
+---
+
 ## Status — updated 2026-07-29 (bootstrap session)
 
 **Done by the bootstrap session:**
@@ -895,6 +912,60 @@ used to end this amendment — "the corners are adjustable afterwards precisely
 because they are constrained" — was true of the data model and false of the app:
 there was no way to move a corner at all, only to delete it. D23 makes it true. It refuses with a plain reason when
 fewer than two points are available, and leaves nothing half-built.
+
+### D73 — one information surface, and it is an (i) (SHIPPED 1.21.0, staging)
+
+Doctrine §7e, built rather than deferred. The App had an About panel that covered
+maybe half of what §7e names, and the half it covered it covered loosely — which
+is why the rule exists: *"Noah should not have to ask for this app after app. He
+has asked for the same set of things in enough repos that the asking is itself
+the evidence."*
+
+**The control replaced a word, so it cost nothing.** §7e is explicit that adding
+one control to a header can wrap a toolbar and take the space out of the content
+— *"measured, not theorised: one 44px button cost 51px of header and pushed a
+panel over its own footer."* Here the button already existed and only its label
+changed, "About" → "i". Measured either way: the bar is 107px, unchanged, and the
+walk pins it.
+
+**The glyph is decorative and the name is a sentence.** An `aria-label` of
+"Information — …" against a visible "i" would have passed my own SC 2.5.3 check,
+because `"information".includes("i")` is true. It would have passed for a reason
+that has nothing to do with the criterion, and left a control whose spoken label
+is a single letter. So the "i" is `aria-hidden` and an `.sr-only` sentence carries
+the name. **A check that can be satisfied by an accident is a check to route
+around, not to lean on** — the same shape as D70's lesson about what a gate
+selects.
+
+**Every platform NAMED, nothing sniffed.** iOS fires no `beforeinstallprompt`, so
+a detected Install button is a button that does not exist for half the readers.
+Six named routes instead: iPhone/iPad in Safari and in Chrome (Chrome on iOS is
+Safari underneath, and its Share menu is in a different place — worth its own
+line), Android in Chrome and in Firefox, desktop Chrome/Edge, and desktop Firefox
+where the honest answer is *there is no install, bookmark it*. The gate asserts
+all ten platform words are present, so a future tidy-up cannot quietly drop one.
+
+**What changed and the diagnostic are REACHABLE here, not COPIED here.** §7e:
+*"MOVE content into it, never COPY. Two copies of the same prose drift, and the
+one nobody is looking at is the one that goes stale."* Both footer buttons open
+the surface that already exists. The introduction is the case that could most
+easily have gone wrong — it would have been natural to paste the welcome text
+into the panel — so the walk counts how many dialogs contain the introduction's
+own sentence and **fails at two**.
+
+**Eleven checks, and the planting found the honest shape of each.** Batch A broke
+six content claims at once and produced exactly seven failures, one per claim
+(the glyph plant fails two checks by design, since a "?" is neither the letter
+nor a name that says what it opens). Batch B broke four behavioural ones —
+including inflating the (i) to 8rem, which took the bar to 191px and correctly
+failed not only §7e's height check but D47's toolbar cap and D43's stage-follows-
+canvas check. **That cascade is evidence rather than noise:** it is exactly the
+failure §7e's height rule was written about, and three independent checks caught
+it.
+
+**What §7e still gets from elsewhere:** the accessibility statement is the hub's
+shared one at noahjefferson.pages.dev/accessibility, linked rather than restated,
+which is the same never-fork rule the doctrine itself follows.
 
 ### D72 — the diagnostic report (SHIPPED 1.20.0, staging)
 

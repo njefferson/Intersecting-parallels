@@ -3492,6 +3492,138 @@ try {
     await dCtx.close();
   }
 
+  // §7e — ONE information surface. The doctrine says in terms: "Make it a gate.
+  // Prose in this file did not stop any of the omissions that produced this
+  // section." So each of the seven required items is asserted, not assumed.
+  {
+    const iCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
+    await seenWelcome(iCtx);
+    const iPage = await iCtx.newPage();
+    iPage.on('pageerror', e => pageErrors.push(`information page: ${e}`));
+    await iPage.goto(origin + '/', { waitUntil: 'networkidle' });
+    await iPage.waitForFunction(() => window.__ip && window.__ip.scene, null, { timeout: 30000 });
+
+    const ctrl = await iPage.evaluate(() => {
+      const b = document.getElementById('open-about');
+      if (!b) return { present: false };
+      const glyph = b.querySelector('[aria-hidden="true"]');
+      const r = b.getBoundingClientRect();
+      const bar = document.querySelector('.bar').getBoundingClientRect();
+      return {
+        present: true,
+        inChrome: !!b.closest('.bar'),
+        glyph: (glyph?.textContent || '').trim(),
+        name: (b.textContent || '').replace(/\s+/g, ' ').trim(),
+        w: r.width, h: r.height,
+        barHeight: Math.round(bar.height),
+      };
+    });
+    check('the information surface is a letter i in the app\'s own chrome (§7e)',
+      ctrl.present && ctrl.inChrome && ctrl.glyph === 'i' && ctrl.w >= 44 && ctrl.h >= 44,
+      JSON.stringify(ctrl));
+    // §7e: "an accessible name that says what it opens". Not "About" — a word
+    // that names a genre of screen rather than its contents.
+    check('and its accessible name says what is behind it, not just "about" (§7e)',
+      /information/i.test(ctrl.name) && /install/i.test(ctrl.name) && /what changed/i.test(ctrl.name),
+      `named "${ctrl.name}"`);
+    // §7e: "Never cost the app height... one 44px button cost 51px of header and
+    // pushed a panel over its own footer. Measure the chrome before and after."
+    // Measured: the bar is unchanged, because the control REPLACED the word
+    // About rather than joining it.
+    check('and it costs the chrome no height — the bar is still within D47\'s budget (§7e)',
+      ctrl.barHeight <= 130, `bar ${ctrl.barHeight}px`);
+
+    const behind = await iPage.evaluate(async () => {
+      document.getElementById('open-about').click();
+      await new Promise(r => requestAnimationFrame(r));
+      const dlg = document.getElementById('dlg-about');
+      const body = dlg.querySelector('.dlg-body');
+      const heads = [...body.querySelectorAll('h3')].map(h => h.textContent.trim());
+      return {
+        open: !!dlg.open,
+        heads,
+        text: body.textContent.replace(/\s+/g, ' '),
+        foot: [...dlg.querySelectorAll('.dlg-foot .btn')].map(b => b.textContent.trim()),
+        links: [...body.querySelectorAll('a')].map(a => a.getAttribute('href')),
+      };
+    });
+    check('§7e.1 and §7e.2 — it says what the app IS and what it is NOT',
+      /what this is/i.test(behind.heads.join('|')) && /what this is not/i.test(behind.heads.join('|'))
+        && /not a paint app/i.test(behind.text) && /not a 3d modeller/i.test(behind.text),
+      JSON.stringify(behind.heads));
+    // §7e.3 — EVERY PLATFORM NAMED rather than detected. iOS fires no
+    // beforeinstallprompt, so a sniffed Install button does not exist for half
+    // the readers. Named text cannot go stale the way a capability check can.
+    const platforms = ['iPhone', 'iPad', 'Safari', 'Android', 'Chrome', 'Firefox', 'Windows', 'Mac', 'Linux', 'Edge'];
+    const namedAll = platforms.filter(p => !new RegExp(p, 'i').test(behind.text));
+    check('§7e.3 — the install steps NAME every platform rather than sniffing one',
+      namedAll.length === 0 && /home screen/i.test(behind.text),
+      namedAll.length ? `never named: ${namedAll.join(', ')}` : `all ${platforms.length} named`);
+    check('§7e.5 — it says where the data comes from, including that there is none',
+      /where the drawing comes from/i.test(behind.heads.join('|'))
+        && /no feeds, no datasets/i.test(behind.text) && /never uploaded/i.test(behind.text),
+      JSON.stringify(behind.heads));
+    check('§7e.7 — the accessibility statement and the licence are both here',
+      behind.links.some(h => /noahjefferson\.pages\.dev\/accessibility/.test(h))
+        && /polyform noncommercial/i.test(behind.text),
+      JSON.stringify(behind.links));
+    check('§7e.4 and §7e.6 — what changed and how to report a problem are reachable from it',
+      behind.foot.some(t => /what changed/i.test(t)) && behind.foot.some(t => /report a problem/i.test(t)),
+      JSON.stringify(behind.foot));
+
+    // Reachable is a claim about what the buttons DO, not about their words.
+    const doors = await iPage.evaluate(async () => {
+      document.getElementById('about-notes').click();
+      await new Promise(r => requestAnimationFrame(r));
+      const notes = { open: !!document.querySelector('#dlg-notes[open]'), bullets: document.querySelectorAll('#notes-body li').length };
+      document.querySelector('#dlg-notes .dlg-head .btn').click();
+      await new Promise(r => requestAnimationFrame(r));
+      document.getElementById('open-about').click();
+      document.getElementById('about-diag').click();
+      await new Promise(r => requestAnimationFrame(r));
+      return {
+        notes,
+        diagOpen: !!document.querySelector('#dlg-diag[open]'),
+        diagLen: (document.getElementById('diag-text')?.value || '').length,
+        aboutClosed: !document.querySelector('#dlg-about[open]'),
+      };
+    });
+    check('and both doors really open their surface, with content in it (§7e)',
+      doors.notes.open && doors.notes.bullets > 0 && doors.diagOpen && doors.diagLen > 200 && doors.aboutClosed,
+      JSON.stringify(doors));
+
+    // §7e: first-run orientation SURVIVES whatever the reader presses to begin,
+    // and then lives permanently behind the (i). And it is MOVED, never COPIED —
+    // two copies of the same prose drift, and the stale one is the one nobody
+    // is looking at.
+    const intro = await iPage.evaluate(async () => {
+      document.querySelector('#dlg-diag .dlg-head .btn').click();
+      await new Promise(r => requestAnimationFrame(r));
+      document.getElementById('open-about').click();
+      document.getElementById('show-welcome').click();
+      await new Promise(r => requestAnimationFrame(r));
+      const w = document.getElementById('dlg-welcome');
+      const phrase = 'That is the whole idea of the app in one gesture.';
+      // How many times does the introduction's own sentence appear in the whole
+      // document? Exactly once, or it has been copied rather than moved.
+      const copies = [...document.querySelectorAll('dialog')]
+        .filter(d => d.textContent.includes(phrase)).map(d => d.id);
+      return {
+        open: !!w?.open,
+        reachedAfterDismissal: !!w?.open,
+        body: (w?.querySelector('.dlg-body')?.textContent || '').replace(/\s+/g, ' ').slice(0, 60),
+        copies,
+      };
+    });
+    check('§7e — the introduction survives being dismissed and lives behind the (i)',
+      intro.open && /where you stand and what you see/i.test(intro.body),
+      JSON.stringify({ open: intro.open, body: intro.body }));
+    check('and it exists ONCE — moved behind the (i), never copied into it (§7e)',
+      intro.copies.length === 1 && intro.copies[0] === 'dlg-welcome',
+      `the introduction's own sentence appears in: ${intro.copies.join(', ') || 'nothing'}`);
+    await iCtx.close();
+  }
+
   // D28 — the first-run panel, against §4's six requirements for the way out,
   // at the ordinary viewport AND the small-phone-at-200%-text case the doctrine
   // names. Nothing here is judged by eye: each one is measured.

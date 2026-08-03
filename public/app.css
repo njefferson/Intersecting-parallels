@@ -285,6 +285,12 @@ dialog::backdrop{background:rgba(4,7,18,.62)}
 /* §7f — the report is SELECTABLE TEXT, which means the page-wide user-select:none
    has to be lifted here or it cannot be copied by hand when the clipboard is
    unavailable. */
+/* §7e — the (i). One letter, so it needs a floor on its WIDTH as well as its
+   height or it is a 22px target. The glyph is centred and set in the same weight
+   as the rest of the bar; nothing about it should read as decoration. */
+.btn.info{min-width:2.75rem;display:inline-flex;align-items:center;justify-content:center}
+.btn.info span[aria-hidden]{font-style:italic;font-weight:700;font-size:1.0625rem;line-height:1}
+
 /* A scrollable body is keyboard-reachable, so it needs to SHOW that it has
    focus like every other stop does. */
 .dlg-body:focus-visible{outline:2px solid var(--slate);outline-offset:-2px}

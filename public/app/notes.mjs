@@ -2,6 +2,19 @@
 // §7d: one source, so the notes on screen cannot drift from the release.
 export const RELEASES = [
   {
+    "version": "1.21.0",
+    "kind": "CAPABILITY",
+    "date": "2026-08-03",
+    "head": "One (i), and everything about the app behind it.",
+    "points": [
+      "The About button in the corner is now an (i). Same place, same one tap,",
+      "What it is not is written out as plainly as what it is — not a paint app,",
+      "Home-screen instructions name every platform: iPhone and iPad in Safari and",
+      "What changed and Report a problem are both reachable from the (i) as",
+      "The introduction is still there. Show the introduction again has always"
+    ]
+  },
+  {
     "version": "1.20.0",
     "kind": "CAPABILITY",
     "date": "2026-08-03",
@@ -55,24 +68,12 @@ export const RELEASES = [
       "Growing it holds its middle, so whatever you were looking at stays under your",
       "Every step is a button rather than a pinch, and the buttons are the only route,"
     ]
-  },
-  {
-    "version": "1.18.0",
-    "kind": "CAPABILITY",
-    "date": "2026-08-02",
-    "head": "Draw over a photograph.",
-    "points": [
-      "Setup, under Reference image: Choose image, pick a photo, and it sits",
-      "It pans and zooms with the drawing, not with the screen — an image you",
-      "Together with Point from two lines, this is the whole technique for reading a",
-      "The photo never leaves your device. It is kept in this browser's own"
-    ]
   }
 ];
 export const STILL_OPEN = [
   "The snap radius is a fixed number rather than something you can tune to your",
   "Target *spacing* is not checked by the accessibility gate — only target size is.",
   "The reference image has never been tested against a real photograph, only a",
-  "There is still no (i) surface. What the app is, what it is not, and how to put",
-  "The diagnostic report only lists faults the app can *detect*. Something drawn"
+  "The diagnostic report only lists faults the app can *detect*. Something drawn",
+  "Starting a line or a box still needs a drag. Every corner can be typed or"
 ];
