@@ -139,7 +139,7 @@ function openDb() {
       if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: "key" });
       // D67 — the reference image lives HERE, not in the project JSON.
       //
-      // Noah asked to draw over a photograph, and the storage choice is the part
+      // Drawing over a photograph was asked for, and the storage choice is the part
       // worth deciding rather than discovering: a photo as base64 in the JSON
       // turns a 30KB project file into a 4MB one, and every save and load carries
       // it. A blob in IndexedDB keeps the file small and the image local. The

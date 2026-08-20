@@ -420,7 +420,8 @@ try {
 
           // D56 — two controls on one surface must not answer to the SAME NAME.
           //
-          // Noah, 2026-08-01: "Person, 'place,' or thing…. Label is confusing."
+          // THE DEFECT, 2026-08-01: read across the row — person, "place", thing
+          // — the label was confusing.
           // The Human-scale button read "Place" and so did the toolbar mode for
           // putting vanishing points down. Two controls, one word, two meanings —
           // and for anyone driving this by voice or by a list of controls,
@@ -530,10 +531,10 @@ console.log(`surfaces: ${STATE_COUNT} x themes: ${THEMES.length} x viewports: ${
 if (exemptions.size) {
   console.log(`\nEXEMPTED (${exemptions.size}) — reported, never silent:`);
   for (const e of exemptions) console.log('  · ' + e);
-  // §4 CARRIES this exception in its own words now (hub DOCTRINE.md, ruled by
-  // Noah 2026-07-30): targets are >= 44px except one inline in a sentence, whose
-  // height the surrounding line constrains, "and the gate applies that exception
-  // and PRINTS every element it applied it to, never silently". So this list is
+  // §4 CARRIES this exception in its own words now (hub DOCTRINE.md, settled
+  // 2026-07-30): targets are >= 44px except one inline in a sentence, whose
+  // height the surrounding line constrains — and the gate applies that exception
+  // and PRINTS every element it applied it to, never silently. So this list is
   // the doctrine being obeyed, not a question waiting on an answer — which is
   // what it used to say for two days after the answer arrived.
   console.log('  §4: >= 44px EXCEPT a target inline in a sentence (WCAG 2.2 SC 2.5.8).');

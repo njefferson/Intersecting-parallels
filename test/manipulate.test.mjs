@@ -170,8 +170,9 @@ test("no corner may converge onto its own vanishing point", () => {
 
 test("D39: a depth passes THROUGH zero and out the other side, inverting the box", () => {
   // This test used to assert the opposite. It guarded T_FLOOR, which kept |t|
-  // above 1 because solveRay folded at zero — and that floor was the wall Noah
-  // hit: "it never crosses over and comes on the other side inverting the box."
+  // above 1 because solveRay folded at zero — and that floor was the wall the
+  // report hit: a depth never crossed over to the other side, so the box could
+  // not be inverted.
   const { scene, box } = boxScene({ dL: 40, dR: 40 });
   const { leftBottom } = box.corners;
   const startT = leftBottom.t;

@@ -279,8 +279,8 @@ test("EPS_LEN is relative to the canvas diagonal, so it survives any document si
 
 // ---- D17: deleting a vanishing point moves nothing ------------------------
 //
-// Noah, 2026-07-29: "VPs said they could not be deleted without destroying
-// existing lines." The app refused outright. Now the point goes and the drawing
+// THE DEFECT, 2026-07-29: the app said a vanishing point could not be deleted
+// without destroying existing lines, and refused outright. Now the point goes and the drawing
 // stays put, to the pixel.
 
 test("D17: a vanishing point can be deleted, and not one pixel of the drawing moves", async () => {

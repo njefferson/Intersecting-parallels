@@ -38,8 +38,8 @@ export function fitView(view, viewport, margin = 24) {
 
 // D64 — fit the POINTS, not just the paper.
 //
-// Noah, 2026-08-01: "I'd like to be able to zoom out to see VPs on the screen, at
-// will, and maybe zoom back to the canvas again."
+// THE REQUEST, 2026-08-01: be able to zoom out far enough to see the vanishing
+// points on screen at will, and zoom back to the canvas again.
 //
 // Vanishing points are usually off the paper — that is the ordinary case, not an
 // edge one, and D27's edge markers exist because of it. But a marker pointing off
@@ -148,9 +148,10 @@ function groupSolids(scene, byId) {
 
 // D49 — STOP RECALCULATING WHAT THE CONSTRUCTION ALREADY KNOWS.
 //
-// Noah, 2026-07-31: "Why do you recalculate normals at all?"
+// THE QUESTION THAT ENDS THIS WHOLE LINE OF BUGS, 2026-07-31: why recalculate
+// normals at all?
 //
-// He is right and it is the question that ends this whole line of bugs. D44 read
+// It is the right question. D44 read
 // the near corner off SCREEN POSITION ("lowest on the page"), D48 patched that to
 // distance from the horizon, and each version was wrong somewhere else. None of
 // it was necessary: `buildBox` puts the anchor at the near bottom corner and runs
@@ -185,8 +186,8 @@ export function nearBaseIndex(ring, byId) {
 // D49 — and the OTHER line. Whether you see the top of a horizontal face or its
 // underside is decided by the HORIZON, not by the authored eye-level line.
 //
-// Noah, 2026-07-31, with three cubes sitting in the band between the two: "All
-// these cubes fail at eye/horizon lines."
+// THE DEFECT, 2026-07-31, reported with three cubes sitting in the band between
+// the two: every one of them fails where the eye-level and horizon lines are.
 //
 // The horizon is where horizontal planes at your eye height vanish, so a
 // horizontal face projects below it when it is below your eye and above it when
@@ -206,10 +207,10 @@ function sideOfHorizon(scene, p) {
 
 // D44 — which faces of a solid can be seen, INCLUDING when it is inside out.
 //
-// Noah, 2026-07-30: "Inverted boxes have normals reversed (I think...) - i guess
-// that because the sides do not resemble a solid."
+// THE DEFECT, 2026-07-30: an inverted box draws with its normals reversed, so
+// its sides stop resembling a solid.
 //
-// He diagnosed it correctly. D37 stored two vertical faces and asserted they were
+// That diagnosis was correct. D37 stored two vertical faces and asserted they were
 // always visible, on the reasoning that they meet at the near vertical edge and
 // that edge is nearest by construction. D39 then made depths signed so a box can
 // be pushed through its own origin — and the moment it inverts, the anchor is no
@@ -227,11 +228,11 @@ function sideOfHorizon(scene, p) {
 // walls, and those are simply ignored in favour of the ring.
 // D63 — WHICH FACES YOU CAN SEE, decided the way every 3-D renderer decides it.
 //
-// Noah, 2026-08-01: "I still don't understand why you just don't assign a face a
-// normal that doesn't change no matter what direction you look at it from and
-// just cull the reverse normals like any 3-D program. I don't think eye line
-// makes any sense with a one or 2D or maybe any perspective. It's forced by the
-// two that make the horizon line."
+// THE ARGUMENT PUT TO THIS CODE, 2026-08-01, and it is correct: give a face a
+// normal that does not change with the direction it is viewed from, and cull the
+// reverse normals, the way every 3-D program does. Eye line does not decide
+// visibility in a one- or two-point construction at all. Visibility is forced by
+// the two points that make the horizon line.
 //
 // Both halves are right, and the second falls out of the first. Every face is
 // built wound the same way round the OUTSIDE of its solid, and that winding never
@@ -244,7 +245,7 @@ function sideOfHorizon(scene, p) {
 // D49's near-corner-from-depth-signs, and D54's separate rule for roof planes.
 // Every one of those was a way of working out from screen position something the
 // winding already says, and each was wrong in a case the next one had to patch —
-// including the one Noah has just reported, a cube inverting when two vanishing
+// including the one just reported, a cube inverting when two vanishing
 // points swap sides. Under this rule that is not a special case: the projection
 // mirrors, every winding flips, and you correctly see the other side of the box.
 //
@@ -294,8 +295,8 @@ function visibleFaces(solid, scene, byId) {
 
 // D40 — the edges a solid actually SHOWS.
 //
-// Noah, 2026-07-30: "You can see the internals of the boxes with no way to erase
-// or cover the lines, otherwise."
+// THE DEFECT, 2026-07-30: the internals of a box are visible through it, with no
+// way to erase or cover the lines.
 //
 // A solid was filling its faces and then stroking ALL TWELVE of its own edges
 // over the top, including the three that are behind it. Filling a shape and then
@@ -367,7 +368,7 @@ export function draw(ctx, view, viewport, opts = {}) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   // D43 — clear the WHOLE backing store, not the viewport rectangle.
   //
-  // FOUND ON NOAH'S IPAD, 2026-07-30, on production 1.7.0: a band of squashed,
+  // FOUND ON A REAL TABLET, 2026-07-30, on production 1.7.0: a band of squashed,
   // streaky garbage along the bottom of the canvas that survived even a Clear.
   //
   // The canvas is sized to viewport x dpr when the stage resizes. Clearing the
@@ -391,8 +392,8 @@ export function draw(ctx, view, viewport, opts = {}) {
 
   // 0 — the reference image, UNDER everything.
   //
-  // D67 — drawing over a photograph. Noah, 2026-08-01: "I want to consider
-  // importing and drawing over an image later." It is the other half of D65: the
+  // D67 — drawing over a photograph, asked for 2026-08-01: import an image and
+  // draw over it. It is the other half of D65: the
   // technique is to draw along two edges of a building in the photo and let their
   // crossing give you its vanishing point.
   //
@@ -589,7 +590,7 @@ export function draw(ctx, view, viewport, opts = {}) {
       // from it to that point stops existing; the solver marks the dependent
       // corners degenerate and leaves them at their last valid position, which is
       // the right thing to store. Filling a face through those stale points draws
-      // a shape nobody constructed — the crossed tangle Noah photographed. The
+      // a shape nobody constructed — the crossed tangle in the report. The
       // wireframe still draws, so the drawing does not vanish under the finger;
       // what stops is the app asserting a surface it cannot place.
       const unplaced = [...g.verts].some(id => byId.get(id)?.degenerate);
@@ -640,9 +641,9 @@ export function draw(ctx, view, viewport, opts = {}) {
 
   // 5 — vertices. A degenerate one gets a RING; everything else is drawn as a
   // SQUARE handle, because since D29 every corner can be dragged and the shape
-  // says so. Before, all corners looked identical and only half of them moved —
-  // Noah had to scrub each one to find out which, which is the discoverability
-  // half of his report and the reason this is shape and not hue (§4): it
+  // says so. Before, all corners looked identical and only half of them moved,
+  // so each one had to be scrubbed to find out which — the discoverability
+  // half of that report, and the reason this is shape and not hue (§4): it
   // survives a greyscale render and it is legible at a glance.
   for (const v of scene.vertices) {
     if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) continue;
@@ -651,7 +652,7 @@ export function draw(ctx, view, viewport, opts = {}) {
     ctx.fillStyle = v.degenerate ? c.bad : (isSel ? c.sel : c.ink);
     if (!v.degenerate) {
       // D30 — the three kinds of corner are three SHAPES, because they are three
-      // different things and Noah could not tell them apart:
+      // different things and nothing on screen told them apart:
       //   anchor    filled square inside an open ring — you placed it, it is free
       //             in the plane, and it is the one that moves the whole shape
       //   ray       filled square — slides along one guide
@@ -704,9 +705,9 @@ export function draw(ctx, view, viewport, opts = {}) {
 
   // 5a — D33: the axis the second step is waiting for.
   //
-  // Noah, 2026-07-30: "it would be helpful to show a double headed arrow on the
-  // auto selected corner for the second step, aligned with the axis movement
-  // direction, to indicate the expected user input." A standing strip says a step
+  // THE REQUEST, 2026-07-30: show a double-headed arrow on the auto-selected
+  // corner for the second step, aligned with the axis the movement runs along, so
+  // the expected input is stated. A standing strip says a step
   // is happening; this says WHICH WAY. Double-headed because the depth can grow or
   // shrink, and drawn in SCREEN space so it stays the same legible size at any
   // zoom — it is a pointer at the user, not part of the drawing.

@@ -30,7 +30,7 @@ test("each axis direction projects back to the vanishing point it came from", ()
 });
 
 test("an impossible vanishing-point triple is refused, with the way out named", () => {
-  // Noah's wide layout: horizon points 1076px apart, third point only 502px out.
+  // The wide reference layout: horizon points 1076px apart, third point only 502px out.
   assert.throws(
     () => cameraFrom({ x: 62, y: 90 }, { x: 1138, y: 90 }, { x: 600, y: 592 }),
     err => /needs d > s/.test(err.message) && /closer together/.test(err.message),

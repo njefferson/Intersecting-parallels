@@ -20,13 +20,13 @@ const DEG = 180 / Math.PI;
 
 // D11 — a vanishing point outranks an axis guide when both fit.
 //
-// FOUND ON NOAH'S IPAD, 2026-07-29: "the lines do not converge on the vanishing
-// point." Reproduced headlessly — strokes aimed straight at VP1 were binding to
+// FOUND ON A REAL TABLET, 2026-07-29: lines drawn to a vanishing point did not
+// converge on it. Reproduced headlessly — strokes aimed straight at VP1 were binding to
 // `horizontal`. The cause is structural, not a rounding accident: a VP far away
 // and near the horizon has a guide direction within a degree of horizontal
 // everywhere on the canvas, so `horizontal` won on measurement noise. And
 // `horizontal` is a PARALLEL family — lines bound to it can never converge,
-// which is precisely the fan he saw.
+// which is precisely the fan that was reported.
 //
 // The rule: an axis guide (`vertical`/`horizontal`) only beats the best VP
 // guide if it beats it by more than AXIS_MARGIN. Below that the two lines are
@@ -51,7 +51,8 @@ export const VP_TIE = 4;               // degrees
 
 // D18 — THERE IS NO PLAIN LINE. Every stroke lands on a guide.
 //
-// Noah, 2026-07-29: *"No 'drawn as plain line.'"*
+// THE RULING, 2026-07-29: there is no such thing as a stroke "drawn as a plain
+// line". Every stroke belongs to a guide.
 //
 // §3.2's angular threshold is gone. A stroke more than N degrees off every
 // guide used to fall through to `free`, which in a perspective construction
@@ -62,11 +63,11 @@ export const VP_TIE = 4;               // degrees
 // claiming to do something.
 //
 // Deliberate escapes are untouched: Assist off, and "Guide: none" in the
-// picker, are choices he makes, not something the app decides for him.
+// picker, are the reader's choices, not something the app decides for them.
 
 // D19 — the guide can be switched MID-STROKE, and switching must be deliberate.
 //
-// Noah, 2026-07-29: *"Allow switching targets mid line?"* Yes. The choice used
+// THE REQUEST, 2026-07-29: allow the target guide to be switched mid-line. The choice used
 // to lock a short way into the drag and never move again, so a stroke aimed
 // wrongly had to be undone and redrawn. Now every pointer move re-picks, and
 // swinging the finger toward another guide moves the line onto it.
@@ -98,15 +99,16 @@ function lineAngle(dir, u) {
 // vertical, true horizontal. Optionally the 45° pair, behind a toggle that is
 // OFF by default. Nothing else may ever capture a stroke.
 //
-// Noah, 2026-07-29: "WHY is there ANYTHING besides VPs, and perfect vertical
-// and horizontal lines acting as ANCHORS FOR MY LINES?! I DIDN'T ASK FOR THAT!
-// 45 degrees may be a toggle."
+// THE RULING, 2026-07-29, and it was emphatic: NOTHING may anchor a stroke
+// except the vanishing points and true vertical and horizontal. No other
+// attractor was asked for and none may be assumed. 45° is permitted only as an
+// opt-in toggle.
 //
 // This function was already that list. What was NOT on the list, and was
-// silently anchoring his lines anyway, was ENDPOINT snapping: §2.4's mandatory
+// silently anchoring lines anyway, was ENDPOINT snapping: §2.4's mandatory
 // merge into any existing vertex within 12px, and D2's snap onto any existing
 // bound edge. Those pulled the END of a stroke off its guide and onto whatever
-// he had drawn earlier — see `resolveEndpoint`, where it is now off.
+// drawn earlier — see `resolveEndpoint`, where it is now off.
 export function scoreBindings(scene, originPos, dir, { diagonals = false } = {}) {
   const out = [];
   for (const vp of scene.vanishingPoints) {
@@ -127,7 +129,7 @@ export function scoreBindings(scene, originPos, dir, { diagonals = false } = {})
   return out;
 }
 
-// The stroke's binding: forced wins; assist off means free (his choice, D18);
+// The stroke's binding: forced wins; assist off means free (the reader's choice, D18);
 // otherwise the NEAREST guide, always — with the guide already in hand kept
 // unless a rival beats it by SWITCH_MARGIN (D19).
 export function chooseBinding(scene, originPos, dir, { forced = null, assist = true, diagonals = false, current = null } = {}) {
@@ -234,8 +236,8 @@ export function nearestEdge(scene, p, r = SNAP_RADIUS) {
 
 // Describe what a tap at p should become, before anything is created.
 //
-// D16: `join` is what §2.4 called mandatory and Noah calls an anchor he never
-// asked for. With join off — which is how the app now draws — an endpoint lands
+// D16: `join` is what §2.4 called mandatory, and what the D16 ruling classes as
+// an anchor nobody asked for. With join off — which is how the app now draws — an endpoint lands
 // exactly where it was put, and only a GUIDE can influence a stroke.
 export function resolveEndpoint(scene, p, r = SNAP_RADIUS, { join = true } = {}) {
   if (!join) return { type: "plain", at: { x: p.x, y: p.y } };
@@ -254,7 +256,7 @@ export function resolveEndpoint(scene, p, r = SNAP_RADIUS, { join = true } = {})
 // pass through the vanishing point the stroke asked for. Measured on a plain
 // two-point scene: an edge stored as bound to VP1 whose line misses VP1 by
 // 1,866px. It draws as a line that does not converge and does not move when
-// that point moves, which is the defect Noah reported wearing a second
+// that point moves, which is the reported defect wearing a second
 // costume.
 //
 // So the binding is CHECKED against the geometry at commit, and an unsatisfied
@@ -358,10 +360,10 @@ export function effectiveBinding(scene, edge) {
 
 // D20 — line ends JOIN again, but joining may only move an end ALONG its guide.
 //
-// Noah, 2026-07-29, with two screenshots of a cube coming apart under a VP
-// drag: *"Being unable to connect line ends means everything breaks when you do
-// adjustments."* He is right, and this is the consequence I flagged when D16
-// took joining out wholesale.
+// THE DEFECT, 2026-07-29, reported with two screenshots of a cube coming apart
+// under a VP drag: with line ends unable to connect, everything breaks the
+// moment an adjustment is made. That is correct, and it is the consequence
+// flagged when D16 took joining out wholesale.
 //
 // D16 and this are not in conflict once the two things it conflated are pulled
 // apart:
@@ -382,8 +384,8 @@ export function effectiveBinding(scene, edge) {
 // A stroke's START may always merge, because the guide is computed THROUGH the
 // start point: joining there cannot change any direction.
 // D22 adds `weld`. With welding OFF the end lands on its guide exactly where the
-// finger left it and joins nothing — which is the 0.2.0 behaviour Noah asked for
-// and then found broke his adjustments. It is a choice now rather than a verdict:
+// finger left it and joins nothing — the 0.2.0 behaviour, which was asked for and
+// then turned out to break adjustments. It is a choice now rather than a verdict:
 // the guide still decides direction either way, so turning welding off can never
 // bring back a line that belongs to nothing (D18).
 export function resolveStrokeEnd(scene, startPos, binding, u, p, r = SNAP_RADIUS, { weld = true } = {}) {
@@ -430,15 +432,15 @@ export function resolveStrokeEnd(scene, startPos, binding, u, p, r = SNAP_RADIUS
 
 // D21 — a box, drawn in one gesture, every corner constrained.
 //
-// Noah, 2026-07-29: *"Add drawing boxes/rectangles."* He had just built a cube
-// out of nine separate strokes, and it came apart when he moved a point.
+// THE REQUEST, 2026-07-29: add box and rectangle drawing. It followed a cube
+// built out of nine separate strokes, which came apart the moment a point moved.
 //
 // This emits the twelve edges of a box in two-point perspective where EVERY
 // vertex is defined by constraints rather than by coordinates: the near edge is
 // vertical, the receding edges are bound to the vanishing points, and all six
 // remaining corners are intersections of two of those. So a vanishing point
 // drag — or a corner drag — moves the whole box and it stays a box. That is the
-// property his hand-drawn cube could not have.
+// property a hand-drawn cube could not have.
 //
 // One drag: it starts at the near bottom corner and its vertical extent is the
 // height. D23 replaced the square plan: the two base depths are taken separately
@@ -467,8 +469,9 @@ export function splitBoxDepths(scene, at, to, { unit = 90 } = {}) {
   const height = Math.abs(to.y - at.y);
   const hx = to.x - at.x;
   // The floor is a FIXED size, not a fraction of the height. Tying it to the
-  // height welded all three axes to one drag: Noah, 2026-07-30, "I tried creating
-  // a tall, narrow, thin box, but dragging straight up changed all three axis."
+  // height welded all three axes to one drag. THE DEFECT, 2026-07-30: drawing a
+  // tall, narrow, thin box was impossible, because dragging straight up changed
+  // all three axes at once.
   // Measured on the shipped build — height 141 gave depths 70.7, height 636 gave
   // depths 318.1, so a tall thin box could not be drawn at all. Straight up now
   // means TALL: the depths stay at the floor however far up the drag goes, and
@@ -564,11 +567,11 @@ export function buildBox(scene, { at, height, depth, depthL, depthR }) {
   // without anything stored needing to know that it inverted.
   // D63 — ALL SIX FACES, each wound the same way round the outside of the solid.
   //
-  // Noah, 2026-08-01: "I still don't understand why you just don't assign a face a
-  // normal that doesn't change no matter what direction you look at it from and
-  // just cull the reverse normals like any 3-D program."
+  // THE ARGUMENT, 2026-08-01: give a face a normal that does not change with the
+  // direction it is viewed from, and cull the reverse normals, the way every 3-D
+  // program does.
   //
-  // He is right, and this replaces D37, D44, D48, D49 and D54's visibility rules
+  // That is right, and this replaces D37, D44, D48, D49 and D54's visibility rules
   // with the one every renderer uses. A face's outward side is a fact about the
   // SOLID, fixed here and never recomputed. Which faces you can see is then read
   // off the WINDING of the projected polygon — the thing the projection already

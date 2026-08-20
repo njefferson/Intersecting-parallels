@@ -5,8 +5,8 @@ name: Accessibility gate
 # commit, so there is never a moment where §4 describes enforcement that does
 # not exist (which is exactly what the hub audit of 2026-07-28 found there).
 #
-# Runs on staging too — the staging gate is where Noah looks at candidates, so
-# a candidate that fails §4 must be caught before he ever opens the preview.
+# Runs on staging too — the staging gate is where candidates get looked at, so
+# a candidate that fails §4 must be caught before the preview is ever opened.
 
 on:
   push:
@@ -49,6 +49,6 @@ jobs:
 
       # Doctrine §4: every drag and gesture declares its non-drag path, and a
       # declaration with no alternative — or one whose selector matches nothing —
-      # fails the build. Added in 1.1.0, after Noah found V1 shipping with a
+      # fails the build. Added in 1.1.0, after V1 shipped with a
       # corner that could be neither dragged nor nudged.
       - run: node check-interactions.mjs

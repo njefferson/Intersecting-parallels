@@ -1,22 +1,22 @@
 # NOTES.md — Intersecting Parallels
 
 The repo's source of truth (Doctrine §12): thesis, settled decisions, Project
-facts, and what is waiting on Noah. Read it first, every session. The design
+facts, and what is waiting on the owner. Read it first, every session. The design
 below was decided in the session of 2026-07-29 and committed here as this
 file's first content, per the handoff.
 
 ---
 
-## STAGED CANDIDATE — waiting on Noah
+## STAGED CANDIDATE — waiting on the owner
 
 **Version 1.22.0**, on `staging`, at
 **https://staging.intersecting-parallels.pages.dev**
 
 That is the preview to open on the iPad. Production is
-https://intersecting-parallels.pages.dev and is a release behind until Noah says
+https://intersecting-parallels.pages.dev and is a release behind until the owner says
 "promote".
 
-This block is the durable "waiting on Noah" signal Doctrine §7 asks for: a
+This block is the durable "waiting on the owner" signal Doctrine §7 asks for: a
 staged build that only exists in a finished session's chat is an invisible one.
 It is kept current by `test/release.test.mjs`, which fails if the version here
 drifts from the version that would actually deploy — hub LESSONS §26 is the
@@ -39,7 +39,7 @@ reason it is a gate rather than a habit.
   design, nothing to use yet", links back to the hub and the shared
   accessibility statement.
 
-**BLOCKER CLEARED 2026-07-29:** Noah uploaded `vpdrawingappspec.md` later the
+**BLOCKER CLEARED 2026-07-29:** the spec was uploaded `vpdrawingappspec.md` later the
 same day (it had never reached the bootstrap session's uploads — a Drive and
 repo search confirmed no other copy existed anywhere reachable). Committed here
 verbatim, next to this file. Every section the D1–D10 amendments cite is where
@@ -47,14 +47,14 @@ they said it was. Read the spec WITH the amendments; where they disagree, the
 amendments win.
 
 **BUILD ORDER STEPS 1–10 ALL DONE (2026-07-29).** The full product is built
-and on `staging`, awaiting Noah's single aggregate pass. What each step became:
+and on `staging`, awaiting a single aggregate on-device pass. What each step became:
 
 1. Scene schema + solver + unit tests — `public/app/solver.mjs`,
    `test/solver.test.mjs`.
 2. Canvas render + pan/zoom transform — `public/app/render.mjs`.
 3. VP placement, drag, off-canvas handles, horizon — `render.mjs` + `ui.mjs`.
 4. Click-to-place edges — `public/app/snap.mjs`. D2's endpoint precedence lives
-   here but is now OFF at Noah's instruction: see D16.
+   here but is now OFF by ruling: see D16.
 5. VP drag → live re-solve. **The proof of concept.** It works; the aggregate
    handoff below is the "stop and validate" this step asks for.
 6. Assisted freehand with ghost ray and threshold fallback — `snap.mjs` +
@@ -103,21 +103,20 @@ rather than per pointer event (§4's own instruction). Median went 37.2ms →
 - `.empty` is not in the a11y registry; its colour pair is covered by `.hint`.
   See ACCESSIBILITY.md for why registering it would make the gate flaky.
 
-**Name checks: ALL CLEAR.** The App Store and USPTO checks are done — Noah ran
-them himself and reported the name checked (2026-07-29, "I already checked the
-name"). With pages.dev settled by the first deploy, nothing about the name
-remains open.
+**Name checks: ALL CLEAR.** The App Store and USPTO checks were run outside this
+repo and reported clear on 2026-07-29. With pages.dev settled by the first
+deploy, nothing about the name remains open.
 
-**Working agreement (Noah, 2026-07-29):** build the FULL product without
-stopping at each staging promote; only stop when a decision is needed from him.
-He tests the AGGREGATE once, on staging on his iPad, before it becomes V1.
+**Working agreement (settled 2026-07-29):** build the FULL product without
+stopping at each staging promote; only stop when a decision is actually needed.
+The AGGREGATE is tested once, on staging on a real device, before it becomes V1.
 Until that pass: all app work lands on `staging`; `main` keeps the placeholder
 (docs may still land on `main`). The single staging handoff at the end IS the
-Doctrine §7 gate for this build — one gate, his call, not skipped.
+Doctrine §7 gate for this build — one gate, the owner's call, not skipped.
 
-**Post-report audit, 2026-07-29 (Doctrine §14).** Noah found the D11 defect on
-his device, which makes the next handoff require an exhaustive adversarial pass
-first — "Noah is never the test bench". That pass found D12 by measurement
+**Post-report audit, 2026-07-29 (Doctrine §14).** the D11 defect was found on
+a real device, which makes the next handoff require an exhaustive adversarial pass
+first — the owner is never the test bench. That pass found D12 by measurement
 before it was ever reported, and separately confirmed by probe that SVG layer
 grouping and cold-reload determinism (D3) both still hold. Two defects of one
 class — a stored label diverging from the geometry — are now both closed, and
@@ -132,25 +131,25 @@ commits on `main`, read back from the API.
 - **1.14.0** — D62, a circle in perspective. Exact rather than the eight-point
   construction, and stored as four ids and nothing else.
 - **1.15.0** — D63, the winding refactor, and the most important change in the
-  app so far. Noah's criticism was right and it removed five rules rather than
+  app so far. That criticism was right and it removed five rules rather than
   adding a sixth.
 - **1.16.0** — D64, Fit points.
 
 **Why D63 matters more than its size.** Every visibility rule before it worked
 out from screen position something the construction already knew, and each was
 correct in the case it was written for and wrong in the next one — D37, D44, D48,
-D49, D54, five in a row, each patching its predecessor. Noah stopped the sequence
-with a question rather than a bug report: *"why don't you just assign a face a
-normal that doesn't change no matter what direction you look at it from and just
-cull the reverse normals like any 3-D program."* That is one rule, it is the
+D49, D54, five in a row, each patching its predecessor. The sequence was stopped
+with a question rather than a bug report: why not give a face a normal that does
+not change with the direction it is viewed from, and cull the reverse normals the
+way every 3-D program does? That is one rule, it is the
 standard one, and it made the other five unnecessary. The second half of the same
-message — that eye level makes no sense as an input because it is forced by the
+argument — that eye level makes no sense as an input because it is forced by the
 two points that make the horizon — fell out for free: nothing consults either line
 now.
 
 **The pattern to carry.** Twice this week the fix was to stop deriving and start
 storing a fact about the CONSTRUCTION: signed depths in D49, and now windings.
-Both times the prompt was Noah asking why the app was recalculating at all. The
+Both times the prompt was the question of why the app was recalculating at all. The
 smell to watch for is a rule that reads screen positions to answer a question the
 builder already knew the answer to.
 
@@ -170,7 +169,7 @@ fast-forwarded `b238b74` -> `731a8ed`, no merge commit, remote diff against
   geometrically perfect.
 - Doctrine §4 gained three rules earned this week — a control must not move when
   used, no two controls answer to the same name, and the way in costs what the
-  way out costs. Two never-reproduced reports were closed at Noah's instruction,
+  way out costs. Two never-reproduced reports were closed by ruling,
   and the a11y gate stopped asking a question §4 had already answered on
   2026-07-30.
 
@@ -189,10 +188,10 @@ found by planting the fault. Two distinct shapes, both worth recognising on
 sight: **a filter that matches nothing reports a clean result**, and **a tolerance
 wide enough to admit the null hypothesis is the absence of a test.**
 
-**PROMOTED TO PRODUCTION 2026-08-01 — 1.12.5.** Twelfth promote. Noah said
+**PROMOTED TO PRODUCTION 2026-08-01 — 1.12.5.** Twelfth promote, on the explicit go —
 **"Promote - anything left?"** and `main` fast-forwarded `764e80f` -> `c0a2022`,
 no merge commit, remote diff against `staging` empty afterwards. Five iterations,
-every one of them a defect HE found on his iPad and none of them geometry the
+every one of them a defect found on a real device and none of them geometry the
 gates could have reasoned about unprompted:
 
 - **1.12.1** — D55, buttons moving when used. The tick appeared on press, so a
@@ -226,7 +225,7 @@ fraction was gone. None of them were caught by running the gates; all three were
 caught by planting. A fourth unit test was written, planted against, found unable
 to fail, and DELETED rather than kept as decoration. Cross-app: hub LESSONS 7g.
 
-**PROMOTED TO PRODUCTION 2026-08-01 — 1.12.0.** Eleventh promote. Noah said
+**PROMOTED TO PRODUCTION 2026-08-01 — 1.12.0.** Eleventh promote, on the explicit go —
 **"Promote"** and `main` fast-forwarded `8179687` -> `9fab6af`, no merge commit;
 the remote diff between `main` and `staging` is empty afterwards, checked rather
 than assumed. Two commits: the release, and the 1.11.0 record that had been
@@ -250,7 +249,7 @@ production here, exactly as it said it would.
 All four workflows verified `completed / success` on `9fab6af` on `main`, read
 back from the API; the record was held until every one of them finished, for the
 seventh promote running. The sandbox still cannot reach pages.dev, so the deploy
-run is the evidence and Noah's on-screen version stamp closes the gap.
+run is the evidence and the on-screen version stamp closes the gap.
 
 Gates at 1.12.0: **201 unit tests**, **174 walk checks**, a11y PASS, 7 declared
 interactions with no gaps. Every check added this release was made to fail
@@ -262,7 +261,8 @@ by content: `main` fast-forwarded `928f1d7` -> `8179687` in a single push, no
 merge commit, carrying **four releases** that had been stacked on `staging`
 through the day.
 
-- **1.8.1** — D49, from Noah's *"Why do you recalculate normals at all?"* Four
+- **1.8.1** — D49, from the question of why normals were being recalculated at
+  all. Four
   amendments had been deriving from screen position a fact the construction
   already held. It reads the stored depth SIGNS now, and the whole run of
   inverted-box reports ends there.
@@ -276,7 +276,7 @@ All four workflows verified `completed / success` on `8179687` on `main`, read
 back from the API rather than taken from the deploy alone — the record was held
 until every one of them finished, for the sixth promote running. The sandbox
 still cannot reach pages.dev (proxy `CONNECT tunnel failed, 403`), so the deploy
-run is the evidence and Noah's on-screen version stamp closes the gap.
+run is the evidence and the on-screen version stamp closes the gap.
 
 Gates at 1.11.0: **189 unit tests**, **169 walk checks**, a11y PASS, 7 declared
 interactions with no gaps — all four re-run here at that exact commit, not
@@ -289,8 +289,9 @@ afterwards. Two releases:
 - **1.7.3** — D46, and the most important thing in this promote: production had
   been REFUSING ONE-POINT PERSPECTIVE since 1.7.2 went live an hour earlier. My
   guard forbade a vanishing point on the paper and told the user in a toast that
-  it stopped being a vanishing point there. Noah: *"What the fuck do you think a
-  train track is?"* The only thing refused now is two points arriving at the same
+  it stopped being a vanishing point there. A pair of train tracks running away
+  from the viewer is exactly that case, and it is the most ordinary one there is.
+  The only thing refused now is two points arriving at the same
   place.
 - **1.8.0** — D47, the toolbar: 33 controls in four rows became 19 in two, and
   the stage went from about two thirds of the window to **87%**.
@@ -303,7 +304,7 @@ Gates at 1.8.0: **154 unit tests**, a11y PASS (now including the Setup panel as
 its own surface), **149 walk checks**, 7 declared interactions with no gaps.
 
 **Worth carrying out of today.** Two classes of defect kept getting through every
-gate and being found by Noah in minutes:
+gate and being found on a real device in minutes:
 
 1. **A new capability silently invalidating an older amendment's assumption.**
    D39's signed depths broke D37's stored walls; D42's dial broke three of D45's
@@ -315,7 +316,7 @@ gate and being found by Noah in minutes:
    set; a fact about the craft is not.
 
 **PROMOTED TO PRODUCTION 2026-07-30 — 1.7.2.** Eighth promote, and the first one
-that is purely defect repair — every line of it came from Noah's photographs of
+that is purely defect repair — every line of it came from photographs of
 the build promoted an hour earlier. `main` fast-forwarded `7eff04a` -> `2c7a42f`,
 no merge commit, remote diff empty afterwards.
 
@@ -342,7 +343,7 @@ signed, which silently invalidated D37's assumption that the two stored walls ar
 always the visible ones. D42's dial silently invalidated D45's three assumptions
 about scale. In both cases every gate stayed green because each amendment was
 gated against ITSELF. Nothing in the harness asks "what did this new capability
-just make untrue?" — and Noah found both in minutes on a real device. The cheap
+just make untrue?" — and both were found in minutes on a real device. The cheap
 mitigation is to treat any new capability that changes a QUANTITY the renderer
 reasons about (a sign, a distance, a position) as a reason to re-read the
 amendments that reason about it.
@@ -354,8 +355,8 @@ everything that was tried.
 **PROMOTED TO PRODUCTION 2026-07-30 — 1.7.0.** Seventh promote. `main`
 fast-forwarded `d32ae72` -> `401877d`, no merge commit, and
 `git diff origin/main origin/staging` empty on the remote afterwards. Five
-releases, and between them they answered every defect Noah reported this
-afternoon plus the two features he asked for:
+releases, and between them they answered every defect reported this
+afternoon plus the two features that were asked for:
 
 - **1.4.0** — D34 closed F-04: Add line and Add box, so nothing in the app
   requires a drag. D35 reversed a bad call of mine and raised the grid to 3:1;
@@ -369,7 +370,7 @@ afternoon plus the two features he asked for:
   D40 hidden-line removal and a shading-strength control; D41 the three-point cap
   with the count fixed once anything is drawn.
 - **1.7.0** — D42: Add cube, Taller/Shorter, Stronger/Gentler. Forced perspective
-  as an artist means it, after Noah clarified he wanted exaggeration rather than a
+  as an artist means it, once it was clarified that the intent is exaggeration rather than a
   measuring-point construction.
 
 All four workflows verified green on `401877d` on `staging` BEFORE the merge and
@@ -383,7 +384,7 @@ the first time every declared drag has a non-drag alternative.
 
 The standing pages.dev caveat is unchanged: this sandbox cannot read the site, so
 the evidence is a successful deploy of this exact tree, and the on-screen stamp
-reading 1.7.0 on Noah's iPad closes it.
+reading 1.7.0 on a real device closes it.
 
 What ships still open: the canvas grid is now a toggle rather than a compromise;
 snap radius is still hardcoded where §4 wants it adjustable; target SPACING is
@@ -393,9 +394,9 @@ ungated; and the Weld preference still desyncs from its button on reload.
 one: `main` fast-forwarded from `e60543b` (1.0.0's record) to `172749c` — no merge
 commit, the identical tree, and `git diff origin/main origin/staging` empty on the
 remote afterwards. It carries five releases at once, because everything since V1
-had been stacking on staging awaiting Noah's device pass:
+had been stacking on staging awaiting the on-device pass:
 
-- **1.1.0** — Noah's five defects, and the §4 gates that should have caught them
+- **1.1.0** — the five reported defects, and the §4 gates that should have caught them
   (off-screen markers that say they are markers, arrow keys, draggable corners,
   the first-run panel, and the drag-declaration gate itself)
 - **1.2.0** — every corner of a box moves, through one entry point (D29's inverse
@@ -416,7 +417,7 @@ Gates at 1.3.2: **109 unit tests** (89 at 1.0.0), a11y PASS, **102 walk checks**
 (65 at 1.0.0), 7 declared interactions with 2 registered gaps (F-04). The standing
 caveat below is unchanged: this sandbox cannot read pages.dev, so the evidence is
 a successful deploy of this exact tree, and the on-screen stamp reading 1.3.2 on
-Noah's iPad is what closes the gap.
+The on-screen stamp on a real device is what closes the gap.
 
 Two things carried into production that are worth stating plainly rather than
 burying: F-04 is still open — drawing a line or a box is drag-only, with no
@@ -424,7 +425,7 @@ keyboard path — and the canvas grid still measures 1.38:1, now recorded as an
 explicit non-assertion in ACCESSIBILITY.md rather than a silent omission.
 
 **PROMOTED TO PRODUCTION 2026-07-30 — 1.0.0. THIS IS V1.** Fifth and final promote
-of the build. Noah asked for Clear in the toolbar (D25), then said *"This is now
+of the build. Clear was asked for in the toolbar (D25), and then the verdict was *"This is now
 version 1"*, then *"Promote"*. `main` fast-forwarded to `staging` at `b300903` — no
 merge commit, the identical tree.
 
@@ -443,11 +444,11 @@ viewports), walk 65 checks including offline cold launch.
 Standing caveat, unchanged and worth keeping in the record: this sandbox cannot read
 pages.dev (the agent proxy returns `CONNECT tunnel failed, response 403`), so the
 evidence is a successful wrangler deploy of this tree rather than a page anyone
-fetched. The on-screen stamp reading 1.0.0 on Noah's iPad is what closes that gap,
+fetched. The on-screen stamp reading 1.0.0 on a real device is what closes that gap,
 which is why §7b puts it there.
 
 **V1 DECLARED BY NOAH, 2026-07-30.** *"This is now version 1."* The first slot of
-the triplet is his to set (Doctrine §7) and he set it: this build is
+the triplet is the owner's to set (Doctrine §7) and it was set: this build is
 **1.0.0**, and it is 0.6.1 plus D25 — nothing was added to earn the number. What
 the app is at 1.0.0: vanishing points, lines that stay locked to them, a box in one
 drag with both depths, welding as a choice, any corner settable exactly, undo per
@@ -455,7 +456,7 @@ gesture, clear the screen, SVG and PNG export, no account and no network.
 
 **PROMOTED TO PRODUCTION 2026-07-30 — 0.6.1.** Fourth promote, carrying two
 releases: 0.6.0 (the Weld toggle D22, two depths from one box drag and editable
-corners D23) and 0.6.1 (clearing the screen, D24). Noah said **"Promote"** and
+corners D23) and 0.6.1 (clearing the screen, D24). The promote was given, and
 `main` fast-forwarded to `staging` at `312f648` — no merge commit, the identical
 tree. All four workflows verified green on that exact SHA before the merge: Deploy,
 Accessibility gate, Solver tests, App walk. Gates at that SHA: 89 tests, a11y PASS,
@@ -470,9 +471,9 @@ the app until D23 made it true.
 
 **PROMOTED TO PRODUCTION 2026-07-30 — 0.5.2.** Third promote. New icon and social
 tile, both drawn through a real three-point camera rather than generated (see "The
-artwork is computed" above). Noah chose the shifted-right tile and the wider icon
+artwork is computed" above). The shifted-right tile and the wider icon were chosen
 window, said **"Promote"**, and `main` fast-forwarded to `staging` at `d144f58` —
-no merge commit, the identical tree he looked at. All four workflows verified green
+no merge commit, the identical tree that was looked at. All four workflows verified green
 on that exact SHA before the merge: Deploy, Accessibility gate, Solver tests, App
 walk. The production deploy (run 30512606936) was watched to `completed / success`
 before this record was pushed — the hub LESSONS rule about not pushing again
@@ -481,16 +482,16 @@ between "pushed" and "green".
 The deploy run IS the evidence here, because this sandbox cannot read the deployed
 site: the agent proxy answers `CONNECT tunnel failed, response 403` for
 pages.dev. So "production serves 0.5.2" is a claim about a successful wrangler
-deploy of this tree, not about a page anyone fetched. Noah's own screenshot of the
+deploy of this tree, not about a page anyone fetched. A screenshot of the
 version stamp is the only thing that closes that gap, which is exactly why the
 stamp is on screen (Doctrine §7b).
 
-**PROMOTED TO PRODUCTION 2026-07-29 — 0.5.0.** Second promote of the day. Noah
+**PROMOTED TO PRODUCTION 2026-07-29 — 0.5.0.** Second promote of the day. The owner
 drew a cube on 0.3.0, watched it come apart under a VP drag, and asked for two
 things: boxes as a tool, and line ends that connect. Both landed as 0.5.0 (with
 0.4.0's no-plain-lines and mid-stroke guide switching in between), all four
-workflows green on `0328e85` before the merge, and he said **"Promote"**.
-`main` fast-forwarded — no merge commit, the identical tree he tested.
+workflows green on `0328e85` before the merge, and the promote was given.
+`main` fast-forwarded — no merge commit, the identical tree that was tested.
 
 **Shipped since 0.3.0:**
 - 0.4.0 — no stroke ever comes back unguided (D18); the guide can be switched
@@ -498,10 +499,10 @@ workflows green on `0328e85` before the merge, and he said **"Promote"**.
 - 0.5.0 — line ends join again, along the guide and never off it (D20); Box
   mode builds a fully constrained twelve-edge box from one drag (D21).
 
-**The earlier 0.3.0 promote, kept for the record:** Noah tested the aggregate on his
+**The earlier 0.3.0 promote, kept for the record:** the aggregate was tested on the
 iPad, reported two defects (D11's non-converging lines, then D16's unasked-for
 anchoring, then D17's undeletable lines and points), each was fixed and
-re-staged, and he said **"Promote"**. `main` fast-forwarded to `staging` at
+re-staged, and the promote was given. `main` fast-forwarded to `staging` at
 `c4bd5b4`, all four workflows green on that SHA before the merge. Live at
 https://intersecting-parallels.pages.dev
 
@@ -510,17 +511,17 @@ constraint graph; canvas render with pan and zoom; VP placement, drag,
 off-canvas markers and horizon; click-to-place and assisted freehand drawing;
 undo/redo one step per gesture; SVG and PNG export; IndexedDB persistence and
 JSON project files; installable PWA that cold-launches offline. Plus everything
-his device found: the closed guide set (D16), guides drawn to follow rather
+the on-device pass found: the closed guide set (D16), guides drawn to follow rather
 than aimed at (D15), a trustworthy direction sample (D13), honest bindings
 (D12), guide ranking that prefers a vanishing point (D11), deletion that works
 and never moves the drawing (D17), and the on-screen build stamp.
 
 **Hub link: DONE.** The hub tile and its noscript fallback both link out, with
-the icon Noah drew (hub commit `69294bc`). That was the last item of the
+the supplied icon (hub commit `69294bc`). That was the last item of the
 bootstrap order.
 
 **Next candidate work — nothing is staged, the roadmap is honestly empty.** What
-is known to be open, in his words, not invented:
+is known to be open, as reported rather than invented:
 - ~~The welding toggle.~~ **DONE 2026-07-30 as D22** — and note the item was
   stale: D20 had already restored joining, so what was actually missing was the
   CHOICE. It is a toolbar button now, default on.
@@ -530,8 +531,8 @@ is known to be open, in his words, not invented:
 - `SNAP_THRESHOLD` against a real Apple Pencil (§12 asks for exactly this and
   nothing in this sandbox can do it).
 
-UNTESTED until he does it, and labelled so honestly (Doctrine §5) — every one
-of these needs his hands and none can be checked from this sandbox:
+UNTESTED until that happens, and labelled so honestly (Doctrine §5) — every one
+of these needs a real device and none can be checked from this sandbox:
 - Apple Pencil feel, and whether `SNAP_THRESHOLD` at 15° is right (§12 says
   tune it against real stylus input; nothing here can).
 - Palm rejection in practice with the touch-draws toggle both off and on.
@@ -542,41 +543,41 @@ of these needs his hands and none can be checked from this sandbox:
 - SVG opened in Inkscape: layer names present, strokes not fills.
 - Add to Home Screen, then airplane-mode cold launch on the device itself.
 - Whether the drawing surface is legible in daylight, and the panel usable at
-  his text size.
+  the reader's text size.
 
 **SETTLED 2026-07-29: `intersecting-parallels.pages.dev` was free.** The first
 deploy run created the Pages project ("Successfully created the
 'intersecting-parallels' project", staging deploy log, 17:27 UTC) — creation
-would have failed had anyone held the name. It is now Noah's. Of the three
+would have failed had anyone held the name. It is now registered to the owner. Of the three
 device-blocked name checks in the handoff, only App Store and USPTO remain.
 
-**Artwork, supplied by Noah 2026-07-29.** Two wordless images (Doctrine §3 —
+**Artwork, supplied 2026-07-29.** Two wordless images (Doctrine §3 —
 no lettering inside generated imagery): a designed rounded app icon and a
 full-bleed banner. Both live in the upload; the derived files are committed.
 The icon drives `icon-192`, `icon-512` and `apple-touch-icon`; the BANNER drives
 `icon-maskable-512` and `og.png`, because a maskable icon a launcher crops into
 must not have white corners. Every crop is cover-fit and centred, never
-stretched. Open question for Noah, cosmetic: his icon's rounded corners are
+stretched. Open question, cosmetic: the supplied icon's rounded corners are
 white, and iOS rounds again on top of that, so a hair of white can show at the
 home-screen corners — say the word and the navy gets bled out to the edge.
 
-**Repo metadata (Doctrine §10) — COMPLETE, confirmed by Noah 2026-07-30.**
-He set the fields himself and said "Metadata complete". Three of the four were then
+**Repo metadata (Doctrine §10) — COMPLETE, confirmed 2026-07-30.**
+The fields were set outside this repo and reported complete. Three of the four were then
 read back from the GitHub API rather than taken on trust, and are recorded here as
 what is actually live:
 
 - Description: `Free perspective drawing — set vanishing points, draw lines that stay locked to them. Offline, no account.`
-  (verified via API). This replaced `Where you stand and what you see.`, which he
+  (verified via API). This replaced `Where you stand and what you see.`, which
   rejected — *"That description sucks"* — correctly: that line is the tagline, and it
   was already in `<title>`, `og:title`, `twitter:title`, the About panel and the
   README's first line, while the description is read in search results where the
   only question is what this is. A candidate naming Box mode was dropped before it
-  reached him, because §10 says the description is what the app IS, never the
+  was applied, because §10 says the description is what the app IS, never the
   current feature.
 - Website: `https://intersecting-parallels.pages.dev` (verified via API).
 - Topics: `drawing-tool` `offline-first` `perspective` `pwa` `vanishing-points`
   — all five, verified via API.
-- Social preview: `public/og.png`, the 0.5.2 city tile. **Noah's word only** — the
+- Social preview: `public/og.png`, the 0.5.2 city tile. **confirmed verbally only** — the
   social-preview image is not exposed by the repository API, so unlike the other
   three this one is not independently verified here. It is not in doubt; it is
   simply a different kind of evidence, and the difference is worth keeping straight.
@@ -587,11 +588,12 @@ file in the repo.
 
 ### The artwork is computed, not generated (2026-07-30, 0.5.2)
 
-Noah redid the icon and tile himself, then hit the wall: *"It CANNOT draw in 3
-point perspective."* Three rounds of prompting an image model produced pictures
-with both horizon points drawn, a third point drawn, and every vertical edge
-PARALLEL — so the third point was decoration. Then: *"I want what I have now, but
-with proper lines following the 3rd vp."*
+The icon and tile were redrawn outside this repo, and then hit the wall: an image
+model cannot draw in three-point perspective. Three rounds of prompting one
+produced pictures with both horizon points drawn, a third point drawn, and every
+vertical edge PARALLEL — so the third point was decoration. THE REQUIREMENT that
+followed: keep the composition as drawn, but with the lines actually following
+the third vanishing point.
 
 So the art is now solved rather than described. `art/scene.mjs` +
 [`render-art.mjs`](render-art.mjs) (`npm run render:art`):
@@ -599,9 +601,9 @@ So the art is now solved rather than described. `art/scene.mjs` +
 - **The camera is derived from the three vanishing points.** The principal point
   is the ORTHOCENTRE of their triangle and f² = -(A-P)·(B-P). Every line drawn is
   a projected 3D edge, so convergence is a consequence, not an aim.
-- **His wide layout was impossible and the tool says so.** Horizon points 1076px
+- **The wide reference layout was impossible and the tool says so.** Horizon points 1076px
   apart with the third point 502px below gives f² = -43,002. The condition is
-  d > s: the third point must be farther out than half the horizon spread. His own
+  d > s: the third point must be farther out than half the horizon spread. That
   hand-drawn reference sits just inside it, d=835 to s=795. `cameraFrom()` refuses
   the impossible case and names both exits ("44px closer together, or 44px farther
   out") rather than drawing something inconsistent.
@@ -610,11 +612,12 @@ So the art is now solved rather than described. `art/scene.mjs` +
   lines miss a distant point by very little, which is exactly how the generated
   art would have passed. Proven by reinstating the bug: 208.16px and 0.00°.
 - **The icon IS the tile**, seen through a square window in scene coordinates
-  (Noah: *"Could the icon not just be a crop of the social review tile?"*). Not a
+  (from the question of whether the icon could simply be a crop of the social
+  tile). Not a
   crop of the pixels — the horizon points are 662px apart and the tile is 630px
   tall, so no square region of the raster holds both. Same camera, same numbers,
   more sky. Two separately framed scenes had disagreed about the perspective,
-  which is what he spotted.
+  and that discrepancy is what was spotted.
 - **Chosen 2026-07-30:** the shifted-right tile (nadir in frame at 556, horizon
   points 431/1093, f=234px) and the WIDER icon window (both horizon points inside
   the middle 80%, so a launcher's maskable crop keeps them). The maskable icon is
@@ -625,8 +628,9 @@ So the art is now solved rather than described. `art/scene.mjs` +
   at -95px and again at 440px above the horizon), which lots paint outside a given
   window and by how much, and a point-in-polygon test for whether a building is
   hiding the third vanishing point (it was: lot -1,-2).
-- **Noah's standing note on it:** *"Extreme perspective is FINE! It's the
-  point!"* Do not soften the lens or push the city back to tame the foreground.
+- **The standing ruling on it:** extreme perspective is not a fault to be
+  corrected — it is the subject.
+  Do not soften the lens or push the city back to tame the foreground.
   Buy composure with LAYOUT — empty lots, narrower footprints, height that runs
   with distance — never by making the perspective milder.
 
@@ -677,10 +681,10 @@ beyond the bootstrap above.
 
 ## The name
 
-**Intersecting Parallels.** Decided by Noah, 2026-07-29.
+**Intersecting Parallels.** Decided 2026-07-29.
 
 Clean on GitHub (zero repos), npm (`intersecting-parallels` free), and every
-company and software search. Still to run on Noah's own device, since the
+company and software search. Still to run on a real device, since the
 sandbox gateway refuses CONNECT to them: App Store, USPTO, and whether
 `intersecting-parallels.pages.dev` is free.
 
@@ -688,7 +692,7 @@ Known and accepted: Hadi Hosri's photography book *Intersecting Parallels* uses
 the phrase for the same phenomenon. Not a mark in software, different class, and
 the shared meaning is the point — the phrase is the true description, which is
 why two people reached it independently. Also accepted: no short form, and the
-initialism IP is unusable. Noah's call, made knowingly.
+initialism IP is unusable. A deliberate choice, made knowingly.
 
 ### Graveyard, with causes of death
 
@@ -844,10 +848,10 @@ session assumes otherwise.
 
 ### D8. Spec §12 open items — REVISED
 
-`SNAP_THRESHOLD` 15°, tunable once Noah has stylus time. No curves in v1.
+`SNAP_THRESHOLD` 15°, tunable once there is stylus time behind it. No curves in v1.
 
 **Arbitrary VPs are exposed in the UI.** §12 left this open and the first pass
-defaulted it off; Noah corrected that on 2026-07-29. `vanishingPoints` is already
+defaulted it off; that was corrected on 2026-07-29. `vanishingPoints` is already
 an uncapped array and §2.1 already allows coordinates far outside canvas bounds,
 so the schema needs nothing. No cap at three: a VP can be added wherever one is
 wanted, including non-orthogonal ones (a road running off at its own angle). The
@@ -859,15 +863,15 @@ VPs legible.
 - Declare `xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"` on the
   root `<svg>`, or `inkscape:label` is invalid and silently ignored — which reads
   as the layer-name acceptance test failing for no visible reason.
-- PNG: probe the real canvas ceiling on Noah's iPad before offering dimensions,
+- PNG: probe the real canvas ceiling on a real device before offering dimensions,
   and clamp with an honest message rather than emitting the blank image iOS
   produces past the limit (Doctrine §5).
 
 ### D20. Line ends join again — along the guide, never off it
 
-**Noah, 2026-07-29, with two screenshots of a cube coming apart under a VP
-drag:** *"Being unable to connect line ends means everything breaks when you do
-adjustments."* He is right, and it is the consequence flagged when D16 took
+**THE DEFECT, 2026-07-29, reported with two screenshots of a cube coming apart
+under a VP drag:** with line ends unable to connect, any adjustment breaks the
+drawing. That is correct, and it is the consequence flagged when D16 took
 joining out wholesale.
 
 D16 and this only look contradictory until the two things it conflated are
@@ -893,8 +897,8 @@ join this exists to prevent.
 
 ### D21. A box in one gesture, constrained so it stays a box
 
-**Noah, 2026-07-29:** *"Add drawing boxes/rectangles."* — after building a cube
-from nine strokes and watching it come apart.
+**THE REQUEST, 2026-07-29:** add box and rectangle drawing — after a cube built
+from nine separate strokes came apart.
 
 `buildBox` emits the twelve edges of a two-point box where every vertex but one
 is defined by CONSTRAINTS, not coordinates: one anchor at the near bottom
@@ -915,8 +919,9 @@ fewer than two points are available, and leaves nothing half-built.
 
 ### D76 — an app that caches itself must say when it is stale (SHIPPED 1.22.0, staging)
 
-Noah, 2026-08-03, on the first diagnostic report: *"Knowing that the app could
-not show if it was old and stuck seems like something all my apps need to fix."*
+FOUND 2026-08-03, on reading the first diagnostic report: the app had no way to
+show that it was old and stuck — and that gap is one every app in this family
+shares.
 
 **It was worse than not showing it.** `sw.js` called `skipWaiting()` in install,
 so a new worker took over the instant it arrived — while the OPEN PAGE carried on
@@ -966,8 +971,8 @@ not asserted. A gate that cries wolf is worse than a slow one.
 
 ### D75 — the report answers the question the browser string dodges (SHIPPED 1.21.1, staging)
 
-**The §7f loop closed for the first time, and it worked.** Noah opened the app on
-his own device, pressed Report a problem, and sent the text — no screenshot, no
+**The §7f loop closed for the first time, and it worked.** The app was opened on
+a real device, pressed Report a problem, and returned the text — no screenshot, no
 description. That is the whole of what §7f asks for, and it took one release.
 
 **And the first real report exposed the gap immediately.** It said
@@ -1036,9 +1041,9 @@ No version bump: this changes no byte the reader receives.
 
 Doctrine §7e, built rather than deferred. The App had an About panel that covered
 maybe half of what §7e names, and the half it covered it covered loosely — which
-is why the rule exists: *"Noah should not have to ask for this app after app. He
-has asked for the same set of things in enough repos that the asking is itself
-the evidence."*
+is why the rule exists: the owner should not have to ask for this app after app.
+The same set of things has been asked for in enough repos that the asking is
+itself the evidence.
 
 **The control replaced a word, so it cost nothing.** §7e is explicit that adding
 one control to a header can wrap a toolbar and take the space out of the content
@@ -1088,7 +1093,7 @@ which is the same never-fork rule the doctrine itself follows.
 
 ### D72 — the diagnostic report (SHIPPED 1.20.0, staging)
 
-Doctrine §7f: **ask Noah for a text report, never for a screenshot.** Built here,
+Doctrine §7f: **ask for a text report, never for a screenshot.** Built here,
 reached from inside What changed — the version stamp already gathers "tell me
 about this build", and a second entry point on the toolbar would be a control
 nobody presses twice a year.
@@ -1232,8 +1237,8 @@ for a size test precisely because wrapping hides the thing under test.
 
 ### D69 — a control the gates could not see (SHIPPED 1.18.2, staging)
 
-Noah, 2026-08-02: **"Where do I load the image?"** Two separate faults behind one
-question, and the second is the serious one.
+**THE DEFECT, 2026-08-02:** there was no finding where an image gets loaded. Two
+separate faults behind one question, and the second is the serious one.
 
 **Findability.** Reference image was the SIXTH section in Setup. It is what you do
 at the START of a drawing, so it is the first section now.
@@ -1278,8 +1283,7 @@ leaves the size correct and the position wrong.
 
 ### D67 — a reference image (SHIPPED 1.18.0, staging)
 
-Noah, 2026-08-01: *"I want to consider importing and drawing over an image
-later."* The other half of D65 — the technique is to draw along two edges of a
+**THE REQUEST, 2026-08-01:** import an image and draw over it. The other half of D65 — the technique is to draw along two edges of a
 building in a photo and let their crossing give you its vanishing point.
 
 **The storage decision, made rather than discovered**, which is what NOTES said
@@ -1307,12 +1311,9 @@ not about which version of the store it lives in.
 
 ### D66 — a limit is not an error (SHIPPED 1.17.1, staging)
 
-Noah, 2026-08-02: *"For calculating vanishing points of nearly parallel lines,
-perfect calculation is unnecessary. If the difference cannot be discerned on the
-screen past a certain level then all past that level can be ignored. Beyond
-parallel, the vanishing point simply goes to the other intersection. That only
-leaves parallel being the error, and if they draw perfectly parallel lines, you
-can simply nudge it just slightly."*
+**THE RULING, 2026-08-02:** perfect calculation is unnecessary for the vanishing
+point of two nearly parallel lines. Once the difference cannot be discerned on
+screen past a certain distance, everything past it can be treated the same.
 
 Right on all three counts, and D65 shipped a day earlier with all three wrong.
 
@@ -1345,9 +1346,10 @@ quietly start acting on everything.
 
 ### D65 — a vanishing point from two drawn lines, BOUND (SHIPPED 1.17.0, staging)
 
-Noah, 2026-08-01: *"Maybe creating vanishing points as the intersection of two
-drawn lines."* Bound, on his call — move either line and the point follows, and
-everything running to that point follows with it.
+**THE REQUEST, 2026-08-01:** create vanishing points as the intersection of two
+drawn lines. Bound rather than merely placed, which was the explicit part — move
+either line and the point follows, and everything running to that point follows
+with it.
 
 Stored as two edge ids and nothing else, re-derived at the top of every solve —
 the same shape as a slope point (D53), and for the same reason: a derived thing
@@ -1374,8 +1376,8 @@ vanishing point is the whole technique.
 
 ### D64 — Fit points (SHIPPED 1.16.0, staging)
 
-Noah, 2026-08-01: *"I'd like to be able to zoom out to see VPs on the screen, at
-will, and maybe zoom back to the canvas again."*
+**THE REQUEST, 2026-08-01:** be able to zoom out far enough to see the vanishing
+points on screen at will, and zoom back to the canvas again.
 
 Points off the paper are the ORDINARY case, not an edge one — D27's edge markers
 exist because of it. But a marker pointing off screen gives you a direction, not a
@@ -1392,11 +1394,11 @@ which matters, because the zoom level alone changes either way.
 
 ### D63 — solids know which way they face (SHIPPED 1.15.0, PROMOTED)
 
-Noah's criticism, and it was the right one: *"assign a face a normal that doesn't
-change no matter what direction you look at it from and just cull the reverse
-normals like any 3-D program"*, and *"I don't think eye line makes any sense with
-a one or 2D or maybe any perspective. It's forced by the two that make the horizon
-line."* Both halves right, and the second falls out of the first.
+**THE CRITICISM, and it was the right one:** give a face a normal that does not
+change with the direction it is viewed from, and cull the reverse normals the
+way every 3-D program does. And eye line does not decide visibility in a one- or
+two-point construction at all — visibility is forced by the two points that make
+the horizon line. Both halves right, and the second falls out of the first.
 
 Replaced D37's front-pair rule, D44's stored rings, D48's horizon ordering, D49's
 depth signs and D54's roof branch — five rules, each correct in one case and
@@ -1466,9 +1468,9 @@ one and the project loader's version list is written out rather than compared wi
 
 ### D61 — a street, and the plan on its own (SHIPPED 1.13.0 / 1.13.1, staging)
 
-**1.13.1 adds Plan only.** Noah's own description was two steps — *"draw a grid
-of lines that act as streets and then plot them with buildings"* — and I built it
-as one action, which is the useful default but is not what he said. The grid is a
+**1.13.1 adds Plan only.** The request itself described two steps — lay a grid of
+lines acting as streets, then plot buildings onto them — and I built it
+as one action, which is the useful default but is not what was asked for. The grid is a
 thing in its own right: an artist placing buildings by hand wants the lines and
 none of the massing. `buildStreet` with no storeys lays the same road, crossroads
 and block lines and stands nothing on them; every line is still held by the point,
@@ -1480,11 +1482,10 @@ rather than an absent argument, the first version probably conflated two things.
 
 ### D61 — a street (SHIPPED 1.13.0, staging)
 
-Noah, 2026-08-01: *"buildings on both sides of a road with one point perspective
-and alleys/crossroads all sound cool. Maybe draw a grid of lines that act as
-streets and then plot them with buildings?"* — and that last sentence is the
-design. The grid IS the streets; the plots it makes are what the buildings stand
-on.
+**THE REQUEST, 2026-08-01:** buildings down both sides of a road in one-point
+perspective, with alleys and crossroads — built as a grid of lines acting as
+streets, which is then plotted with buildings. That last clause is the design:
+the grid IS the streets, and the plots it makes are what the buildings stand on.
 
 **Nothing new was invented.** It is three amendments already in the app pointed at
 one construction, which is the strongest sign the earlier ones were right:
@@ -1531,7 +1532,7 @@ null hypothesis is not a tolerance, it is the absence of a test.**
 
 ### D60 — a divider holds a FRACTION, and depends on what it divides (SHIPPED 1.12.5, staging)
 
-Noah's IMG_1361/1362: the house pulled into a crossed tangle when a corner was
+**THE DEFECT, from two screenshots:** the house pulled into a crossed tangle when a corner was
 dragged far. Closed. Three separate faults, each of which alone was enough.
 
 **1. The gable midpoint stored a LENGTH.** Push a box through a vanishing point
@@ -1588,8 +1589,8 @@ Cross-app lesson is hub LESSONS 7g.
 
 ### D58 / D59 — the bar holds still, and it carries a cube (SHIPPED 1.12.4, staging)
 
-**D58 — the toolbar was rearranging itself because the DRAWING changed.** Noah
-sent two screenshots seconds apart in which the zoom group had moved from the end
+**D58 — the toolbar was rearranging itself because the DRAWING changed.** Two
+screenshots seconds apart showed the zoom group having moved from the end
 of row one to the start of row two, and Setup/Points/Clear had slid from the left
 of that row to the right. Nothing had been touched but the canvas.
 
@@ -1604,8 +1605,8 @@ select alone. That is deliberate: the select was the only scene-dependent width
 *today*, and a check written to that fact would go quiet the moment another one
 appeared. Same shape as D55: gate the property, not the instance.
 
-**D59 — Noah:** *"I want to see the option to add a cube on the main screen. I
-don't think I need a line generator?"* Add cube is on the bar beside Add box; Add
+**D59 — THE RULING:** adding a cube belongs on the main screen, and a line
+generator does not need to be there. Add cube is on the bar beside Add box; Add
 line moved into Setup under Build.
 
 **Add line is not gone, and the reason is worth writing down.** It is the non-drag
@@ -1627,7 +1628,7 @@ what the control costs against how often it is reached for.
 
 ### D57 — the way in must cost what the way out costs (SHIPPED 1.12.3, staging)
 
-Noah, 2026-08-01: **"'Touch draw' shouldn't be buried in menus."**
+**THE RULING, 2026-08-01:** "Touch draws" must not be buried in a menu.
 
 Touch draws was in Setup, under *While drawing*, beside Assist / 45° / Weld. It
 does not belong with them: those change how a stroke behaves, and this decides
@@ -1651,11 +1652,12 @@ already opened a panel is not cheap, and a check that opens the panel first woul
 have passed in every version of this. Planted by putting it back in Setup: the
 button is still there and still works, both directions still succeed, and the
 check fails on `onBar:false` with a zero-sized rect — which is exactly the state
-Noah was describing.
+the report was describing.
 
 ### D56 — one word, one meaning (SHIPPED 1.12.2, staging)
 
-Noah, 2026-08-01: **"Person, 'place,' or thing…. Label is confusing."**
+**THE DEFECT, 2026-08-01:** read across the row — person, "place", thing — the
+label was confusing.
 
 The Human-scale row read `[A person ▼] [Place]`. Next to a noun, "Place" reads as
 a noun — the row scanned as a list of nouns rather than as a thing and what to do
@@ -1689,8 +1691,8 @@ gets skimmed with them.
 
 ### D55 — a control must not move when you use it (SHIPPED 1.12.1, staging)
 
-Noah, 2026-08-01, with two screenshots of the same panel: **"Buttons move when
-used."**
+**THE DEFECT, 2026-08-01, from two screenshots of the same panel:** buttons moved
+when they were used.
 
 The selected state is a filled chip WITH a tick, never hue alone (hub LESSONS 6,
 Doctrine §4). The tick was drawn by `.btn[aria-pressed="true"]::before`, so it
@@ -1776,11 +1778,11 @@ the bar (Cube, Room, Roof now live in Setup under *Build*), not to raise the cap
 Add line and Add box stay, because they are the non-drag path to Draw mode and
 Box mode under SC 2.5.1 — a cube has no drag gesture to be an alternative to.
 Raising the number would have been the same move as exempting the grid from the
-contrast gate, which Noah has already ruled on once.
+contrast gate, which has already been ruled on once.
 
 ### D52 — the interior room (SHIPPED 1.11.0, staging)
 
-Third and last of the three Noah agreed to, and the only one that is a NEW KIND
+Third and last of the three that were agreed, and the only one that is a NEW KIND
 of thing rather than more of what exists. A room is a box you are INSIDE, and
 that inverts what every piece of the box code assumes: you see the far wall, the
 floor, the ceiling and both side walls, and the surface nearest you — the opening
@@ -1819,7 +1821,7 @@ evenly in depth, check any scene against human scale, and draw an interior.
 
 ### D51 — the scale figure (SHIPPED 1.10.0, staging)
 
-Second of the three Noah agreed to, and the one with the best effort-to-usefulness
+Second of the three that were agreed, and the one with the best effort-to-usefulness
 ratio in the app so far.
 
 **Everyone's eye is at eye level.** So the vertical from ANY point on the ground
@@ -1854,15 +1856,15 @@ exercise every beginner starts with.
 
 ### D50 — equal intervals in depth (SHIPPED 1.9.0, staging)
 
-**Noah, 2026-07-31:** *"I want to see maybe a city block generator? What else
-would be useful for artists? A house scene? Internal room scene?"* — and then
-"Go" to the answer: this first, then a scale figure, then the interior room.
+**THE QUESTION, 2026-07-31:** what would actually be useful to an artist — a city
+block generator, a house scene, an interior room? The answer was agreed and built
+in that order: this first, then a scale figure, then the interior room.
 
 The reason this comes first is that a city block generator without it would have
 been MY guess at spacing rather than the artist's. Every depth in the app was
 eyeballed. Equal intervals going away from you — fence posts, floor tiles, window
 bays, the buildings along a street — is the construction an artist reaches for
-constantly, and it is the primitive underneath all three of the scenes he named.
+constantly, and it is the primitive underneath all three of the scenes named.
 
 **No diagonals needed, because the answer is exact.** Along a line to a vanishing
 point, with D the distance from the origin to the point and t1 the first
@@ -1896,9 +1898,10 @@ rather than more of the same.
 
 ### D49 — stop recalculating what the construction knows (FIXED 1.8.1, staging)
 
-**Noah, 2026-07-31, after a screenshot of three cubes straddling the two lines:**
-*"All these cubes fail at eye/horizon lines."* Then, cutting the whole thing
-short: *"Why do you recalculate normals at all?"*
+**THE DEFECT, 2026-07-31, reported with a screenshot of three cubes straddling
+the two lines:** every one of them failed where eye level and the horizon
+diverge. And then the question that cut the whole thing short: why recalculate
+normals at all?
 
 That question ends a run of four amendments chasing the same bug. D37 stored the
 two front walls. D39's signed depths invalidated that. D44 replaced it with
@@ -1927,7 +1930,7 @@ points define — not by the authored eye-level marker. A horizontal plane below
 your eye projects below the horizon; above your eye, above it. Eye level is a
 drawn reference that COINCIDES with the horizon whenever the points are level,
 which is why testing against it worked for as long as it did and failed exactly
-in the band Noah photographed. Falls back to eye level when there are fewer than
+in the photographed band. Falls back to eye level when there are fewer than
 two points on the horizon (D36), because a one-point scene is an ordinary drawing.
 
 Consequence worth stating: **moving the eye-level marker no longer changes what is
@@ -1943,8 +1946,8 @@ and a unit test.
 
 ### D47 — the toolbar (SHIPPED 1.8.0, staging)
 
-**Noah, 2026-07-30, with a photograph of four toolbar rows:** *"Can you clean up
-the menus now?"*
+**THE ASK, 2026-07-30, made with a photograph of four toolbar rows:** clean up
+the menus.
 
 Thirty-three controls in four rows, taking about a third of an iPad's height away
 from the thing the app is for. Every one of them was added for a good reason and
@@ -1983,11 +1986,11 @@ Measured: header 107px, 19 controls, the stage gets **87%** of the window.
 
 ### D46 — a vanishing point belongs on the paper (FIXED 1.7.3, staging)
 
-**Noah, 2026-07-30:** *"You are dead wrong when you tell the user that putting a
-vanishing point on the paper makes it cease being a vanishing point. What the fuck
-do you think a train track is?"*
+**THE CORRECTION, 2026-07-30:** the app was flatly wrong to tell the reader that
+placing a vanishing point on the paper stopped it being a vanishing point. A pair
+of train tracks running away from the viewer is exactly that case.
 
-He is right, and this is a correction of substance, not of a threshold. **D45's
+That is right, and it is a correction of substance, not of a threshold. **D45's
 guard forbade one-point perspective.** The point in the middle of the picture —
 the track, the corridor, the road running away from you — is the most ordinary
 construction in perspective drawing, and I shipped a rule that refused it and a
@@ -2021,8 +2024,8 @@ screen.
 
 ### D45 — a cube that stays a cube, and a dial that stops in time (FIXED 1.7.2, staging)
 
-**Noah, 2026-07-30, with a photograph:** *"Placed a cube with the button, and it
-is only manipulatable with the out-of-sight corners."* The screenshot shows a flat
+**THE DEFECT, 2026-07-30, reported with a photograph:** a cube placed with the
+button could only be manipulated by its out-of-sight corners. The screenshot shows a flat
 slab spanning the whole paper, with both vanishing point markers pinned to the
 screen edges — so the points had been pulled well in with Stronger first.
 
@@ -2047,15 +2050,15 @@ explanation I offered in (3) was wrong — see D46. I still do not have one.** W
 a cube: `manipulate` on all eight corners through the API (all moved, 40-72px); a
 mouse tap on each corner's exact screen position (all eight selected the right
 corner); and a ONE-FINGER CDP touch drag on each corner with Touch draws ON in
-Select mode, matching the toolbar state in his screenshot (all eight moved
-103-111px). The condition his screenshot is actually in — points pulled in close —
+Select mode, matching the toolbar state in the screenshot (all eight moved
+103-111px). The condition the screenshot is actually in — points pulled in close —
 was reproduced too, and every corner still moved. If it recurs after 1.7.2, the
 thing to capture is the Points panel open beside it, because the distance field
 for a stuck corner will say whether it is clamped.
 
 ### D43/D44 — the canvas artifact and reversed normals (FIXED 1.7.1, staging)
 
-**Both found by Noah on PRODUCTION 1.7.0, with photographs.**
+**Both found on PRODUCTION 1.7.0, reported with photographs.**
 
 **D43 — a band of stale pixels along the bottom of the canvas**, surviving even a
 Clear. `sizeCanvas` sets the backing store to `viewport x dpr`; `draw` cleared the
@@ -2070,9 +2073,9 @@ Two fixes, both needed: `draw` clears the whole backing store (same cost, cannot
 go stale), and a `ResizeObserver` on the stage, because a `resize` listener never
 hears about a toolbar that wrapped.
 
-**D44 — inverted boxes had the wrong pair of walls shaded.** Noah: *"Inverted
-boxes have normals reversed (I think...) - i guess that because the sides do not
-resemble a solid."* He was right.
+**D44 — inverted boxes had the wrong pair of walls shaded.** THE DEFECT, as
+reported: an inverted box has its normals reversed, so its sides stop resembling
+a solid. That was right.
 
 D37 STORED two vertical faces and asserted they were always visible, reasoning
 that they meet at the near vertical edge and that edge is nearest by construction.
@@ -2098,9 +2101,10 @@ is what "which pair of walls faces you" comes down to.
 
 ### D42 — forced perspective, as an artist means it (SHIPPED 1.7.0, staging)
 
-**Noah, 2026-07-30, asked for "making a square into a cube into a skyscraper with
-forced perspective". Asked which kind, he said:** *"It means exaggerating for an
-artist's reference, sometimes in cartoons rather than reality."*
+**THE REQUEST, 2026-07-30:** turn a square into a cube into a skyscraper with
+forced perspective. Asked which sense of "forced" was meant, the answer was the
+artist's: exaggerating for a reference, sometimes for cartooning rather than for
+reality.
 
 That answer picks between two different tools, and it matters. The measured cube
 — a measuring-point construction, a fourth point on the horizon, provably equal
@@ -2152,13 +2156,13 @@ skipped — the app must still boot.
 
 ### D39/D40/D41 — inversion, hidden lines, the point cap (SHIPPED 1.6.0, staging)
 
-**Noah, 2026-07-30, on 1.5.1.**
+**REPORTED 2026-07-30, on 1.5.1.**
 
-**D39 — signed depth; the box can invert.** *"Pulling/pushing only moves the front
-left point away from the user, it never crosses over and comes on the other side
-inverting the box."*
+**D39 — signed depth; the box can invert.** THE DEFECT: pulling or pushing only
+ever moved the front-left point away from the viewer. It never crossed over to
+the other side, so the box could not be inverted.
 
-He was hitting D3's fold, which the Ultracode assessment had already named as a
+That is D3's fold, which the Ultracode assessment had already named as a
 permanent wall. D3 solved a ray as `origin + s·|t|·u` with `s` chosen to MINIMISE
 DISPLACEMENT from the last solve. That rule exists for a real reason — when a
 vanishing point crosses its own origin, `u` reverses and every dependent corner
@@ -2190,10 +2194,11 @@ shading. Shading strength is a SELECT, not a slider: a slider is a drag (SC
 see-through object with no far side would be a lie. `Hidden lines` shows them
 outright.
 
-**D41 — the point count belongs to the scene.** *"Adding or removing VPs has no
-effect on existing geometry. Scenes should be scoped to the number of vanishing
-points on the screen, and there should likely be a limit ... that number probably
-should not be changed, unless you can redraw the drawing."*
+**D41 — the point count belongs to the scene.** THE DEFECT AND THE RULE: adding
+or removing a vanishing point had no effect on existing geometry. A scene is
+scoped to the number of vanishing points it was drawn under, there should be a
+limit on that number, and it should not change unless the drawing can be redrawn
+with it.
 
 Right twice. A new point cannot retro-fit itself to lines built without it, so
 offering the button once there is a drawing offers a change the app cannot honour.
@@ -2202,21 +2207,21 @@ a fourth is a point nothing can bind to. So: cap of three, and the button is
 DISABLED once anything is drawn, with an aria-label that says which reason
 applies. Changing the count means a new drawing, from Project.
 
-This is also how he ended up with a screenful of points: on the broken 1.5.0 the
+This is also how a screenful of points accumulated: on the broken 1.5.0 the
 app was dead but `#add-vp` still mutated the scene, so every hopeful tap added one
 more and autosave kept them. The cap would have stopped it at three.
 
 **Also:** a `Grid` toggle. D35 raised the grid from 1.33:1 to 3.21:1 to meet
-SC 1.4.11, which was right, and the side effect is a much louder lattice — Noah
-saw "MANY canvases" at the bottom of the sheet. The contrast rule stays; the grid
+SC 1.4.11, which was right, and the side effect is a much louder lattice — the
+report described the sheet as reading like many separate canvases. The contrast rule stays; the grid
 can now be switched off, which is the answer that does not weaken a gate.
 
 ### D36a — the migration door I missed (FIXED 1.5.1, staging)
 
-**Noah, 2026-07-30, on 1.5.0:** *"There are no VPs on the page and I cannot add
-any, now."*
+**THE DEFECT, 2026-07-30, on 1.5.0:** no vanishing points on the page, and no way
+to add any.
 
-His saved drawing was written by an older build, so it carried `horizon` and no
+The saved drawing had been written by an older build, so it carried `horizon` and no
 `eyeLevel`. The first `render()` read `scene.eyeLevel.y`, threw, and took the
 canvas and the points panel with it — inside `boot()`'s async IIFE, so it never
 even surfaced as a page error, and `window.__ip` was never assigned. Every point
@@ -2252,13 +2257,17 @@ memory and make the migration idempotent so it can run on all of them.
 
 ### D36/D37/D38 — eye level, solids, rays (SHIPPED 1.5.0, staging)
 
-**Noah, 2026-07-30, with three screenshots:** *"The horizon should follow two of
-the VPs. There is no horizon without the VPs. What you CAN show is 'observer eye
-level' ... When the VPs are below/at/above the observer's eye level, it changes
-what you see — whether the top or bottom is visible at all, according to the
-height of the object being where it is in relation, etc. I want a way to make the
-boxes 'solid' with some shading so they are not a blob. I want a way to turn on
-rays that extend to each VP."*
+**THE RULING, 2026-07-30, delivered with three screenshots.** Four things, and
+they set the whole design of this amendment:
+
+- The horizon follows two of the vanishing points, and there is no horizon
+  without them.
+- What CAN always be shown is the observer's EYE LEVEL — a different line.
+- Where the points sit relative to eye level (below, at, above) is what decides
+  what you see of a solid: whether its top or its bottom is visible at all, given
+  the object's own height and where it stands.
+- Boxes need a way to read as SOLID, with shading, rather than as a blob; and the
+  grid needs a way to be turned off.
 
 **D36 — two lines, not one.** Up to 1.4.0 the app stored a horizontal line called
 `horizon` and SLAVED every on-horizon point's y to it. That made the state the
@@ -2322,8 +2331,8 @@ and 692 pixels changing when Rays is switched on. Each was planted-failed first.
 
 ### D34/D35 — drawing without a drag, and no protected colours (SHIPPED 1.4.0, staging)
 
-**Noah, 2026-07-30:** *"Fix those things. There is NO reason that any color be
-protected right now. That was the WRONG call."*
+**THE RULING, 2026-07-30:** no colour in this app is protected from the contrast
+gate, and exempting one was the wrong call.
 
 **D34 — the keyboard can draw (closes F-04).** Two toolbar buttons, **Add line**
 and **Add box**, in their own group labelled "Draw without dragging". Until 1.4.0
@@ -2367,10 +2376,10 @@ two both end with a gate that cannot fail. Only the third is a fix.
 
 ### D33 — the second step says WHICH WAY (SHIPPED 1.3.2, staging)
 
-**Noah, 2026-07-30:** *"When the box drawing switches to the third axis on
-release, it would be helpful to show a double headed arrow on the auto selected
-corner for the second step, aligned with the axis movement direction, to indicate
-the expected user input."*
+**THE REQUEST, 2026-07-30:** when box drawing switches to the third axis on
+release, show a double-headed arrow on the auto-selected corner for the second
+step, aligned with the axis the movement runs along, so the expected input is
+stated.
 
 D31 gave the step a standing strip that says a step is happening. That is the
 announcement §3 asks for, and it is still not an instruction: it names the
@@ -2408,15 +2417,16 @@ the drawing surface was ungated. Selection on paper is 8.68:1 dark / 5.83:1 ligh
 **The carve-out written here at 1.3.2 was wrong and was reversed at 1.4.0.** This
 amendment originally exempted the grid from that gate, on the reasoning that it
 was decorative and that asserting a threshold it failed would be a test written to
-pass. Noah: *"There is NO reason that any color be protected right now. That was
-the WRONG call."* He is right — the third option, the one not taken, was to fix
+pass. THE RULING: no colour is protected from the gate, and exempting one was the
+wrong call. That is right — the third option, the one not taken, was to fix
 the colour. See D35.
 
 ### D30/D31 — three shapes, and the box's second step (SHIPPED 1.3.0, staging)
 
-**Noah, 2026-07-30:** *"Indicate the corner that is the anchor. It currently looks
-the same. Drawing a box *should* be a two-step process, but it should be automatic
-- first square goes in, then the other axis is immediately draggable."*
+**THE REQUEST, 2026-07-30:** the anchor corner must be indicated, because it
+currently looks like every other corner. And drawing a box should be two steps,
+with the second automatic — the first face goes in, and the other axis is then
+immediately draggable.
 
 **D30 — three kinds of corner, three shapes.** Anchor: filled square inside an
 open ring (you placed it; free in the plane; moves the whole shape). Ray: filled
@@ -2476,7 +2486,7 @@ had already drifted apart once (F-05) and drifted again (F-06).
 - History opens at the moved=true transition, which also killed the empty undo
   steps a dead-corner drag used to push.
 - Corners draw as SQUARE handles now. The report was two defects: half the
-  corners did nothing, AND nothing said which half — he had to scrub them.
+  corners did nothing, AND nothing said which half — each one had to be scrubbed.
 - The walk drags one of every kind through real pointer events. It had never
   dragged a vertex at all (F-07), which is why this class shipped twice; on its
   first run it caught a regression I had just made (a deleted box-release branch,
@@ -2484,14 +2494,14 @@ had already drifted apart once (F-05) and drifted again (F-06).
 
 NOT done in 1.2.0, deliberately: splitBoxDepths is untouched. The two-stage
 creation gesture is designed below and is next; retuning the split now would
-break the tall-thin gate, which is Noah's own earlier complaint encoded as a test.
+break the tall-thin gate, which is an earlier report encoded as a test.
 
 ### ULTRACODE ASSESSMENT, 2026-07-30 — the box interaction, and the plan for 1.2.0
 
-Noah, on the shipped 1.1.0: *"There is now no method to draw a box - it's really
-two connected squares because you have no way of reading the third dimension with
-a simple drag. The circled corners ... are the only corners that do anything when
-I drag on them."* Assessed under Fable 5 Ultracode: six investigators, three
+THE DEFECT, on the shipped 1.1.0: there is no way to draw a box at all — what you
+get is two connected squares, because a simple drag gives no way to read the
+third dimension. And on a screenshot with the working corners circled, only those
+responded to a drag. Assessed under Fable 5 Ultracode: six investigators, three
 adversarial verifiers, one completeness critic; every load-bearing number below
 was reproduced by an independent implementation before being recorded. The
 IMPLEMENTING SESSION STARTS HERE.
@@ -2509,8 +2519,8 @@ IMPLEMENTING SESSION STARTS HERE.
   produce two substantial depths. 1.0.0's floor (height/2) had the mirror
   failure (tall-thin impossible). Root cause: a 2-DOF drag cannot state three
   numbers. Each floor choice fixes one report by causing the other.
-- Why Noah found 3 live corners when 4 respond in code (hypothesis, needs his
-  confirmation): nearTop keeps only the vertical component of a drag, so an
+- Why the report found 3 live corners when 4 respond in code (hypothesis, needs
+  on-device confirmation): nearTop keeps only the vertical component of a drag, so an
   off-axis grab on it looks dead — and nothing visually distinguishes a
   draggable corner from a derived one, which is the real discoverability defect.
 
@@ -2589,9 +2599,9 @@ IMPLEMENTING SESSION STARTS HERE.
 - Welcome panel and Box-mode hint re-truthed (the panel currently makes THREE
   false claims — intersect corners and selected lines do not answer arrow keys,
   drawing has no keyboard path); CHANGELOG 1.2.0 CAPABILITY entry; sw.js cache
-  name bumped in the SAME commit or Noah's installed PWA keeps serving 1.1.0
+  name bumped in the SAME commit or an installed PWA keeps serving 1.1.0
   and the whole fix reads as a no-op.
-- Staging only; Noah's iPad pass; no pushes while a deploy is in flight.
+- Staging only; the on-device pass; no pushes while a deploy is in flight.
 
 **Full-app audit beyond the box (priority order):**
 P1 — F-04: drawing a line is still drag-only (the box half closes with stage
@@ -2603,7 +2613,7 @@ Export — §4 says a destructive control never sits beside a routine one, and t
 gate checks size, never spacing. The armed-Clear promise "anything else you
 touch cancels" is false for 8+ controls and the canvas. In Select mode a FINGER
 cannot select anything under default settings (touch pans; only pen selects) —
-the owner-facing report "dragging with my finger" may partly be THIS.
+the report of a corner that would not drag by finger may partly be THIS.
 P2 — Weld preference desyncs from its button on reload (restored pref, button
 shows pressed). The a11y gate never tests the 200%-text case (only the welcome
 walk block does). `.btn.danger` is not actually in the contrast registry while
@@ -2612,20 +2622,19 @@ writes a meaningless t. The canvas's accessible label is static rather than
 describing the drawing. One-finger pan has no alternative with touch-draws on.
 Stale NOTES claims ("nothing is staged").
 DEVICE CAVEAT: every number above is node-on-desktop; iPad Safari is unmeasured
-— the 60Hz margin (25x) makes feasibility safe, but feel needs Noah's hands.
+— the 60Hz margin (25x) makes feasibility safe, but feel needs a real device.
 
 ### D26–D28, and the audit that should have come first
 
-**Noah, 2026-07-30, on the shipped 1.0.0:** five reports at once — off-screen VP
+**FIVE REPORTS AT ONCE, 2026-07-30, on the shipped 1.0.0:** off-screen VP
 markers being mistaken for the points, arrow keys moving nothing, a box corner that
 would not drag, a straight-up box drag changing all three axes, and no first-run
-explanation — ending with *"I don't know how you missed all those design things
-that are part of my doctrine."*
+explanation — every one of them a doctrine rule that had been missed.
 
 **The honest answer, recorded because the next session needs it more than I do:**
 this app was built against the spec and the D-amendments, and §4 was treated as
 satisfied because the a11y gate had been ported from the hub. §4's own text
-contains requirements that were never turned into gates, and every one of his five
+contains requirements that were never turned into gates, and every one of the five
 sits inside one of them. Nothing here was a surprise the doctrine had not already
 named:
 
@@ -2675,8 +2684,8 @@ contrast (SC 1.4.11). Both are findings with numbers now.
 
 ### D25. Clear belongs in the toolbar
 
-**Noah, 2026-07-30, having read D24:** *"Where is clear"* — then *"Add to toolbar
-then promote"*. The verdict on D24's placement is his, and it is the honest one: a
+**THE VERDICT, 2026-07-30, on reading D24:** Clear could not be found, and it
+belongs in the toolbar. That verdict on D24's placement is the honest one: a
 thing called "clear the screen" is not findable one level down inside a panel about
 files. It scrolled below the fold on a narrower iPad too.
 
@@ -2702,7 +2711,7 @@ cross-disarm and the expiry each red their own check.
 
 ### D24. Clearing the screen, as two named actions
 
-**Noah, 2026-07-30:** *"Create a way to clear the screen."* Two actions rather
+**THE REQUEST, 2026-07-30:** create a way to clear the screen. Two actions rather
 than one, because in a perspective tool "clear" means two different things and
 guessing would be wrong half the time: **clear the drawing and keep the points**
 (the setup survives) or **clear everything**. Both live in the Project panel, and
@@ -2728,7 +2737,7 @@ the walk:
 
 ### D22. Welding is a toggle, not a verdict
 
-**Noah, 2026-07-30:** *"Add those two things"* — the two items this file listed as
+**THE INSTRUCTION, 2026-07-30:** build the two items this file listed as
 open. The first was recorded as "restore endpoint joining as a toggle", which was
 stale: D20 had already restored joining. What was missing was the CHOICE between
 0.2.0's behaviour (an end stops exactly where you lift) and 0.5.0's (an end that
@@ -2770,7 +2779,8 @@ unreachable in the app. Corrected at D21 as well, where it was written.
 
 ### D18. There is no plain line
 
-**Noah, 2026-07-29:** *"No 'drawn as plain line.'"* §3.2's angular threshold is
+**THE RULING, 2026-07-29:** there is no such thing as a stroke drawn as a plain
+line. §3.2's angular threshold is
 deleted. A stroke that missed every guide by more than the band used to fall
 through to `free` — the one outcome that is never useful in a perspective tool,
 because it silently returns a line belonging to nothing that will not move when
@@ -2778,12 +2788,12 @@ a point does. Whatever the angle, the nearest guide takes it. `SNAP_THRESHOLD`
 and the per-instrument band D13 added for touch are both gone from the code
 rather than left lying around claiming to do something.
 
-Deliberate escapes are untouched: Assist off and "Guide: none" are his choices.
-The change is that the app no longer makes that choice for him.
+Deliberate escapes are untouched: Assist off and "Guide: none" are the reader's
+choices. The change is that the app no longer makes that choice for them.
 
 ### D19. The guide can be switched mid-stroke
 
-**Noah, 2026-07-29:** *"Allow switching targets mid line?"* Yes. The choice used
+**THE REQUEST, 2026-07-29:** allow the target guide to be switched mid-line. The choice used
 to lock 28 screen px into the drag (D13) and never move, so a stroke aimed
 wrongly had to be lifted, undone and redrawn. The guide is now re-picked on
 every pointer move for the whole stroke, and swinging the finger toward another
@@ -2805,8 +2815,9 @@ it picks its origin.
 
 ### D17. Deleting is always possible, and deleting a guide moves nothing
 
-**Noah, 2026-07-29:** *"I could not delete lines earlier, and VPs said they
-could not be deleted without destroying existing lines."* Two separate faults.
+**TWO DEFECTS REPORTED TOGETHER, 2026-07-29:** lines could not be deleted at all,
+and the app said a vanishing point could not be deleted without destroying
+existing lines. Two separate faults.
 
 **A line could not be selected, so it could not be deleted.** Selection used
 `SNAP_RADIUS` — 12px, a DRAWING tolerance — as a TAP target. Doctrine §4 has
@@ -2819,7 +2830,7 @@ will go with it.
 
 **A vanishing point refused to be deleted.** The refusal was honest about the
 problem — the lines leaning on it would be stranded — and the wrong answer to
-it: his own drawing held his tool hostage. Deleting a point now FREEZES
+it: a drawing was holding its own tool hostage. Deleting a point now FREEZES
 everything that depended on it exactly where it sits: a constructed point
 becomes a plain anchor at its current coordinates, and a line bound to that
 point keeps its geometry and loses only its guide. Not one pixel moves, which
@@ -2832,25 +2843,25 @@ line, then delete a point and prove 0 of N vertices moved.
 
 ### D16. The guide set is exactly VPs + vertical + horizontal. Nothing else anchors a line.
 
-**Noah, 2026-07-29, in anger and correctly:** *"WHY is there ANYTHING besides
-VPs, and perfect vertical and horizontal lines acting as ANCHORS FOR MY LINES?!
-I DIDN'T ASK FOR THAT!!! 45 degrees may be a toggle."*
+**THE RULING, 2026-07-29, emphatic and correct:** NOTHING may anchor a stroke
+except the vanishing points and true vertical and horizontal. No other attractor
+was asked for and none may be assumed; 45° is permitted only as an opt-in toggle.
 
-He is the owner and this OVERRIDES spec §2.4 and the D2 endpoint precedence,
-both of which a session adopted from the handoff without his asking.
+This OVERRIDES spec §2.4 and the D2 endpoint precedence,
+both of which a session adopted from the handoff without being asked to.
 
 - **The guide set is closed:** every unlocked vanishing point, true vertical,
   true horizontal. Optionally the 45°/135° pair, behind a toolbar toggle that
   starts OFF. A property test sweeps 360° of stroke directions and asserts that
   nothing outside that set is ever even offered.
 - **Endpoint anchoring is OFF.** §2.4's "shared vertices are mandatory" merge
-  and D2's snap-onto-an-existing-edge were silently moving the ends of his
+  and D2's snap-onto-an-existing-edge were silently moving the ends of the reader's
   strokes onto earlier geometry — which is exactly what pulled a line off the
   guide it was drawn along. `resolveEndpoint` still supports joining, and the
   app passes `join: false`.
 - **The consequence, stated plainly rather than discovered:** lines no longer
   share corner vertices, so a VP drag swings each line about its own start
-  instead of holding a box together. That is what he asked for. If he wants
+  instead of holding a box together. That is what was asked for. If a later ruling wants
   welding back it is one toggle, not a rebuild — the machinery is intact and
   tested.
 - **What this replaced in the gates:** the walk's check that "strokes starting
@@ -2861,7 +2872,7 @@ both of which a session adopted from the handoff without his asking.
 
 An off-screen vanishing point had only an edge marker to aim at, and that marker
 sits on the ray from the VIEWPORT CENTRE to the point — a compass, not a target.
-Measured on Noah's own scene: VP2's marker drawn at screen x=834 while the
+Measured on the reported scene: VP2's marker drawn at screen x=834 while the
 point's true direction from a stroke's origin left the viewport at x=1819.
 Aiming at the marker was therefore aiming several degrees off the guide, from
 every origin, and no scoring rule can recover an intent the gesture never
@@ -2881,7 +2892,7 @@ gesture at commit.
 ### D12. A binding is a fact about the line, never an aspiration
 
 Added 2026-07-29, from the adversarial audit Doctrine §14 requires once a
-regression has reached Noah's device. It is the same defect class as D11
+regression has reached a real device. It is the same defect class as D11
 wearing a second costume, and it was found by measurement, not by report.
 
 §2.4 makes endpoint merging mandatory — it is what keeps a box coherent when a
@@ -2908,8 +2919,8 @@ again after three VP drags.
 
 ### D11. Guide ranking — a vanishing point outranks an axis, and the drag picks between VPs
 
-Added 2026-07-29 after Noah drew on his iPad and reported **"the lines do not
-converge on the vanishing point."** He was right, and the cause was in the
+Added 2026-07-29 after a report from a real tablet: lines drawn to a vanishing
+point did not converge on it. That was right, and the cause was in the
 scoring of §3.2, not in the solver.
 
 Reproduced headlessly before anything was changed: strokes aimed straight at
@@ -2920,7 +2931,7 @@ other.
 outside the document on the horizon, so the guide toward VP1 is within about a
 degree of horizontal across the whole canvas. `horizontal` was competing on
 equal terms and winning on measurement noise. It is a PARALLEL family: lines
-bound to it converge nowhere, which is exactly the fan he saw. The rule now: an
+bound to it converge nowhere, which is exactly the fan that was reported. The rule now: an
 axis guide only beats the best VP guide if it beats it by more than
 `AXIS_MARGIN` (4°). Inside that band the two lines are visually identical over
 a stroke, and the VP is the constraint the user aimed at — the axes are
@@ -2953,12 +2964,103 @@ lockfile. No `innerHTML` concatenation. Service-worker updates never touch
 IndexedDB.
 
 **Deploy from build-order step 2, not step 10.** Step 5 ("stop and validate") is
-a staging handoff onto Noah's iPad, so the app must be reachable at a preview URL
+a staging handoff onto a real device, so the app must be reachable at a preview URL
 long before the manifest exists. *(Deploy pipeline already live from bootstrap.)*
 
 ---
 
-## Decided by Noah, 2026-08-01 — for the next session
+## The privacy scrub, 2026-08-20
+
+**This repo had never been scanned, and it was the worst of the four.** Both
+halves of the rule were applied: nothing personal about the owner, and never
+quote him or attribute anything to him — which binds source comments, tests,
+tooling, the accessibility gate, CSS, the markup and the workflow files, not
+just the docs.
+
+THE NUMBERS, each read from the tool that produced it:
+
+- `privacy-check.mjs`, from the hub with `--repo .` — **33 attribution sites in
+  22 files** before, 0 after.
+- `quote-check.mjs` — 0 both before and after. There is not one `> *"…`
+  blockquote in this repo, so the one shape that gate covers never occurred
+  here. Green on it said nothing about the repo's state.
+- A grep for the owner's name across every tracked file that is not an image —
+  **254 occurrences in 32 files**, which is the number that describes the actual
+  job. The privacy gate could see 33 of them.
+- A wider quotation sweep than either gate performs, over every tracked `.md`,
+  `.ts`, `.mjs`, `.js`, `.html` and `.yml`: 77 candidates before, 28 after, and
+  every one of the 28 was read and is legitimate.
+- A separate sweep for third-person references that carry no name at all —
+  "his iPad", "he found", "his own drawing" — **49 more sites**, in `NOTES.md`,
+  `snap.mjs`, `solver.mjs`, `ui.mjs`, `walk.mjs` and `a11y.yml`. **None of these
+  is visible to any gate**, and the design record was still tied to a person
+  after the named ones were gone.
+
+WHERE IT WAS. Not the docs — the code. `solver.mjs` carried 15, `ui.mjs` 14,
+`render.mjs` 12, `snap.mjs` 10, `walk.mjs` 19, the tests 20 between them, and
+`app.css`, `index.html` and `sw.js` the rest. `NOTES.md` held 117 on its own.
+
+WHAT WAS REWRITTEN, never deleted. The D-amendments are this repo's design
+record and every one of them keeps its content — what was decided, or what was
+wrong and what it measured:
+
+- A name-and-date prefix followed by a quoted sentence became **THE RULING** /
+  **THE REQUEST** / **THE DEFECT**, dated, stated as the thing itself. D18's no-plain-lines rule, D16's
+  closed guide set, D46's vanishing point on the paper, D63's winding rule, D50's
+  equal intervals, D61's street grid — all intact, none of them in anybody's
+  words.
+- Defects found on a device became the defect, measured: the band of stale pixels
+  along the canvas bottom on 1.7.0, the tall-thin box that changed all three axes,
+  the four corners that answered no input, the toolbar that rearranged itself.
+- A comment header naming whose tablet a defect was found on became `FOUND ON A
+  REAL TABLET`. The device is
+  engineering context — an iPad reports itself as a Mac, which is load-bearing
+  here — but whose device it is, is not.
+- Two sentences carried both a quotation and a fact about a person; in each the
+  fact went rather than being reworded.
+
+THEN THE LITERAL SENTENCES were grepped across every file type, because a
+sentence fixed in one file usually has copies elsewhere. The D63 winding
+argument appeared in five places — `render.mjs`, `snap.mjs`, `NOTES.md`,
+`eye-level-and-horizon.test.mjs` and `CHANGELOG.md` — and the D16 guide-set
+ruling in four. That grep also caught three of my own edits that had cut a
+quotation mid-sentence and left its tail behind, which is a failure mode worth
+naming: **a partial replacement leaves a dangling fragment that still reads as
+somebody's speech.**
+
+**Left in place on purpose, each one read:** the app's own UI strings and toasts,
+the About panel's link to the owner's site under his own byline, the README's
+same link, the reader's voice in design prose, and the licence notice.
+
+VERIFICATION, read from the runs: `npm test` **240 passing, 0 failing**;
+`npm run walk` **PASS, 225 checks**, start screen to offline relaunch, no page
+errors; `npm run interactions` PASS with 7 declared interactions; `npm run a11y`
+PASS, no violations; `notes:check` and `docs-check` exit 0; both hub gates exit 0.
+
+`public/` is touched — comments only, in `app.css`, `index.html` and `sw.js`.
+Nothing rendered changes and no behaviour changes, so **no version bump**: a
+release number for a comment scrub would be a claim about the app that is not
+true. The walk is what says so rather than an assumption.
+
+**The gates are now wired in CI, each watched failing first.** `security.yml`
+already checked the hub out at `main` and ran `docs-check.mjs` and
+`pin-check.mjs`; it now also runs `privacy-check.mjs`, `quote-check.mjs` and
+`branch-guard.mjs --repo . --artefact` beside them. `--artefact` is the only
+spelling that can hold on a runner — the plain check also asserts
+`.git/hooks/pre-commit` is current, and `actions/checkout` leaves `.git/hooks`
+empty by definition. Each gate was verified by planting a SYNTHETIC violation, a
+fabricated sentence rather than a real one, because planting a real quotation to
+prove the gate catches quotations puts it back in a tracked file permanently.
+All three exited 1 on the plant and 0 with it removed.
+
+**The branch guard is installed.** `.branch-guard` declares `work=staging`,
+`promote=main`, `escape=IP_PROMOTE`, and `package.json` gained a `prepare` script
+so `npm ci` reinstalls the hook in every fresh clone and CI job.
+
+**Git history is out of scope and the question is settled.** A history scan
+coming back red is not new information and is not a reason to reopen it.
+
+## Decided 2026-08-01 — for the next session
 
 - **Winding refactor (D63) lands FIRST**, before anything else on this list. It
   is on `d63-winding-wip` with five known walk failures, one of which is a real
@@ -2979,10 +3081,10 @@ long before the manifest exists. *(Deploy pipeline already live from bootstrap.)
   poles. D62's circle built the first curve infrastructure, so it is not from zero,
   but it is the largest item by a distance and it comes after the refactor.
 
-## Closed by Noah, 2026-08-01 — do not re-open, do not re-ask
+## Closed 2026-08-01 — do not re-open, do not re-ask
 
-Two long-standing reports that were never reproduced. **Noah: "You can forget
-these two."** They are dropped as findings; the investigation notes stay in the
+Two long-standing reports that were never reproduced. **Both were explicitly
+dropped by ruling.** They are no longer findings; the investigation notes stay in the
 D45 entry and the 1.7.0 record because what was tried is worth keeping, but
 neither is outstanding and neither should appear in a status list again.
 
@@ -3001,14 +3103,14 @@ costs what the way out costs.
 Still genuinely open, and small: the snap radius is hardcoded where §4 wants it
 adjustable, and target SPACING is ungated (the gate measures size only).
 
-## Verified vs needs Noah's hands
+## Verified vs needs a real device
 
 Machine-verifiable, headless: solver unit tests (projection, intersection,
 topological order, cycle rejection, D3 continuity, D4 degeneracy), acceptance
 tests 1 and 2 driven against the solver, SVG structure, the a11y gate, and the
 2,000-edge framerate once a renderer exists.
 
-Needs his device, and must be labelled UNTESTED until then: Procreate PNG import,
+Needs a real device, and must be labelled UNTESTED until then: Procreate PNG import,
 Inkscape open, iPad standalone airplane-mode cold launch, real stylus
 `SNAP_THRESHOLD` feel, and the iOS canvas ceiling in D9.
 
@@ -3016,12 +3118,12 @@ Inkscape open, iPad standalone airplane-mode cold launch, real stylus
 
 ## Bootstrap order (Doctrine §13) — as run
 
-1. ~~Noah creates the repo~~ — done (as `njefferson/Intersecting-parallels`;
+1. ~~The repo is created~~ — done (as `njefferson/Intersecting-parallels`;
    capital I, which changes nothing — GitHub URLs are case-insensitive and the
    Pages project is lowercase).
 2. ~~Session with both repos selected~~ — this session, 2026-07-29.
 3. ~~CLAUDE.md, LICENSE, NOTES.md, ACCESSIBILITY.md, `staging` and `main`~~ —
    done, and the spec landed later the same day, so build-order step 1 is
    done too (see Status).
-4. Repo metadata — Noah's manual GitHub-UI step, values in Status, unconfirmed.
+4. Repo metadata — a manual GitHub-UI step, values in Status, unconfirmed.
 5. The hub link lands only once the app is actually live. Not yet.

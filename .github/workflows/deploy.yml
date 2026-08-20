@@ -7,7 +7,7 @@ name: Deploy
 # Needs two repo secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
 #
 # Staging deploys exist because the staging gate (Doctrine §7) needs a preview
-# URL Noah can open on his actual iPad before anything is promoted to main.
+# URL that can be opened on a real device before anything is promoted to main.
 # Note: a Pages project with no production deployment serves broken previews
 # (hub LESSONS 7c) — main must deploy at least once before staging URLs work.
 #

@@ -80,8 +80,34 @@ jobs:
       - name: npm hygiene (the half zizmor does not cover)
         run: node .hub/pin-check.mjs --repo .
 
-      - name: No grids in anything Noah reads
+      - name: No grids in anything the owner reads
         run: node .hub/docs-check.mjs .
+
+      # Doctrine §9b — nothing personal about the owner lands in any repo. Run
+      # from the hub's own copy, never forked here: five divergent copies of a
+      # privacy rule is worse than none, and a pattern widened in the hub binds
+      # this repo on its next push with nothing here to drift.
+      - name: Privacy — nothing personal about the owner lands in this repo
+        if: ${{ !cancelled() }}
+        run: node .hub/privacy-check.mjs --repo .
+
+      # THE SECOND HALF OF THE SAME RULE, and the half this repo needed most.
+      # privacy-check.mjs anchors every pattern on the owner's name or role, so
+      # a verbatim sentence of somebody's speech carries neither and passes it.
+      # This holds the other half: every set-apart quotation is declared, and a
+      # quotation of a person is never declarable.
+      - name: Every set-apart quotation says whose words it is
+        if: ${{ !cancelled() }}
+        run: node .hub/quote-check.mjs --repo .
+
+      # --artefact, NEVER the plain check. The plain check also asserts that
+      # .git/hooks/pre-commit is installed and current, which is a fact about
+      # ONE CLONE — and actions/checkout leaves .git/hooks empty by definition,
+      # so that spelling can never hold on a runner. What CI can check is the
+      # TRACKED hook against what .branch-guard declares.
+      - name: The commit guard is the one that was declared
+        if: ${{ !cancelled() }}
+        run: node .hub/branch-guard.mjs --repo . --artefact
 
       # Known-vulnerable trees do not ship. This repo's npm is dev tooling only,
       # but a compromised dev dependency runs on this runner like any other.

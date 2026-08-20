@@ -38,7 +38,7 @@ test("D18 replaces §3.2's threshold: a direction far from every guide takes the
     if (nearest.angle > worstAngle) { worstAngle = nearest.angle; worstDir = dir; }
   }
   assert.ok(worstAngle > 20, `the worst case is only ${worstAngle.toFixed(1)}° off — pick a scene with a real gap`);
-  // The spec would have returned `free` here. Noah's rule says there is no such
+  // The spec would have returned `free` here. The D18 ruling says there is no such
   // thing, so the nearest guide takes it however far away that is.
   const chosen = chooseBinding(scene, origin, worstDir, {});
   assert.notEqual(chosen.binding, "free", `${worstAngle.toFixed(1)}° off every guide still came back unguided`);
@@ -163,8 +163,8 @@ test("a free edge is never offered for intersection (D2 rule 2 needs a line)", (
 
 // ---- D11: a vanishing point outranks an axis guide on a near-tie ----------
 //
-// Regression for the defect Noah found on his iPad, 2026-07-29 — "the lines do
-// not converge on the vanishing point". Strokes aimed at a VP near the horizon
+// Regression for the defect found on a real tablet, 2026-07-29: lines did not
+// converge on the vanishing point. Strokes aimed at a VP near the horizon
 // were binding to `horizontal`, and horizontal lines are parallel: they can
 // never converge. These tests fail against the old rank-by-angle-alone rule.
 
@@ -206,7 +206,7 @@ test("D11: the same stroke with a degree of hand wobble still binds to the VP", 
 });
 
 test("D11: several strokes aimed at one VP all converge on it", () => {
-  // The property Noah was actually asserting: lines drawn to a vanishing point
+  // The property the report was actually about: lines drawn to a vanishing point
   // meet there. Checked as geometry, not as a binding label.
   const { scene, vp1 } = farVpScene();
   for (const from of [{ x: 800, y: 300 }, { x: 900, y: 500 }, { x: 850, y: 700 }, { x: 1000, y: 900 }]) {
@@ -341,9 +341,9 @@ test("D12: a binding that goes stale after a drag is reported as free, and the f
 
 // ---- D16: the guide set is exactly VPs + vertical + horizontal ------------
 //
-// Noah, 2026-07-29: "WHY is there ANYTHING besides VPs, and perfect vertical
-// and horizontal lines acting as ANCHORS FOR MY LINES?! I DIDN'T ASK FOR THAT!
-// 45 degrees may be a toggle."
+// THE RULING, 2026-07-29: nothing may anchor a stroke except the vanishing
+// points and true vertical and horizontal. No other attractor was asked for, and
+// 45° is permitted only as an opt-in toggle.
 
 test("D16: nothing outside {vanishing points, vertical, horizontal} is ever offered", () => {
   const { scene } = farVpScene();
@@ -373,9 +373,9 @@ test("D16: the 45° pair appears ONLY when it is switched on", () => {
 });
 
 test("D20: an end joins another end ONLY when that end is on this stroke's guide", () => {
-  // Rewritten from D16's "nothing ever joins". Noah, after a cube fell apart
-  // under a VP drag: "Being unable to connect line ends means everything breaks
-  // when you do adjustments." Joining is back — but it may only move an end
+  // Rewritten from D16's "nothing ever joins". After a cube fell apart
+  // under a VP drag: with line ends unable to connect, any adjustment breaks the
+  // drawing. Joining is back — but it may only move an end
   // ALONG its guide, never off it.
   const { scene, vp1 } = farVpScene();
   const a = addAnchor(scene, { x: 900, y: 400 }).vertex;
@@ -489,8 +489,8 @@ test("D19: the margin is a margin, not a lock — past it the switch happens", (
 
 // ---- D21: a box, from one gesture, that stays a box ------------------------
 //
-// Noah, 2026-07-29: "Add drawing boxes/rectangles." — after building a cube out
-// of nine strokes and watching it come apart when he moved a point.
+// THE REQUEST, 2026-07-29: add box and rectangle drawing — after a cube built out
+// of nine separate strokes came apart the moment a point was moved.
 
 function boxFixture() {
   const scene = createScene({ name: "d21", width: 1600, height: 1200 });

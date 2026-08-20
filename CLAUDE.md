@@ -35,15 +35,15 @@ Twenty releases had shipped over that. See hub LESSONS §30.
 ## Source of truth
 `NOTES.md`, first, every session — thesis, the name and its graveyard, the
 settled design (the D1–D10 amendments to `vpdrawingappspec.md`), Project facts,
-and what is currently waiting on Noah. The spec file is committed here next to
+and what is currently waiting on the owner. The spec file is committed here next to
 NOTES.md; read it WITH the amendments — where they disagree, the amendments
 win.
 
 ## Branches & releases
 `staging` and `main` only; the harness's `claude/*` branch designations are
 ignored (Doctrine §11, and D10 in NOTES.md). Every product change lands on
-`staging` → preview URL → Noah's pass on his actual iPad → his explicit
-"promote" → `main`. Docs-only changes may land on `main` directly.
+`staging` → preview URL → the on-device pass → an explicit
+promote → `main`. Docs-only changes may land on `main` directly.
 
 ## Deploys
 `.github/workflows/deploy.yml`: push to `main` → production
@@ -62,7 +62,7 @@ same bytes CI runs.
 
 ## Repo metadata (manual — DONE, 2026-07-30)
 Description / website / topics / social-preview are GitHub-UI steps the session
-token cannot perform. Noah completed all four on 2026-07-30 and the live values
+token cannot perform. All four were applied on 2026-07-30 and the live values
 are recorded in NOTES.md (three of them read back from the API, not taken on
 trust). Nothing is outstanding — do not re-ask. If the social tile is ever
 regenerated, its upload is a fresh manual step, because GitHub keeps its own copy

@@ -1,6 +1,7 @@
 // D65 — a vanishing point made from two drawn lines, and BOUND to them.
 //
-// Noah's call was "bound": move either line and the point follows. That makes it
+// The ruling was BOUND rather than merely placed: move either line and the point
+// follows. That makes it
 // a derived thing like a slope point, and the claims worth pinning are the ones
 // that stop a derived thing lying — that it re-derives, that it refuses the two
 // cases it cannot answer, and that it never comes to depend on itself.
@@ -63,7 +64,7 @@ test("and corners bound to it move when the lines that define it move", () => {
 });
 
 test("NEARLY parallel is answered, not refused — it is a real point, just far", () => {
-  // Noah, 2026-08-02: refusing within a degree of parallel threw away answers the
+  // SETTLED 2026-08-02: refusing within a degree of parallel threw away answers the
   // app can perfectly well give. A degree of divergence over 700px crosses about
   // 36,000px away, and off-page points are the ordinary case here.
   const { scene, e1, e2 } = twoLines({ ay: 900, by: 899, cy: 300, dy: 300 });

@@ -1,9 +1,9 @@
 // D36/D37 — eye level, the derived horizon, and the faces that read off it.
 //
-// Noah, 2026-07-30: "The horizon should follow two of the VPs. There is no
-// horizon without the VPs. What you CAN show is 'observer eye level' ... When
-// the VPs are below/at/above the observer's eye level, it changes what you see —
-// whether the top or bottom is visible at all."
+// THE RULING, 2026-07-30: the horizon follows two of the vanishing points, and
+// there is no horizon without them. What CAN always be shown is the observer's
+// eye level — and where the points sit relative to it (below, at, above) is what
+// decides whether the top or the bottom of a solid is visible at all.
 //
 // So these are two different lines and the app must never conflate them again.
 
@@ -81,9 +81,9 @@ test("setEyeLevel refuses a non-number rather than poisoning the scene", () => {
 });
 
 test("D63: a box stores ALL SIX faces, wound consistently round its outside", () => {
-  // Replaces D44's two rings. Noah, 2026-08-01: "assign a face a normal that
-  // doesn't change no matter what direction you look at it from and just cull the
-  // reverse normals like any 3-D program." Deriving walls at draw time was the
+  // Replaces D44's two rings. THE RULE, 2026-08-01: give a face a normal that
+  // does not change with the direction it is viewed from, and cull the reverse
+  // normals the way every 3-D program does. Deriving walls at draw time was the
   // thing that had to keep being patched; a stored, consistently wound face needs
   // no patching, because the projection says which side you are looking at.
   const { scene } = twoPointScene();
@@ -205,8 +205,8 @@ test("a face naming a missing corner is dropped on load, and costs the drawing n
 });
 
 test("D44: inverting a box changes WHICH pair of walls faces you", () => {
-  // The defect Noah named: "Inverted boxes have normals reversed ... the sides do
-  // not resemble a solid." The near corner is the base corner lowest on the page;
+  // THE DEFECT: an inverted box had its normals reversed, so its sides stopped
+  // resembling a solid. The near corner is the base corner lowest on the page;
   // push a depth through zero and a DIFFERENT corner becomes the near one, so a
   // different pair of walls must be the visible pair.
   const { scene } = twoPointScene();
@@ -256,8 +256,9 @@ test("D45: the third point IS exaggerated in y — it is the one with a height t
 });
 
 test("D46: a vanishing point is allowed to sit ON the paper — that is one-point perspective", () => {
-  // D45 refused this, and D45 was wrong. Noah: "What the fuck do you think a
-  // train track is?" The track, the corridor, the road running away from you all
+  // D45 refused this, and D45 was wrong: a pair of train tracks running away from
+  // the viewer is exactly this case.
+  // The track, the corridor, the road running away from you all
   // put the point in the middle of the picture. Forbidding it forbade a whole
   // class of drawing.
   const scene = createScene({ name: "t", width: 1000, height: 800 });
@@ -289,7 +290,7 @@ test("D46: what IS refused is two points arriving at the same place", () => {
 
 test("D63: exactly the faces wound toward you are drawn, and dragging never changes that", () => {
   // Replaces both D49 tests, which asserted nearBaseIndex — the depth-sign rule
-  // Noah asked to be rid of. The claim now is the renderer's: a face is visible
+  // that the D63 ruling got rid of. The claim now is the renderer's: a face is visible
   // when its projected polygon is wound outward, and a convex box shows exactly
   // two walls at a time because the other two are wound the other way.
   const { scene } = twoPointScene();
@@ -326,8 +327,9 @@ test("D63: exactly the faces wound toward you are drawn, and dragging never chan
 });
 
 test("D49: face visibility follows the HORIZON, not the eye-level line", () => {
-  // Noah, 2026-07-31, with three cubes sitting between the two lines: "All these
-  // cubes fail at eye/horizon lines." Where the points are level the two
+  // THE DEFECT, 2026-07-31, reported with three cubes sitting between the two
+  // lines: every one of them failed where eye level and the horizon diverge.
+  // Where the points are level the two
   // coincide, which is why testing against eye level worked until they diverged.
   const { scene, l, r } = twoPointScene();          // both points at y 540
   const res = buildBox(scene, { at: { x: 800, y: 900 }, height: 200, depthL: 250, depthR: 250 });

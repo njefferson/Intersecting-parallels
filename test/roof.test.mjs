@@ -148,7 +148,7 @@ test("deleting the point a slope hangs from leaves the slope where it is", () =>
 
 // D60 — the gable midpoint holds a FRACTION of its edge, not a length.
 //
-// Noah, 2026-08-01, with two screenshots of a house pulled into a crossed
+// THE DEFECT, 2026-08-01, from two screenshots of a house pulled into a crossed
 // tangle. Push a box through a vanishing point and a depth goes negative (D39):
 // the gable edge flips to the other side of its origin. A midpoint that stored a
 // LENGTH stayed behind on the old side, which put the ridge outside the building
@@ -183,7 +183,7 @@ test("the gable middle stays ON its gable when a depth inverts", () => {
 });
 
 // The visible symptom — a roof plane crossing itself — is asserted in walk.mjs,
-// against the sequence that actually produced it on Noah's device. A unit fixture
+// against the sequence that actually produced it on a real device. A unit fixture
 // was tried here first and dropped: it holds the midpoint off its own gable, which
 // the test above catches, but its numbers never fold into a bowtie, so the check
 // passed against all three planted faults. A check that cannot fail is worse than

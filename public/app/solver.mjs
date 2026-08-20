@@ -22,7 +22,7 @@
 
 export const SCHEMA_VERSION = 3;   // 3 adds circles (D62)
 export const SNAP_RADIUS = 12;        // §2.4 — canvas px; the call site scales by zoom
-export const SNAP_THRESHOLD = 15;     // §12 — degrees; tunable once Noah has stylus time
+export const SNAP_THRESHOLD = 15;     // §12 — degrees; tunable once there is stylus time behind it
 export const PARALLEL_EPS = 1e-9;     // D4 — on the cross product of unit vectors
 export const EPS_LEN_FACTOR = 1e-6;   // D4 — × canvas diagonal → EPS_LEN
 
@@ -69,8 +69,8 @@ export function bindingDirection(scene, originPos, binding) {
 
 // D36a — THE MIGRATION, and the one boundary it has to run at.
 //
-// FOUND ON NOAH'S IPAD, 2026-07-30, on 1.5.0: "There are no VPs on the page and I
-// cannot add any, now." His saved drawing was written by an older build, so it
+// FOUND ON A REAL TABLET, 2026-07-30, on 1.5.0: no vanishing points on the page,
+// and no way to add any. The saved drawing had been written by an older build, so it
 // carried `horizon` and no `eyeLevel`; the first render read `scene.eyeLevel.y`,
 // threw, and took the panel down with it. Every point was still in the file. The
 // app just could not draw a single one of them, or itself.
@@ -105,7 +105,7 @@ export function migrateScene(raw) {
 
 // D62 — A CIRCLE IN PERSPECTIVE, WHICH IS NOT NEW GEOMETRY.
 //
-// Noah asked for wheels, arches and domes. The temptation is a new kind of thing
+// Wheels, arches and domes were asked for. The temptation is a new kind of thing
 // with its own position and radius that has to be kept in step with everything
 // else. It is not one: a circle is a FACT ABOUT FOUR CORNERS — the square it is
 // inscribed in — and those are ordinary vertices the solver already holds. So a
@@ -412,11 +412,11 @@ function solveRay(scene, v, index) {
   // D39 — SIGNED t, so a depth can be pushed THROUGH its origin and out the
   // other side. This is the amendment that lets a box invert.
   //
-  // Noah, 2026-07-30: "Pulling/pushing only moves the front left point away from
-  // the user, it never crosses over and comes on the other side inverting the
-  // box."
+  // THE DEFECT, 2026-07-30: pulling or pushing only ever moved the front-left
+  // point away from the viewer. It never crossed over to the other side, so the
+  // box could not be inverted.
   //
-  // He was hitting D3's fold. D3 solved position as origin + s·|t|·u with `s`
+  // That is D3's fold. D3 solved position as origin + s·|t|·u with `s`
   // chosen to MINIMISE DISPLACEMENT from the last solve, which exists for a real
   // reason: when a vanishing point crosses its own origin, `u` reverses, and
   // without that rule every dependent corner would leap to the far side. But the
@@ -547,8 +547,9 @@ export function moveAnchor(scene, vertexId, { x, y }) {
 
 // ---- D29: one entry for every manipulation --------------------------------
 //
-// Noah, 2026-07-30, on 1.1.0: "The circled corners in this image are the only
-// corners that do anything when I drag on them ... the rest do nothing." Half a
+// THE DEFECT, 2026-07-30, reported against 1.1.0 with the working corners
+// circled in a screenshot: only some corners respond to a drag, and the rest do
+// nothing at all. Half a
 // box's corners are `intersect` vertices — each the crossing of two guide lines —
 // and nothing in the app could move one. They were not refused, they were
 // SILENTLY inert: the drag branch had cases for anchor and ray and fell through,
@@ -760,8 +761,8 @@ export function moveVp(scene, vpId, { x, y }) {
 // unrepresentable; that state is exactly what the tutorial has to show.
 // D42 — FORCED PERSPECTIVE, as an artist means it.
 //
-// Noah, 2026-07-30: "It means exaggerating for an artist's reference, sometimes
-// in cartoons rather than reality."
+// THE DEFINITION GIVEN, 2026-07-30: it means exaggerating for an artist's
+// reference — sometimes for cartooning rather than for reality.
 //
 // So the control is not a measuring-point construction that guarantees a true
 // cube — that is the other request, the honest-geometry one, and it is not this.
@@ -777,11 +778,12 @@ export function moveVp(scene, vpId, { x, y }) {
 // time it was used.
 // D46 — a vanishing point may sit ANYWHERE, INCLUDING ON THE PAPER.
 //
-// Noah, 2026-07-30: "You are dead wrong when you tell the user that putting a
-// vanishing point on the paper makes it cease being a vanishing point. What the
-// fuck do you think a train track is?"
+// THE CORRECTION, 2026-07-30, and the app was flatly wrong: it told the reader
+// that placing a vanishing point on the paper stopped it being a vanishing
+// point. A pair of train tracks running away from the viewer is exactly that
+// case, and it is the most ordinary one there is.
 //
-// He is right, and D45 was wrong on the substance rather than on its threshold.
+// That is right, and D45 was wrong on the substance rather than on its threshold.
 // One-point perspective puts the vanishing point IN THE MIDDLE OF THE PICTURE —
 // the track, the corridor, the road running away from you. A point on the paper
 // is not a failure state, it is the most ordinary construction there is, and
@@ -843,8 +845,8 @@ export function setEyeLevel(scene, y) {
 }
 
 // D36 — the horizon, derived. It is the line through the points that declare
-// themselves on it, and Noah's rule is flat: "There is no horizon without the
-// VPs." Fewer than two, and this returns null and NOTHING is drawn — an app that
+// themselves on it. THE RULE IS FLAT: there is no horizon without the vanishing
+// points. Fewer than two, and this returns null and NOTHING is drawn — an app that
 // draws a horizon anyway is asserting a fact it does not have.
 //
 // Two points at the same place cannot define a line either; that is null too,
@@ -871,10 +873,10 @@ export function horizonLine(scene) {
 
 // D17 — a vanishing point can always be deleted, and deleting it moves nothing.
 //
-// Noah, 2026-07-29: "VPs said they could not be deleted without destroying
-// existing lines." The app refused the deletion outright, which is the wrong
-// answer to a real problem: the lines that lean on that point would be left
-// with no guide. Refusing makes his own drawing hold his tool hostage.
+// THE DEFECT, 2026-07-29: the app said a vanishing point could not be deleted
+// without destroying existing lines, and refused the deletion outright. That is
+// the wrong answer to a real problem: the lines leaning on that point would be
+// left with no guide. Refusing lets a drawing hold its own tool hostage.
 //
 // What happens instead: everything that depended on the point is FROZEN EXACTLY
 // WHERE IT SITS. A constructed point becomes a plain anchor at its current
@@ -976,13 +978,13 @@ export function addFace(scene, { loop, solid, shade }) {
 
 // ---- D50 — equal intervals in depth -------------------------------------
 //
-// Noah, 2026-07-31, asked what would be useful to artists. This is the thing
-// underneath all of it: putting marks at EQUAL WORLD INTERVALS going away from
-// you. Fence posts, floor tiles, window bays, the buildings along a street. On
-// paper it is done with diagonals — cross a square corner to corner, and the
-// crossing is its centre in perspective. Until now every depth in this app was
-// eyeballed, which means a "city block" would have been my guess at spacing
-// rather than the artist's.
+// FROM THE QUESTION of what would actually be useful to an artist, 2026-07-31.
+// This is the thing underneath all of it: putting marks at EQUAL WORLD INTERVALS
+// going away from you. Fence posts, floor tiles, window bays, the buildings
+// along a street. On paper it is done with diagonals — cross a square corner to
+// corner, and the crossing is its centre in perspective. Until now every depth
+// in this app was eyeballed, which means a "city block" would have been this
+// code's guess at spacing rather than a construction.
 //
 // It needs no diagonals and no camera calibration, because the answer is exact
 // projective geometry. Along a line running to a vanishing point, let D be the
@@ -1112,7 +1114,7 @@ export function addFigure(scene, { at, ratio = 1 }) {
 
 // ---- D52 — the interior room -------------------------------------------
 //
-// Third of the three Noah asked for, and the only one that is a NEW KIND of
+// Third of the three that were asked for, and the only one that is a NEW KIND of
 // thing rather than more of what exists. A room is a box you are INSIDE, and
 // that inverts everything the box code assumes: you see the far wall, the floor,
 // the ceiling and both side walls, and the surface nearest you — the opening you
@@ -1130,9 +1132,9 @@ const ROOM_MIN = 0.05, ROOM_MAX = 0.95;
 
 // D61 — a street. Buildings down both sides, crossroads, and the alleys behind.
 //
-// Noah, 2026-08-01: "buildings on both sides of a road with one point perspective
-// and alleys/crossroads all sound cool. Maybe draw a grid of lines that act as
-// streets and then plot them with buildings?"
+// THE REQUEST, 2026-08-01: buildings down both sides of a road in one-point
+// perspective, with alleys and crossroads — built as a grid of lines acting as
+// streets, which is then plotted with buildings.
 //
 // Nothing new is invented here. The whole thing is three amendments already in
 // the app, pointed at one construction:
@@ -1225,9 +1227,9 @@ export function buildStreet(scene, { vpId, at, width = 420, block = 300, blocks 
 
   const built = [];
   // No storeys is not an empty city, it is a STREET PLAN — the grid on its own,
-  // to draw over. Noah's own two-step description ("draw a grid of lines that act
-  // as streets and then plot them with buildings") has the grid as a thing in its
-  // own right, and an artist wanting to place buildings by hand wants exactly the
+  // to draw over. The two-step description the request came in — lay a grid of
+  // lines that act as streets, then plot buildings onto them — has the grid as a
+  // thing in its own right, and an artist placing buildings by hand wants exactly the
   // lines and none of the massing.
   if (storeys && storeys.length) {
     for (let i = 0; i < plots.length; i++) {
@@ -1411,8 +1413,9 @@ export function addSlopePoint(scene, { vpId, rise, label }) {
 // with the walls, which is the entire reason it is derived rather than placed.
 // D65 — a vanishing point made from TWO DRAWN LINES, and BOUND to them.
 //
-// Noah, 2026-08-01: "Maybe creating vanishing points as the intersection of two
-// drawn lines." Bound, on his call — move either line and the point follows.
+// THE REQUEST, 2026-08-01: create vanishing points as the intersection of two
+// drawn lines. Bound rather than merely placed, which was the explicit part —
+// move either line and the point follows.
 //
 // This is how you find a point in a photograph: draw along two edges of a
 // building that are parallel in the world, and where they cross is where they
@@ -1440,8 +1443,8 @@ export function edgeLine(scene, edgeId) {
 
 // How far a point can be before moving it further stops changing the drawing.
 //
-// Noah, 2026-08-02: "If the difference cannot be discerned on the screen past a
-// certain level then all past that level can be ignored." Derived rather than
+// THE RULING, 2026-08-02: once the difference cannot be discerned on screen past
+// a certain distance, everything past it can be treated as the same. Derived rather than
 // picked: lines aimed at a point R away deviate from truly parallel by about
 // L/R radians, so across a page of diagonal L they land about L²/R from where
 // parallel lines would. Setting that under half a pixel gives R = 2L².
@@ -1457,13 +1460,14 @@ export function vpReach(scene) {
 // Where two lines cross, ALWAYS — the near-parallel case included.
 //
 // This used to refuse anything within about a degree of parallel, on the grounds
-// that the crossing "stops meaning anything". Noah, 2026-08-02, and he is right:
+// that the crossing "stops meaning anything". That was corrected 2026-08-02, and
+// the correction is right:
 // a degree of divergence over 700px crosses 36,000px away, which is a real point
 // the app already draws edge markers for. Refusing it threw away answers it could
 // perfectly well give.
 //
 // Past parallel needs no handling at all: the determinant changes sign and the
-// crossing comes back from the other side by itself. That is his second point and
+// crossing comes back from the other side by itself. That is the second half of the ruling and
 // it falls out of doing the arithmetic signed.
 //
 // So only EXACTLY parallel is left, and it gets a point rather than an error —

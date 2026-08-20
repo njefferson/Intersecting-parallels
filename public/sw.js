@@ -36,8 +36,8 @@ const SHELL = [
 // previous release's HTML and JavaScript; taking over underneath it leaves the
 // old code running against the new cache, and the old cache is deleted on
 // activate, so anything the old page asks for afterwards is served the NEW
-// file. Old markup, new modules, no reload, and nothing said. Noah, 2026-08-03:
-// "the app could not show if it was old and stuck."
+// file. Old markup, new modules, no reload, and nothing said. THE DEFECT,
+// 2026-08-03: the app had no way to show that it was old and stuck.
 //
 // So the new worker WAITS. The page notices it waiting, offers a reload, and
 // only then is SKIP_WAITING sent. Until the reader accepts, they keep a

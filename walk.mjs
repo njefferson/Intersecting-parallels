@@ -164,10 +164,10 @@ try {
     bindings.length > 0 && bindings.every(b => b !== 'free'), `bindings: ${bindings.join(', ')}`);
 
   // This check has been inverted twice, and the history is the point rather
-  // than an embarrassment: §2.4 required merging, D16 removed it because Noah
-  // objected to anything but a guide influencing his lines, and D20 brought it
-  // back for ENDS ONLY after he found that without it "everything breaks when
-  // you do adjustments". The settled rule: joining may move an end ALONG its
+  // than an embarrassment: §2.4 required merging, D16 removed it because the
+  // ruling was that nothing but a guide may influence a line, and D20 brought it
+  // back for ENDS ONLY once it turned out that without it a drawing came apart
+  // under any adjustment. The settled rule: joining may move an end ALONG its
   // guide, never off it, so three strokes from one point SHARE that corner —
   // which is what holds a drawing together under a vanishing-point drag.
   const corner = s.scene.edges.map(e => e.a);
@@ -373,17 +373,17 @@ try {
     perf.median <= 33,
     `best-of-three median ${perf.median.toFixed(1)}ms (all three: ${perf.allMedians.join(', ')}), worst frame ${perf.worst.toFixed(1)}ms`);
   check('2,000 edges stay finite under drag', perf.finite);
-  steps.push(`     (headless Chromium on a CI runner — a real iPad is Noah's to confirm)`);
+  steps.push(`     (headless Chromium on a CI runner — a real iPad still has to confirm it)`);
 
   // ---- 9. lines drawn to a vanishing point CONVERGE on it (D11) ----------
   //
-  // Noah found this on his iPad on 2026-07-29: "the lines do not converge on
-  // the vanishing point." The walk was green at the time, because §2 above
+  // FOUND ON A REAL TABLET, 2026-07-29: the lines did not converge on the
+  // vanishing point. The walk was green at the time, because §2 above
   // checked that each stroke carried SOME binding — a label — and every stroke
   // did: `horizontal`. Horizontal lines are parallel; they converge nowhere.
   //
-  // So this checks the GEOMETRY, which is what he was actually looking at, and
-  // it draws with real touch events because that is what his hand sends.
+  // So this checks the GEOMETRY, which is what the report was actually about, and
+  // it draws with real touch events because that is what a finger sends.
   const touchCtx = await browser.newContext({
     viewport: { width: 1100, height: 800 }, colorScheme: 'dark', hasTouch: true,
   });
@@ -460,8 +460,8 @@ try {
 
   // ---- 10. deleting things works, and deleting a guide moves nothing (D17)
   //
-  // Both reported by Noah, 2026-07-29: "I could not delete lines earlier, and
-  // VPs said they could not be deleted without destroying existing lines."
+  // BOTH REPORTED 2026-07-29: lines could not be deleted at all, and the app
+  // said a vanishing point could not be deleted without destroying existing lines.
   // Selecting used a 12px tolerance as a TAP target, and VP deletion refused
   // outright. Checked here through the real UI, by touch.
   const delCtx = await browser.newContext({
@@ -546,9 +546,9 @@ try {
 
   // ---- 11. a box, from one gesture, that survives a drag (D21 + D20) -------
   //
-  // Noah drew a cube out of nine strokes and it came apart when he moved a
-  // point: "Being unable to connect line ends means everything breaks when you
-  // do adjustments." A box built here must still be a box afterwards.
+  // A cube drawn out of nine separate strokes came apart the moment a point was
+  // moved: with line ends unable to connect, any adjustment breaks the drawing.
+  // A box built here must still be a box afterwards.
   const boxCtx = await browser.newContext({
     viewport: { width: 1194, height: 834 }, colorScheme: 'dark', hasTouch: true,
   });
@@ -1350,7 +1350,7 @@ try {
   // horizontal face is decided by the vanishing line the points define; the
   // eye-level line is a drawn reference that coincides with it when the points
   // are level. These checks moved the reference and expected the drawing to
-  // follow, which was the old rule and is the defect Noah photographed.
+  // follow, which was the old rule and is the photographed defect.
   // Through moveVp, which RE-SOLVES. This used to poke `vp.y` on the scene object
   // and never solve, which worked only because the old rule read the vanishing
   // points live at draw time: move the points, and the answer changed without any
@@ -1756,7 +1756,7 @@ try {
     `edge ${sized.edge} against a nearest point ${sized.nearest} away`);
   await cubeCtx.close();
 
-  // D43 — the canvas artifact Noah photographed on production 1.7.0: a band of
+  // D43 — the canvas artefact photographed on production 1.7.0: a band of
   // stale, squashed pixels along the bottom that survived a Clear. The backing
   // store is cleared in full now, so SHRINKING the stage cannot strand a strip.
   const shrinkCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'light' });
@@ -1873,7 +1873,7 @@ try {
     low.left !== low.right && Math.sign(low.left - low.right) === Math.sign(high.left - high.right),
     `below ${low.left}/${low.right}, above ${high.left}/${high.right}`);
 
-  // The band Noah photographed: eye level and the horizon pulled apart, with the
+  // The photographed band: eye level and the horizon pulled apart, with the
   // box between them. The HORIZON is what decides.
   const band = await hzPage.evaluate(async () => {
     const s = window.__ip.scene;
@@ -2334,7 +2334,7 @@ try {
 
   // D60 — a house pushed through a vanishing point must not tangle.
   //
-  // Noah, 2026-08-01, screenshots IMG_1361/1362: the house pulled into a crossed
+  // THE DEFECT, 2026-08-01, from two screenshots: the house pulled into a crossed
   // mess when a corner was dragged far. Crossing a vanishing point inverts a
   // depth (D39), which flips a gable edge to the other side of its origin; the
   // gable MIDPOINT held a stored length, so it stayed behind on the old side and
@@ -2436,8 +2436,8 @@ try {
 
   // D55 — pressing a toggle must not MOVE anything, including itself.
   //
-  // Noah, 2026-08-01, with two screenshots of the same panel: "Buttons move when
-  // used." The tick was drawn only in the pressed state, so a button got wider
+  // THE DEFECT, 2026-08-01, from two screenshots of the same panel: buttons moved
+  // when they were used. The tick was drawn only in the pressed state, so a button got wider
   // the moment it was switched on, and .setup-row wraps — tapping Solid pushed
   // Hidden lines onto the next line and slid Eye level down a row, under a
   // finger already on its way to where they used to be.
@@ -2620,7 +2620,8 @@ try {
     JSON.stringify(notes));
 
   // D69 — Choose image is a real, focusable button, and it is the FIRST thing in
-  // Setup. Noah, 2026-08-02: "Where do I load the image?" — it was a <label>
+  // Setup. THE DEFECT, 2026-08-02: there was no finding where an image is
+  // loaded — it was a <label>
   // dressed as a button, five sections down.
   const pick = await uiPage.evaluate(() => {
     const b = document.getElementById('underlay-pick');
@@ -2946,7 +2947,7 @@ try {
 
   // D58 — the toolbar must not rearrange itself because the DRAWING changed.
   //
-  // Noah sent two screenshots taken seconds apart in which the zoom group had
+  // Two screenshots taken seconds apart showed the zoom group having
   // moved from the end of row one to the start of row two and Setup/Points/Clear
   // had slid from the left of that row to the right. Nothing had been touched but
   // the canvas: the guide picker is a <select>, a select is as wide as its longest
@@ -2988,7 +2989,7 @@ try {
 
   // D57 — Touch draws is ON THE BAR, and both directions cost one tap.
   //
-  // Noah, 2026-08-01: "'Touch draw' shouldn't be buried in menus." The way OUT
+  // THE RULING, 2026-08-01: "Touch draws" must not be buried in a menu. The way OUT
   // was already free — the standing flag carries its own Turn off — so turning it
   // off was one tap and turning it on was three. The check measures the round
   // trip from a clean load with nothing open, because a control that is only
@@ -3052,8 +3053,8 @@ try {
 
   // D36a — BOOTING ON A DRAWING SAVED BY AN OLDER BUILD.
   //
-  // Noah, on 1.5.0: "There are no VPs on the page and I cannot add any, now."
-  // His saved scene carried `horizon` and no `eyeLevel`, the first render threw
+  // THE DEFECT, on 1.5.0: no vanishing points on the page, and no way to add any.
+  // The saved scene carried `horizon` and no `eyeLevel`, the first render threw
   // on it, and the panel died with the canvas. Every point was still in the file.
   //
   // No walk context could ever have caught that, because every one of them starts
@@ -3135,7 +3136,7 @@ try {
   check('the app boots on a scene from an older build, with its points intact (D36a)',
     cameUp && booted.points >= 2,
     booted.dead
-      ? 'the app never came up at all — this is exactly what Noah saw'
+      ? 'the app never came up at all — this is exactly the reported failure'
       : `${booted.points} points, ${oldErrors.length} page errors${oldErrors[0] ? `: ${oldErrors[0].slice(0, 90)}` : ''}`);
   check('the old horizon became eye level, keeping its number',
     booted.eyeLevel === downgraded.horizon && booted.staleField === undefined && booted.faces && booted.schema === 3,   // D62 raised it; a v1 file still migrates all the way up
@@ -3156,8 +3157,8 @@ try {
     `${booted.points} -> ${added.points} points, ${added.rows} rows`);
   await oldCtx.close();
 
-  // D29 — the four corners that did nothing. This is the defect class Noah
-  // reported and NO gate could see it: before this block the walk never dragged a
+  // D29 — the four corners that did nothing. This is the reported defect class
+  // that NO gate could see: before this block the walk never dragged a
   // vertex of any kind, only vanishing points.
   const kCtx = await browser.newContext({ viewport: { width: 1194, height: 834 }, colorScheme: 'dark' });
   await seenWelcome(kCtx);
@@ -3367,7 +3368,7 @@ try {
     `${zoomed.before.toFixed(2)} -> in ${zoomed.inz.toFixed(2)} -> out ${zoomed.outz.toFixed(2)} -> fit ${zoomed.fit.toFixed(2)}`);
   await oCtx.close();
 
-  // §7f — the diagnostic report. Noah is asked for THIS rather than for a
+  // §7f — the diagnostic report. Ask for THIS rather than for a
   // screenshot, and that only holds if the text answers the question a
   // screenshot cannot: not "what does it look like" but WHY something is wrong.
   // So these checks are about the faults it names and the REASONS it gives for
@@ -3420,8 +3421,8 @@ try {
     check('and it states the privacy position instead of leaving it to be guessed (§7f)',
       /no account, no network and no location/.test(clean), clean.slice(-140));
 
-    // The first real report Noah sent said "Macintosh; Intel Mac OS X 10_15_7"
-    // — which is what iPadOS Safari sends too. On an iPad-first project the one
+    // The first report from a real device carried "Macintosh; Intel Mac OS X
+    // 10_15_7" — which is what iPadOS Safari sends too. On an iPad-first project the one
     // fact most worth having was the one the report could not carry, and a
     // 1180x581 viewport is equally plausible either way. maxTouchPoints cannot
     // be spoofed by a compatibility UA; the browser string can.
@@ -3527,7 +3528,7 @@ try {
     await dCtx.close();
   }
 
-  // Noah, 2026-08-03: "the app could not show if it was old and stuck."
+  // THE DEFECT, 2026-08-03: the app had no way to show that it was old and stuck.
   //
   // An offline app that will not update looks perfectly fine — it is just old,
   // and that is invisible from outside by construction, because caching is

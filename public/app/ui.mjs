@@ -139,9 +139,10 @@ function positionMarkers(vp) {
     }
     // D27 — an off-screen marker must not read as the point itself.
     //
-    // Noah, 2026-07-30: "The VP indicators, when the VP is off screen, need an
-    // arrow or something because I keep confusing them as the real VP." He is
-    // describing the same class of mistake D15 fixed for aiming: the marker is a
+    // THE DEFECT, 2026-07-30: the off-screen VP indicators are repeatedly
+    // mistaken for the vanishing point itself, and need an arrow or some other
+    // mark saying which way the real point lies. That is
+    // the same class of mistake D15 fixed for aiming: the marker is a
     // COMPASS, not the point. It sits on the ray from the viewport centre, so it
     // is nowhere near where the point actually is.
     //
@@ -645,8 +646,8 @@ el.canvas.addEventListener("pointerdown", ev => {
     const c = toCanvas(view, p);
     // D17: SNAP_RADIUS is 12px — a drawing tolerance, and far too small to be
     // a TAP target. Doctrine §4 wants 44px, so selecting uses HANDLE_HIT (22px
-    // radius) like every other handle. Noah could not delete a line because he
-    // could not hit one.
+    // radius) like every other handle. A line could not be deleted because it
+    // could not be hit in the first place.
     const pick = HANDLE_HIT / view.scale;
     const v = nearestVertex(scene, c, pick);
     selection = v ? { type: "vertex", id: v.id } : null;
@@ -655,10 +656,10 @@ el.canvas.addEventListener("pointerdown", ev => {
       const e = nearestEdge(scene, c, pick);
       selection = e ? { type: "edge", id: e.id } : null;
     }
-    // D26 — and it can be DRAGGED. Noah, 2026-07-30: "I tried dragging a box
-    // corner with my finger and it would not move." It did not: a corner had a
-    // numeric field and nothing else, which fails §3's direct manipulation ("what
-    // he touches must respond") even though it satisfied the non-drag half of
+    // D26 — and it can be DRAGGED. THE DEFECT, 2026-07-30: dragging a box corner
+    // with a finger did not move it. It did not: a corner had a
+    // numeric field and nothing else, which fails §3's direct manipulation —
+    // what the reader touches must respond — even though it satisfied the non-drag half of
     // §4's pair. Both halves are required, and the keyboard nudge above is this
     // drag's declared alternative.
     if (v) {
@@ -833,7 +834,7 @@ el.canvas.addEventListener("pointermove", ev => {
     //
     // §3.2 says take the direction after ~10 CANVAS px and decide once. At a
     // fit-to-screen zoom that is about five SCREEN pixels, which on a fingertip
-    // is the roll of the finger settling, not an aim. Measured on Noah's scene:
+    // is the roll of the finger settling, not an aim. Measured on the reported scene:
     // a stroke aimed at VP2 came out 9.2° off its guide while VP1's line — the
     // same line ridden backwards — sat 9.6° away, so which point captured the
     // stroke was a coin toss, and one in six landed on VP1 and missed VP2 by
@@ -1027,8 +1028,9 @@ function adoptScene(next, { keepView = false } = {}) {
   // D36a — EVERY scene enters here: from storage at boot, from a project file,
   // from undo, from New. So the migration runs here and nowhere else, because a
   // migration that only guards one door is not a migration. This is the fix for
-  // "There are no VPs on the page and I cannot add any" — the points were never
-  // gone, the first render just threw on a field an older file did not have.
+  // the D36a defect — no vanishing points on the page and no way to add any. The
+  // points were never gone; the first render just threw on a field an older file
+  // did not have.
   scene = migrateScene(next);
   view.scene = scene;
   if (!keepView) fitView(view, viewport());
@@ -1052,7 +1054,7 @@ function newScene({ width, height, points }) {
 
 // D26 — a SELECTED thing answers the arrow keys.
 //
-// Noah, 2026-07-30: "The arrow keys on my keyboard are not moving anything."
+// THE DEFECT, 2026-07-30: the arrow keys moved nothing.
 // Measured on the shipped build: tapping a corner filled the inspector, left focus
 // on <body>, and three arrow presses moved it 0px. The nudge existed only on the
 // vanishing-point rows in the panel — a keyboard path for one kind of object and
@@ -1142,9 +1144,9 @@ function maybeShowWelcome() {
 
 // D31 — a box is two steps, and the second one is automatic.
 //
-// Noah, 2026-07-30: "Drawing a box *should* be a two-step process, but it should
-// be automatic - first square goes in, then the other axis is immediately
-// draggable." A drag carries two numbers and a box needs three, so the first drag
+// THE REQUIREMENT, 2026-07-30: drawing a box should be two steps, and the second
+// should be automatic — the first face goes in, and the other axis is then
+// immediately draggable. A drag carries two numbers and a box needs three, so the first drag
 // states the near face — height, and depth toward the vanishing point you drag
 // toward — and the remaining depth is left live under the finger instead of
 // needing a handle to be found and grabbed.
@@ -1322,7 +1324,7 @@ viewToggle("eye-level", "eyeLevel",
   "Eye level shown",
   "Eye level hidden — the horizon, where the points define one, is still drawn");
 
-// D42 — square, cube, skyscraper. The exercise Noah asked for, as three moves.
+// D42 — square, cube, skyscraper. The exercise that was asked for, as three moves.
 //
 // A cube here is EQUAL DISTANCES ALONG EACH GUIDE, not a measuring-point
 // construction. That is deliberate and it is the difference between the two
@@ -1332,7 +1334,7 @@ viewToggle("eye-level", "eyeLevel",
 // D45 — a cube's edge is a fraction of how far away the points are, not a fixed
 // number of canvas units.
 //
-// Noah placed one after pressing Stronger and got a slab spanning the paper. A
+// Placing one after pressing Stronger produced a slab spanning the paper. A
 // fixed 220 is a sensible cube when the points are 2,000 away and a wildly
 // foreshortened plank when they are 400 away, because what matters is the edge
 // AS A FRACTION of the distance to the point it runs toward. Sized from the
@@ -1498,7 +1500,7 @@ function addRoom() {
 // coarsen — and saying that plainly is better than an opt-in nobody needs.
 // What the user-agent string CANNOT tell you, which on this project is most of
 // what matters. iPadOS Safari sends the macOS UA — "Macintosh; Intel Mac OS X
-// 10_15_7" — so the first real report from Noah's own device was indistinguishable
+// 10_15_7" — so the first report from a real tablet was indistinguishable
 // from a desktop Mac, on a project whose every decision is iPad-first. A 1180x581
 // viewport is equally plausible either way.
 //
@@ -1910,9 +1912,9 @@ function addCircle() {
 
 // D61 — a street: buildings down both sides, crossroads, and the alleys behind.
 //
-// Noah, 2026-08-01: "buildings on both sides of a road with one point perspective
-// and alleys/crossroads all sound cool. Maybe draw a grid of lines that act as
-// streets and then plot them with buildings?" This is that, in one action — the
+// THE REQUEST, 2026-08-01: buildings down both sides of a road in one-point
+// perspective, with alleys and crossroads, built from a grid of lines acting as
+// streets which is then plotted with buildings. This is that, in one action — the
 // grid IS the streets, and the plots it makes are what the buildings stand on.
 //
 // The heights are a fixed pattern rather than a random one, and the zeroes in it
@@ -2039,10 +2041,10 @@ $("assist").addEventListener("click", () => {
   autosaver.poke();
 });
 
-// D16: the 45° pair is the ONE optional extra Noah allowed, and it starts off.
+// D16: the 45° pair is the ONE optional extra the D16 ruling allowed, and it starts off.
 // D22 — welding, as a toggle rather than a verdict. Default ON: that is 0.5.0's
-// behaviour, and the reason it exists is that Noah's cube fell apart without it.
-// Off is the 0.2.0 behaviour he originally asked for, and it is a legitimate
+// behaviour, and the reason it exists is that a cube fell apart without it.
+// Off is the 0.2.0 behaviour originally asked for, and it is a legitimate
 // choice — the guide still decides direction either way (D18), so this can never
 // hand back a line that belongs to nothing.
 $("weld")?.addEventListener("click", () => {
@@ -2085,17 +2087,18 @@ $("redo").addEventListener("click", () => {
 // D41 — the number of vanishing points is a property of the SCENE, not a button
 // you can lean on.
 //
-// Noah, 2026-07-30: "Adding or removing VPs has no effect on existing geometry.
-// Scenes should be scoped to the number of vanishing points on the screen ...
-// that number probably should not be changed, unless you can redraw the drawing."
+// THE DEFECT AND THE RULE, 2026-07-30: adding or removing a vanishing point had
+// no effect on existing geometry. A scene is scoped to the number of vanishing
+// points it was drawn under, and that number should not change unless the
+// drawing can be redrawn with it.
 //
-// He is right twice over. A new point cannot retro-fit itself to lines that were
+// Both halves are right. A new point cannot retro-fit itself to lines that were
 // built without it, so offering the button once there is a drawing offers a
 // change the app cannot honour. And a single rectilinear object has at most three
 // vanishing points — one per axis — so a fourth is not a stricter setting, it is
 // a point nothing can ever bind to.
 //
-// It is also how he ended up with a screen full of them: on 1.5.0 the app was
+// It is also how a screen full of them accumulated: on 1.5.0 the app was
 // dead but this button still worked, so every hopeful tap added one more.
 const MAX_VPS = 3;
 
@@ -2503,7 +2506,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) autos
     // boot does NOT go through adoptScene and a scene reaching render() without
     // the fields render() reads takes the whole app down before window.__ip even
     // exists — no canvas, no panel, no way to add a point. That is exactly what
-    // 1.5.0 did to Noah's saved drawing.
+    // 1.5.0 did to a saved drawing on a real device.
     scene = migrateScene(restored.scene);
     if (restored.prefs) prefs = { ...prefs, ...restored.prefs };
     $("snap45")?.setAttribute("aria-pressed", String(prefs.snap45));

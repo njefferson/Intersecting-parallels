@@ -9,9 +9,13 @@
     "node": ">=20"
   },
   "scripts": {
+    "prepare": "node ../noahjefferson/branch-guard.mjs --repo . --install || true",
     "a11y": "node a11y-gate.mjs",
     "a11y:verbose": "node a11y-gate.mjs --verbose",
     "test": "node --test",
+    "privacy": "node ../noahjefferson/privacy-check.mjs --repo .",
+    "quotes": "node ../noahjefferson/quote-check.mjs --repo .",
+    "guard": "node ../noahjefferson/branch-guard.mjs --repo . --artefact",
     "render:icons": "node render-icons.mjs",
     "render:og": "node render-og.mjs",
     "render:art": "node render-art.mjs",

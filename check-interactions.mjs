@@ -11,7 +11,7 @@
 //   · a declared gap cites a finding that is not in ACCESSIBILITY.md.
 //
 // Why it exists: without it, "every drag has a non-drag path" is prose, and prose
-// loses to whoever is in a hurry. Noah found V1 shipping with a corner that could
+// loses to whoever is in a hurry. V1 shipped with a corner that could
 // not be dragged AND could not be nudged — two halves of one rule, both missing,
 // both invisible to every gate the app had.
 

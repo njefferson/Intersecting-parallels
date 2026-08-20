@@ -80,9 +80,9 @@ information. The selection colour, which carries the selected corner, the select
 edge and D33's extrude arrow, measures **8.68:1 dark / 5.83:1 light**.
 
 **Nothing is carved out.** The first version of this file exempted the grid
-because it measured 1.38:1 and could be called decorative. Noah's ruling on
-2026-07-30 — *"There is NO reason that any color be protected right now. That was
-the WRONG call."* — was correct, and the exemption is gone. A drawing app's grid
+because it measured 1.38:1 and could be called decorative. THE RULING on
+2026-07-30 was that no colour in this app is protected from the gate, and that
+the exemption had been the wrong call. It was correct, and the exemption is gone. A drawing app's grid
 is not decoration: it is how scale and position are read off the paper. Exempting
 the single thing that failed is how a gate becomes a formality.
 
@@ -207,7 +207,7 @@ left of it. Both controls stay visible and hittable.
 screenshots at the same view.
 
 ### F-04 · Drawing a line or a box is drag-only — no keyboard path
-**Found:** 2026-07-30 · by Noah, on the shipped 1.0.0, and by the interaction
+**Found:** 2026-07-30 · on the shipped 1.0.0, and by the interaction
 declaration written the same day
 **Rule:** Doctrine §4 (tremor is a supported condition) / WCAG 2.2 SC 2.5.7
 **Detail:** Every other manipulation in the app has a non-drag path — points,
@@ -235,7 +235,7 @@ asserted that the number had changed.
 **Status:** CLOSED 2026-07-30, in 1.4.0.
 
 ### F-05 · A selected corner answered no keys, and could not be dragged
-**Found:** 2026-07-30 · by Noah, on the shipped 1.0.0
+**Found:** 2026-07-30 · on the shipped 1.0.0
 **Rule:** Doctrine §3 (direct manipulation) and §4 (keyboard always, SC 2.5.7)
 **Detail:** Tapping a corner filled the inspector but left focus on `<body>`, and
 arrow keys moved nothing — measured at `(805.3, 645.1)` before and after three
@@ -251,16 +251,16 @@ one code path so they cannot disagree.
 declaration now fails the build if either disappears.
 
 ### F-06 · Half a box's corners could not be moved by any means
-**Found:** 2026-07-30 · by Noah, on the shipped 1.1.0, with a screenshot
+**Found:** 2026-07-30 · on the shipped 1.1.0, from a screenshot
 **Rule:** Doctrine §3 (direct manipulation) and §4 (keyboard always, SC 2.5.7)
 **Detail:** A box's eight corners are one anchor, three that ride a guide, and
 FOUR that are the crossing of two guide lines. The drag handler had branches for
 the first two kinds and fell through for the third, so those four moved for no
 pointer, no key and no number field. Worse than inert: the drag pushed an empty
 undo step and announced "Corner at x, y" as if something had happened, so the app
-reported success while doing nothing. Noah: *"The circled corners in this image
-are the only corners that do anything when I drag on them ... the rest do
-nothing."* He circled three of the four live ones — the fourth keeps only the
+reported success while doing nothing. THE REPORT arrived as a screenshot with
+the working corners circled: only those responded to a drag and the rest did
+nothing. Three of the four live ones were circled — the fourth keeps only the
 vertical part of a drag, so an off-axis grab on it also looks dead.
 **Fix (1.2.0):** `manipulate()` in the solver, one entry for drag, arrow keys and
 numeric fields. A crossing corner has no parameters of its own, so its position is
@@ -276,7 +276,7 @@ arrow keys reach the same corners by the same path.
 **Found:** 2026-07-30 · while fixing F-06
 **Rule:** Doctrine §6 (a gate, not an intention)
 **Detail:** Before 1.2.0 `walk.mjs` never dragged a vertex of any kind — only
-vanishing points. So the entire class of defect Noah reported was invisible to
+vanishing points. So the entire reported class of defect was invisible to
 every gate the app had, which is why it shipped twice.
 **Fix (1.2.0):** the walk drags an anchor, a guide-riding corner and a crossing
 corner through real pointer events, and asserts the geometry afterwards.
@@ -284,7 +284,7 @@ corner through real pointer events, and asserts the geometry afterwards.
 box-release branch that produced 0 edges — before that reached staging.
 
 ### F-08 · A long press started an iOS text selection on the drawing surface
-**Found:** 2026-07-30 · by Noah, on 1.3.0
+**Found:** 2026-07-30 · on 1.3.0
 **Rule:** Doctrine §4 (tremor is a supported condition; no gesture may require
 speed) / WCAG 2.5.2
 **Detail:** `touch-action: none` stopped scrolling and pinch-zoom on the canvas,
@@ -299,7 +299,7 @@ reproduce a platform gesture headlessly.
 **Status:** FIXED 1.3.1.
 
 ### F-09 · A destructive confirmation appeared far from the control it was about
-**Found:** 2026-07-30 · by Noah, on 1.3.0
+**Found:** 2026-07-30 · on 1.3.0
 **Rule:** Doctrine §4 (a control's meaning must be findable) and §3 (modes
 announce themselves where they are)
 **Detail:** Arming the toolbar Clear put its confirmation — "Tap Clear again to

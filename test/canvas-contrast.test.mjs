@@ -6,8 +6,8 @@
 // build rather than reaching an iPad.
 //
 // EVERY mark is covered. There was a version of this file that exempted the
-// grid because it measured 1.38:1 and was "decorative"; Noah's ruling on
-// 2026-07-30 was that no colour is protected, and he was right. A drawing app's
+// grid because it measured 1.38:1 and was "decorative". THE RULING, 2026-07-30:
+// no colour in this app is protected from the gate, and that is right. A drawing app's
 // grid is not decoration — it is how you read scale and position off the paper.
 // Exempting the one thing that failed is how a gate becomes a formality.
 

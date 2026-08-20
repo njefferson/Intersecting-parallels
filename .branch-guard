@@ -1,0 +1,5 @@
+# Every product change lands on staging and waits for the on-device pass; main
+# is production and a push there deploys (CLAUDE.md, Doctrine 7).
+work=staging
+promote=main
+escape=IP_PROMOTE

@@ -4,7 +4,7 @@ What changed, written for the person using the app (Doctrine §5). Numbers are
 `version.capability.iteration`; every entry says which kind it is. The service
 worker's cache name carries the same triplet.
 
-Noah decides what counts as a version — the first slot, what the app IS.
+The owner decides what counts as a version — the first slot, what the app IS.
 
 ---
 
@@ -29,8 +29,8 @@ reader would otherwise rediscover, and they show in the app beside the fixes.
 
 **The app tells you when it has gone out of date.**
 
-Noah, on reading the first diagnostic report: *"the app could not show if it was
-old and stuck."* It was worse than not showing it.
+Found on reading the first diagnostic report: the app had no way to show that it
+had gone old and stuck. It was worse than not showing it.
 
 - **When a new version is ready, a bar appears saying so** — with **Reload** and
   **Later**, and the reassurance that your drawing is saved. It never interrupts
@@ -56,8 +56,8 @@ old and stuck."* It was worse than not showing it.
 
 **The report now says which device you are actually on.**
 
-From the first report Noah sent from his own device, which said
-*"Macintosh; Intel Mac OS X 10_15_7"* — the string an iPad sends too.
+From the first report sent from a real device, which named the platform as
+"Macintosh; Intel Mac OS X 10_15_7" — the string an iPad sends too.
 
 - **Device.** Whether this is a touch device or a desktop, how many touch
   points, the screen size, and whether the app is running from your home screen
@@ -561,7 +561,7 @@ From the first report Noah sent from his own device, which said
 
 ## 1.7.1 — ITERATION · 2026-07-30
 
-**Two things Noah photographed on 1.7.0.**
+**Two things photographed on 1.7.0.**
 
 - **The band of streaky rubbish along the bottom of the paper is gone.** The
   drawing surface was being wiped over the area the window currently occupies
@@ -764,7 +764,7 @@ corner drag above. A proper two-stage box gesture is designed and next.
 
 ## 1.1.0 — CAPABILITY · 2026-07-30
 
-**Everything Noah found on V1, and the gates that should have caught it.**
+**Everything found on V1, and the gates that should have caught it.**
 
 - **A corner moves now.** Tap one and drag it — an anchored corner goes where you
   put it, a corner riding a guide slides along that guide. It could not be dragged
@@ -787,11 +787,11 @@ corner drag above. A proper two-stage box gesture is designed and next.
 
 ## 1.0.0 — VERSION · 2026-07-30
 
-**Version 1. Noah's call.**
+**Version 1, declared.**
 
 Everything below this line was built and tested in two days, and this is the build
-he decided is the thing itself rather than the way there. Nothing was added to earn
-the number — the release is 0.6.1 plus the one change he asked for on reading it:
+declared to be the thing itself rather than the way there. Nothing was added to earn
+the number — the release is 0.6.1 plus the one change asked for on reading it:
 
 - **Clear is in the toolbar now**, next to Points, not buried in Project. It clears
   the drawing and keeps your vanishing points, which is the one you reach for. The
@@ -1001,7 +1001,7 @@ you moved that point.
 
 **Lines drawn to a vanishing point now actually meet there.**
 
-Noah drew four lines at a vanishing point on his iPad and they fanned out
+Four lines drawn at a vanishing point on a real tablet fanned out
 instead of converging. They had been captured by the *horizontal* guide, which
 sits within a degree of a vanishing point that is far away and near the
 horizon — and horizontal lines are parallel, so they meet nowhere.

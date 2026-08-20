@@ -67,8 +67,8 @@ test("weld off refuses a CROSSING too, not only a nearby corner", () => {
 // ---- D23 -----------------------------------------------------------------
 
 test("a straight-up drag makes a TALL THIN box — depth does not follow height", () => {
-  // Noah, 2026-07-30: "I tried creating a tall, narrow, thin box, but dragging
-  // straight up changed all three axis." It did: the depth floor used to be
+  // THE DEFECT, 2026-07-30: a tall, narrow, thin box could not be drawn, because
+  // dragging straight up changed all three axes. It did: the depth floor used to be
   // height/2. Straight up must mean tall and nothing else.
   const { scene } = twoPointScene();
   const shortDrag = splitBoxDepths(scene, { x: 800, y: 900 }, { x: 800, y: 800 });

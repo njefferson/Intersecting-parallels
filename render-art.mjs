@@ -25,15 +25,16 @@ if (existsSync(SANDBOX_CHROMIUM)) launchOpts.executablePath = SANDBOX_CHROMIUM;
 const NAVY_TOP = "#0A0F1E", NAVY_LOW = "#101B33";
 const AMBER = "#F2A65A", AMBER_HI = "#F8D6A2", CYAN = "#58C6E0";
 
-// Two ways out of the constraint the wide frame runs into, so Noah picks rather
-// than being handed one silently:
-//   wide-in   the third point stays INSIDE the frame, as he drew it, which forces
-//             the horizon points inward (d > s) and a short focal length.
-//   wide-out  the horizon points stay near the edges, as he drew them, which
+// Two ways out of the constraint the wide frame runs into, so the choice is made
+// deliberately rather than handed over silently:
+//   wide-in   the third point stays INSIDE the frame, as the reference sketch has
+//             it, which forces the horizon points inward (d > s) and a short focal length.
+//   wide-out  the horizon points stay near the edges, as the sketch has them, which
 //             forces the third point below the bottom of the frame — its rays
 //             still converge, visibly, on a point just off-picture.
-// The camera stays CLOSE and the lens stays wide. Noah: "Extreme perspective is
-// FINE! It's the point!" — pushing the city back to soften the near corner was
+// The camera stays CLOSE and the lens stays wide. THE RULING: extreme
+// perspective is not a problem to be softened, it is the subject —
+// pushing the city back to soften the near corner was
 // sanding off the subject of the app. What close framing costs is composure, not
 // correctness, so it is bought back by LAYOUT: the lots nearest the camera on the
 // nadir's side are left empty, which keeps the third vanishing point visible at
@@ -44,14 +45,14 @@ const DOWNTOWN = city({
   // The nearest lots take narrower footprints. Measured against the icon window:
   // full-width, lot -2,0 painted out to x=1173 against an edge at 1182, so it read
   // as sliced off. Narrower, and taller to match, they read as towers instead of
-  // tabletops. (Noah: "Get rid of the buildings on the right which go off the icon,
-  // or reshape them to fit narrower.")
+  // tabletops. (THE FIX ASKED FOR: either remove the buildings on the right that
+  // run off the icon, or reshape them narrower to fit.)
   shrink: { "-1,-1": [0.72, 0.72], "-1,0": [0.74, 0.70], "-1,1": [0.62, 0.58] },
   // Height runs with DISTANCE, and that is forced, not styled: a tower taller than
   // the camera crosses the horizon, and a NEAR one doing that leaves the top of the
   // frame entirely (measured at 440px above it). So the towers that break eye level
   // stand mid-distance, and the near lots are low — which is exactly the
-  // arrangement in Noah's reference sketch.
+  // arrangement in the reference sketch.
   heights: {   // -2,-1 and -2,-2 empty: the nearest lot projects to y=4869, a stray slab across the icon window's bottom edge
                    "-1,-1": 0.46, "-1,0": 0.52, "-1,1": 0.34,   // -1,-2 empty: it covered the nadir
                     "0,-1": 0.94,  "0,0": 1.34,  "0,1": 0.80,   // 0,-2 empty
@@ -71,12 +72,13 @@ const SKYLINE = city({
 });
 
 // The chosen social-tile composition, named, because the icon is now a square
-// WINDOW onto this same scene rather than a second drawing of it. Noah: "Could the
-// icon not just be a crop of the social review tile?" — it can, and it should: a
+// WINDOW onto this same scene rather than a second drawing of it. THE QUESTION
+// that settled it: could the icon not simply be a crop of the social tile? It
+// can, and it should: a
 // crop cannot disagree about the perspective, whereas two separately framed scenes
-// with different camera distances did, which is what he spotted.
+// with different camera distances did — which is the discrepancy that was spotted.
 //
-// It cannot be a crop of the PIXELS, though. His two horizon points are 662px
+// It cannot be a crop of the PIXELS, though. The sketch's two horizon points are 662px
 // apart and the tile is 630px tall, so no square region of the raster contains
 // both. Taking the window in scene coordinates instead gives the same lines with
 // more sky above them, which is a crop of the drawing rather than of the file.
@@ -93,7 +95,7 @@ const VARIANTS = [
     name: "icon-asdrawn", out: "art/icon-asdrawn.svg", w: 1024, h: 1024,
     vps: { A: { x: 68, y: 168 }, B: { x: 950, y: 168 }, C: { x: 512, y: 940 } },
     cluster: { x: 512, y: 452 }, unitPx: 118, hScale: 0.80, grid: [[-2.5, 3.5], [-2.5, 3.5]], step: 0.5, raster: "art/icon-asdrawn.png",
-    note: "Noah's icon layout, unchanged — it is already a valid camera",
+    note: "the reference icon layout, unchanged — it is already a valid camera",
   },
   {
     name: "icon-tight", out: "art/icon-tight.svg", w: 1024, h: 1024,

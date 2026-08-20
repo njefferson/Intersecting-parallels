@@ -6,7 +6,7 @@ non-drag control satisfying each one. A declared interaction with no declared
 alternative FAILS the build, and a declaration that matches nothing FAILS rather
 than being skipped."*
 
-It did not exist until 1.1.0, and its absence is exactly why Noah found two of
+It did not exist until 1.1.0, and its absence is exactly why V1 shipped with two of
 these missing on the shipped V1: a box corner could not be dragged at all, and a
 selected corner answered no keys. **Tremor is a supported condition** — a
 drag-only interaction is a broken interaction (WCAG 2.2 SC 2.5.7), and a
