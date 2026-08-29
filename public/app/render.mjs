@@ -249,7 +249,7 @@ function sideOfHorizon(scene, p) {
 // points swap sides. Under this rule that is not a special case: the projection
 // mirrors, every winding flips, and you correctly see the other side of the box.
 //
-// It also ends the eye-level involvement he is objecting to. Nothing here asks
+// It also ends the eye-level involvement that was reported as wrong. Nothing here asks
 // where the horizon is. A box below your eye shows its top because its top face
 // projects wound-outward from where you are, not because a line was consulted.
 function signedArea(loop, byId) {

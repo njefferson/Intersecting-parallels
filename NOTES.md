@@ -2973,7 +2973,8 @@ long before the manifest exists. *(Deploy pipeline already live from bootstrap.)
 
 **This repo had never been scanned, and it was the worst of the four.** Both
 halves of the rule were applied: nothing personal about the owner, and never
-quote him or attribute anything to him — which binds source comments, tests,
+quote the owner or attribute anything to the owner — which binds source
+comments, tests,
 tooling, the accessibility gate, CSS, the markup and the workflow files, not
 just the docs.
 
@@ -2991,7 +2992,7 @@ THE NUMBERS, each read from the tool that produced it:
   `.ts`, `.mjs`, `.js`, `.html` and `.yml`: 77 candidates before, 28 after, and
   every one of the 28 was read and is legitimate.
 - A separate sweep for third-person references that carry no name at all —
-  "his iPad", "he found", "his own drawing" — **49 more sites**, in `NOTES.md`,
+  possessive and third-person forms carrying no name — **49 more sites**, in `NOTES.md`,
   `snap.mjs`, `solver.mjs`, `ui.mjs`, `walk.mjs` and `a11y.yml`. **None of these
   is visible to any gate**, and the design record was still tied to a person
   after the named ones were gone.
@@ -3029,7 +3030,7 @@ naming: **a partial replacement leaves a dangling fragment that still reads as
 somebody's speech.**
 
 **Left in place on purpose, each one read:** the app's own UI strings and toasts,
-the About panel's link to the owner's site under his own byline, the README's
+the About panel's link to the owner's site under that byline, the README's
 same link, the reader's voice in design prose, and the licence notice.
 
 VERIFICATION, read from the runs: `npm test` **240 passing, 0 failing**;

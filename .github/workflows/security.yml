@@ -13,12 +13,17 @@ name: Security
 #
 # Finding them once is worth little; this is what keeps them found.
 #
-# WHY THE HUB IS CHECKED OUT: zizmor is pinned by version AND hash in the hub's
-# .github/requirements-ci.txt, which is canonical there so every app is audited
-# by the same build. `pip install zizmor` floats on whatever PyPI serves that
-# morning — an unpinned binary executing beside a deploy token is exactly threat
-# #2 in SECURITY.md. Copying the file here instead would fork it, and a forked
-# pin is a pin that stops being updated.
+# THE HUB'S GATES ARE CALLED NOW, NOT COPIED. zizmor is pinned by version AND
+# hash in the hub's .github/requirements-ci.txt, and the gates are the hub's
+# files, so this used to check the hub out and run eight steps against it. It
+# calls the hub's reusable workflow instead: one pin, and a gate added in the
+# hub arrives here on the next bump instead of when somebody remembers.
+#
+# THE PIN IS A COMMIT, AND THAT IS THE CHANGE THAT MATTERS MOST HERE. This
+# workflow used to check the hub out at `ref: main` — a moving reference, in the
+# file whose entire subject is that `pip install zizmor` floating on whatever
+# PyPI serves that morning is threat #2. The same argument was being made and
+# not applied to the checkout making it.
 
 on:
   push:
@@ -39,6 +44,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  hub-gates:
+    uses: njefferson/noahjefferson/.github/workflows/hub-gates.yml@1de7828224ca881480deb5980e362bfb949eb682
+    with:
+      pwa: true
+      zizmor: true
+
   audit:
     runs-on: ubuntu-latest
     steps:
@@ -48,66 +59,9 @@ jobs:
           # zizmor: artipacked — the finding this workflow exists because of.
           persist-credentials: false
 
-      # The hub is public, so this needs no token. Pinned to the same SHA as the
-      # checkout above by using the same action; the hub REF is main because the
-      # pinned-tool file is meant to move when the pin is bumped.
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          repository: njefferson/noahjefferson
-          ref: main
-          path: .hub
-          persist-credentials: false
-
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22
-
-      - name: Install zizmor (version- and hash-pinned, from the hub)
-        run: |
-          python3 -m venv "$RUNNER_TEMP/zizmor"
-          "$RUNNER_TEMP/zizmor/bin/pip" install --quiet --only-binary=:all: \
-            --require-hashes -r .hub/.github/requirements-ci.txt
-
-      # --strict-collection is REQUIRED and is not the default. Without it a
-      # workflow with a YAML error is logged at WARN, skipped, and the run still
-      # exits 0 printing "No findings to report. Good job!" — so the file most
-      # likely to be wrong is the one that never gets audited (hub LESSONS §25).
-      - name: Workflow security audit
-        run: |
-          "$RUNNER_TEMP/zizmor/bin/zizmor" --offline --strict-collection \
-            .github/workflows/
-
-      - name: npm hygiene (the half zizmor does not cover)
-        run: node .hub/pin-check.mjs --repo .
-
-      - name: No grids in anything the owner reads
-        run: node .hub/docs-check.mjs .
-
-      # Doctrine §9b — nothing personal about the owner lands in any repo. Run
-      # from the hub's own copy, never forked here: five divergent copies of a
-      # privacy rule is worse than none, and a pattern widened in the hub binds
-      # this repo on its next push with nothing here to drift.
-      - name: Privacy — nothing personal about the owner lands in this repo
-        if: ${{ !cancelled() }}
-        run: node .hub/privacy-check.mjs --repo .
-
-      # THE SECOND HALF OF THE SAME RULE, and the half this repo needed most.
-      # privacy-check.mjs anchors every pattern on the owner's name or role, so
-      # a verbatim sentence of somebody's speech carries neither and passes it.
-      # This holds the other half: every set-apart quotation is declared, and a
-      # quotation of a person is never declarable.
-      - name: Every set-apart quotation says whose words it is
-        if: ${{ !cancelled() }}
-        run: node .hub/quote-check.mjs --repo .
-
-      # --artefact, NEVER the plain check. The plain check also asserts that
-      # .git/hooks/pre-commit is installed and current, which is a fact about
-      # ONE CLONE — and actions/checkout leaves .git/hooks empty by definition,
-      # so that spelling can never hold on a runner. What CI can check is the
-      # TRACKED hook against what .branch-guard declares.
-      - name: The commit guard is the one that was declared
-        if: ${{ !cancelled() }}
-        run: node .hub/branch-guard.mjs --repo . --artefact
 
       # Known-vulnerable trees do not ship. This repo's npm is dev tooling only,
       # but a compromised dev dependency runs on this runner like any other.
