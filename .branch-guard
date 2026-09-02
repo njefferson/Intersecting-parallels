@@ -1,5 +1,13 @@
 # Every product change lands on staging and waits for the on-device pass; main
 # is production and a push there deploys (CLAUDE.md, Doctrine 7).
+#
+# And the hub commit is written in two files here — the marker this repo has
+# reconciled with, and the pin CI checks the hub out at to run the shared
+# gates. They are the same fact and they drift silently, and when they do the
+# shared gates go green while running rules this repo has already adopted and
+# they have never heard of. It is repo-local ON PURPOSE, because a gate
+# validating the pin cannot itself be fetched at that pin. (Hub LESSONS §117.)
+also=tools/hub-pin-check.mjs
 work=staging
 promote=main
 escape=IP_PROMOTE
